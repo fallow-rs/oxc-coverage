@@ -160,10 +160,6 @@ fn lines_metric(file: &FileCoverage) -> Metric {
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::float_cmp,
-    reason = "pct values are deterministically rounded to two decimals; exact comparison is intentional"
-)]
 mod tests {
     use oxc_coverage_types::parse_coverage_map;
 

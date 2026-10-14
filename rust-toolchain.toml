@@ -2,5 +2,5 @@
 # Pinned so local builds use the same toolchain as CI. The MSRV is declared in
 # the workspace `Cargo.toml` and enforced by the dedicated MSRV job; this file
 # pins the lint and formatter floor.
-channel = "1.96"
+channel = "1.99.0"
 components = ["clippy", "rustfmt"]
