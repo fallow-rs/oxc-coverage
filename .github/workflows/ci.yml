@@ -198,7 +198,7 @@ jobs:
       # not be bumped for you. Check and move it deliberately:
       #   uv tool run zizmor@latest --version
       # then update the version here; the local check target follows.
-      - run: uvx zizmor@1.27.0 --config .github/zizmor.yml --min-confidence medium --format plain .github/
+      - run: uvx zizmor@1.28.0 --config .github/zizmor.yml --min-confidence medium --format plain .github/
 
   napi:
     name: Napi Test
