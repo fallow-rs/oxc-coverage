@@ -45,6 +45,12 @@ assert_file_equal() {
   assert_equal "$(<"$file")" "$expected" "$context"
 }
 
+assert_file_differs() {
+  if cmp -s "$1" "$2"; then
+    fail "$3 fixture did not change the workflow"
+  fi
+}
+
 workflow_check_has_linux_profile_step() {
   local workflow="$1"
   local step_name="$2"
@@ -185,9 +191,10 @@ STRIP_SHELL_COMMENT_AWK='
 workflow_job_has_deterministic_npm() {
   local workflow="$1"
   local job="$2"
-  local allow_bootstrap="$3"
+  local bootstrap="$3"
+  local expected_ci="$4"
 
-  awk -v job="$job" -v allow_bootstrap="$allow_bootstrap" "$STRIP_SHELL_COMMENT_AWK"'
+  awk -v job="$job" -v bootstrap="$bootstrap" -v expected_ci="$expected_ci" "$STRIP_SHELL_COMMENT_AWK"'
 
     function has_npm_token(text) {
       return text ~ /(^|[^[:alnum:]_])npm([^[:alnum:]_]|$)/
@@ -200,11 +207,11 @@ workflow_job_has_deterministic_npm() {
     $0 == "  " job ":" { in_job = 1; next }
     in_job && $0 ~ /^  [[:alnum:]_-]+:$/ { exit }
     !in_job { next }
-    $0 == "        run: npm ci" {
+    $0 == "        run: npm ci --ignore-scripts" {
       ci_count++
       next
     }
-    allow_bootstrap && $0 == "        run: npm install -g npm@11.12.1" {
+    bootstrap != "" && $0 == "        run: " bootstrap {
       bootstrap_count++
       next
     }
@@ -230,17 +237,18 @@ workflow_job_has_deterministic_npm() {
       continued_command = line
     }
     END {
-      expected_bootstrap = allow_bootstrap ? 1 : 0
-      exit(!invalid && ci_count == 1 && bootstrap_count == expected_bootstrap ? 0 : 1)
+      expected_bootstrap = bootstrap != "" ? 1 : 0
+      exit(!invalid && ci_count == expected_ci && bootstrap_count == expected_bootstrap ? 0 : 1)
     }
   ' "$workflow"
 }
 
 release_workflow_has_deterministic_npm() {
   local workflow="$1"
-  workflow_job_has_deterministic_npm "$workflow" prepublish 1 || return 1
-  workflow_job_has_deterministic_npm "$workflow" build 0 || return 1
-  workflow_job_has_deterministic_npm "$workflow" publish 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" prepublish "npm install -g --ignore-scripts npm@11.12.1" 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" build "" 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" prepare-npm "npm install -g --ignore-scripts npm@11.12.1" 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" publish "npm install --global --ignore-scripts npm@11.19.0" 0 || return 1
   ! grep -Eq 'npm@latest' "$workflow"
 }
 
@@ -282,7 +290,7 @@ release_workflow_uses_strict_pack_check() {
       }
     }
 
-    $0 == "  publish:" {
+    $0 == "  prepare-npm:" {
       in_job = 1
       next
     }
@@ -613,12 +621,28 @@ if ! workflow_version_sync_has_node_and_profile "$workflow"; then
   fail "CI version-sync job is missing Node.js 22 or the metadata validation profile"
 fi
 release_workflow="$ROOT/.github/workflows/release-npm.yml"
-if ! workflow_job_has_need "$release_workflow" publish-crate build; then
-  fail "release publish-crate job must depend on build"
-fi
-if ! workflow_job_has_need "$release_workflow" publish publish-crate; then
-  fail "release publish job must depend on publish-crate"
-fi
+while read -r job dependency; do
+  if ! workflow_job_has_need "$release_workflow" "$job" "$dependency"; then
+    fail "release $job job must depend on $dependency"
+  fi
+  missing_release_need="$TMP/missing-$job-need.yml"
+  awk -v job="$job" -v dependency="$dependency" '
+    $0 == "  " job ":" { in_job = 1 }
+    in_job && $0 ~ /^  [[:alnum:]_-]+:$/ && $0 != "  " job ":" { in_job = 0 }
+    in_job && $0 == "    needs: " dependency { next }
+    { print }
+  ' "$release_workflow" >"$missing_release_need"
+  assert_file_differs "$missing_release_need" "$release_workflow" "$job dependency"
+  if workflow_job_has_need "$missing_release_need" "$job" "$dependency"; then
+    fail "release dependency validator accepted missing $job -> $dependency"
+  fi
+done <<'RELEASE_DEPENDENCIES'
+prepublish release-source
+build prepublish
+publish-crate build
+prepare-npm publish-crate
+publish prepare-npm
+RELEASE_DEPENDENCIES
 if ! release_workflow_has_deterministic_npm "$release_workflow"; then
   fail "npm release must use exact npm and strict lockfile installation"
 fi
@@ -692,7 +716,7 @@ fi
 invalid_release_workflow="$TMP/invalid-release-workflow.yml"
 printf '%s\n' \
   'jobs:' \
-  '  publish:' \
+  '  prepare-npm:' \
   '    steps:' \
   '      - name: Verify npm pack surfaces' \
   '        run: node scripts/npm-pack-surface-check.mjs' \
@@ -732,18 +756,55 @@ fi
 
 mutable_npm_workflow="$TMP/mutable-npm-workflow.yml"
 sed 's/npm@11\.12\.1/npm@latest/' "$release_workflow" >"$mutable_npm_workflow"
+assert_file_differs "$mutable_npm_workflow" "$release_workflow" "mutable_npm_workflow"
 if release_workflow_has_deterministic_npm "$mutable_npm_workflow"; then
   fail "release validator accepted npm@latest"
 fi
 
+mutable_publisher_workflow="$TMP/mutable-publisher-workflow.yml"
+sed 's/npm@11\.19\.0/npm@latest/' "$release_workflow" >"$mutable_publisher_workflow"
+assert_file_differs "$mutable_publisher_workflow" "$release_workflow" "mutable publisher"
+if release_workflow_has_deterministic_npm "$mutable_publisher_workflow"; then
+  fail "release validator accepted a mutable publisher tool"
+fi
+
+lifecycle_install_workflow="$TMP/lifecycle-install-workflow.yml"
+sed 's/npm ci --ignore-scripts/npm ci/' "$release_workflow" >"$lifecycle_install_workflow"
+assert_file_differs "$lifecycle_install_workflow" "$release_workflow" "lifecycle installation"
+if release_workflow_has_deterministic_npm "$lifecycle_install_workflow"; then
+  fail "release validator accepted dependency lifecycle scripts"
+fi
+
+publisher_dependencies_workflow="$TMP/publisher-dependencies-workflow.yml"
+awk '
+  { print }
+  $0 == "        run: npm install --global --ignore-scripts npm@11.19.0" {
+    print "      - name: Dependency installation in privileged publisher"
+    print "        run: npm ci --ignore-scripts"
+  }
+' "$release_workflow" >"$publisher_dependencies_workflow"
+assert_file_differs "$publisher_dependencies_workflow" "$release_workflow" "publisher dependencies"
+if release_workflow_has_deterministic_npm "$publisher_dependencies_workflow"; then
+  fail "release validator accepted project dependency installation in the publisher"
+fi
+
+non_strict_pack_workflow="$TMP/non-strict-pack-workflow.yml"
+sed 's/npm-pack-surface-check.mjs --require-release-artifacts/npm-pack-surface-check.mjs/' \
+  "$release_workflow" >"$non_strict_pack_workflow"
+assert_file_differs "$non_strict_pack_workflow" "$release_workflow" "strict pack validation"
+if release_workflow_uses_strict_pack_check "$non_strict_pack_workflow"; then
+  fail "release validator accepted npm preparation without strict artifact validation"
+fi
+
 fallback_install_workflow="$TMP/fallback-install-workflow.yml"
 awk '
-  !changed && $0 == "        run: npm ci" {
-    sub(/npm ci/, "npm ci || npm install")
+  !changed && $0 == "        run: npm ci --ignore-scripts" {
+    sub(/npm ci --ignore-scripts/, "npm ci --ignore-scripts || npm install")
     changed = 1
   }
   { print }
 ' "$release_workflow" >"$fallback_install_workflow"
+assert_file_differs "$fallback_install_workflow" "$release_workflow" "fallback_install_workflow"
 if release_workflow_has_deterministic_npm "$fallback_install_workflow"; then
   fail "release validator accepted fallback dependency installation"
 fi
@@ -751,13 +812,14 @@ fi
 multiline_install_workflow="$TMP/multiline-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Multiline dependency installation"
     print "        run: |"
     print "          npm install"
     inserted = 1
   }
 ' "$release_workflow" >"$multiline_install_workflow"
+assert_file_differs "$multiline_install_workflow" "$release_workflow" "multiline_install_workflow"
 if release_workflow_has_deterministic_npm "$multiline_install_workflow"; then
   fail "release validator accepted multiline dependency installation"
 fi
@@ -765,12 +827,13 @@ fi
 quoted_install_workflow="$TMP/quoted-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Quoted dependency installation"
     print "        run: \"npm install\""
     inserted = 1
   }
 ' "$release_workflow" >"$quoted_install_workflow"
+assert_file_differs "$quoted_install_workflow" "$release_workflow" "quoted_install_workflow"
 if release_workflow_has_deterministic_npm "$quoted_install_workflow"; then
   fail "release validator accepted quoted dependency installation"
 fi
@@ -778,13 +841,14 @@ fi
 command_install_workflow="$TMP/command-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Shell-wrapped dependency installation"
     print "        run: |"
     print "          command npm install"
     inserted = 1
   }
 ' "$release_workflow" >"$command_install_workflow"
+assert_file_differs "$command_install_workflow" "$release_workflow" "command_install_workflow"
 if release_workflow_has_deterministic_npm "$command_install_workflow"; then
   fail "release validator accepted shell-wrapped dependency installation"
 fi
@@ -792,12 +856,13 @@ fi
 silent_install_workflow="$TMP/silent-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Npm global option installation"
     print "        run: npm --silent install"
     inserted = 1
   }
 ' "$release_workflow" >"$silent_install_workflow"
+assert_file_differs "$silent_install_workflow" "$release_workflow" "silent_install_workflow"
 if release_workflow_has_deterministic_npm "$silent_install_workflow"; then
   fail "release validator accepted npm global option installation"
 fi
@@ -805,12 +870,13 @@ fi
 prefix_ci_workflow="$TMP/prefix-ci-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Npm prefix clean installation"
     print "        run: npm --prefix path ci"
     inserted = 1
   }
 ' "$release_workflow" >"$prefix_ci_workflow"
+assert_file_differs "$prefix_ci_workflow" "$release_workflow" "prefix_ci_workflow"
 if release_workflow_has_deterministic_npm "$prefix_ci_workflow"; then
   fail "release validator accepted npm prefix clean installation"
 fi
@@ -818,7 +884,7 @@ fi
 continued_install_workflow="$TMP/continued-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Continued dependency installation"
     print "        run: |"
     print "          npm --silent \\"
@@ -826,6 +892,7 @@ awk '
     inserted = 1
   }
 ' "$release_workflow" >"$continued_install_workflow"
+assert_file_differs "$continued_install_workflow" "$release_workflow" "continued_install_workflow"
 if release_workflow_has_deterministic_npm "$continued_install_workflow"; then
   fail "release validator accepted continued dependency installation"
 fi
@@ -833,12 +900,13 @@ fi
 inline_comment_workflow="$TMP/inline-comment-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Inline npm comment"
     print "        run: echo validated # npm install"
     inserted = 1
   }
 ' "$release_workflow" >"$inline_comment_workflow"
+assert_file_differs "$inline_comment_workflow" "$release_workflow" "inline_comment_workflow"
 if ! release_workflow_has_deterministic_npm "$inline_comment_workflow"; then
   fail "release validator rejected inline npm comment"
 fi
@@ -846,12 +914,13 @@ fi
 extra_build_install_workflow="$TMP/extra-build-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Unrelated build install"
     print "        run: npm install"
     inserted = 1
   }
 ' "$release_workflow" >"$extra_build_install_workflow"
+assert_file_differs "$extra_build_install_workflow" "$release_workflow" "extra_build_install_workflow"
 if release_workflow_has_deterministic_npm "$extra_build_install_workflow"; then
   fail "release validator accepted extra npm install in build"
 fi
@@ -859,12 +928,13 @@ fi
 extra_publish_install_workflow="$TMP/extra-publish-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm install -g npm@11.12.1" {
+  !inserted && $0 == "        run: npm install --global --ignore-scripts npm@11.19.0" {
     print "      - name: Unrelated publish install"
     print "        run: npm install example-package"
     inserted = 1
   }
 ' "$release_workflow" >"$extra_publish_install_workflow"
+assert_file_differs "$extra_publish_install_workflow" "$release_workflow" "extra_publish_install_workflow"
 if release_workflow_has_deterministic_npm "$extra_publish_install_workflow"; then
   fail "release validator accepted extra npm install in publish"
 fi
@@ -872,12 +942,13 @@ fi
 chained_install_workflow="$TMP/chained-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm ci" {
+  !inserted && $0 == "        run: npm ci --ignore-scripts" {
     print "      - name: Reversed install fallback"
     print "        run: npm install || npm ci"
     inserted = 1
   }
 ' "$release_workflow" >"$chained_install_workflow"
+assert_file_differs "$chained_install_workflow" "$release_workflow" "chained_install_workflow"
 if release_workflow_has_deterministic_npm "$chained_install_workflow"; then
   fail "release validator accepted chained npm install fallback"
 fi
@@ -890,42 +961,46 @@ awk '
     inserted = 1
   }
 ' "$release_workflow" >"$fallback_publish_workflow"
+assert_file_differs "$fallback_publish_workflow" "$release_workflow" "fallback_publish_workflow"
 if release_workflow_is_provenance_only "$fallback_publish_workflow"; then
   fail "release validator accepted publish without provenance"
 fi
 
 chained_publish_workflow="$TMP/chained-publish-workflow.yml"
 awk '
-  !changed && $0 == "            npm publish --access public --provenance --ignore-scripts" {
+  !changed && $0 == "            npm publish \"$file\" --access public --provenance --ignore-scripts" {
     $0 = $0 " || npm publish --access public --ignore-scripts"
     changed = 1
   }
   { print }
 ' "$release_workflow" >"$chained_publish_workflow"
+assert_file_differs "$chained_publish_workflow" "$release_workflow" "chained_publish_workflow"
 if release_workflow_is_provenance_only "$chained_publish_workflow"; then
   fail "release validator accepted same-line publish without provenance"
 fi
 
 commented_provenance_workflow="$TMP/commented-provenance-workflow.yml"
 awk '
-  !changed && $0 == "            npm publish --access public --provenance --ignore-scripts" {
-    $0 = "            npm publish --access public # --provenance"
+  !changed && $0 == "            npm publish \"$file\" --access public --provenance --ignore-scripts" {
+    $0 = "            npm publish \"$file\" --access public # --provenance"
     changed = 1
   }
   { print }
 ' "$release_workflow" >"$commented_provenance_workflow"
+assert_file_differs "$commented_provenance_workflow" "$release_workflow" "commented_provenance_workflow"
 if release_workflow_is_provenance_only "$commented_provenance_workflow"; then
   fail "release validator accepted provenance inside a shell comment"
 fi
 
 quoted_hash_workflow="$TMP/quoted-hash-workflow.yml"
 awk '
-  !changed && $0 == "            npm publish --access public --provenance --ignore-scripts" {
-    $0 = "            npm publish --access public --tag \"#stable\" --provenance --ignore-scripts"
+  !changed && $0 == "            npm publish \"$file\" --access public --provenance --ignore-scripts" {
+    $0 = "            npm publish \"$file\" --access public --tag \"#stable\" --provenance --ignore-scripts"
     changed = 1
   }
   { print }
 ' "$release_workflow" >"$quoted_hash_workflow"
+assert_file_differs "$quoted_hash_workflow" "$release_workflow" "quoted_hash_workflow"
 if ! release_workflow_is_provenance_only "$quoted_hash_workflow"; then
   fail "release validator treated a quoted hash as a shell comment"
 fi

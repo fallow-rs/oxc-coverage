@@ -39,7 +39,7 @@ const publish = textOf(findBlock(jobs, 'publish', 2));
 const versionSyncCommand = '        run: ./scripts/check.sh version-sync';
 const packageNpmCiCommand = [
   '        working-directory: crates/oxc_coverage_instrument_napi',
-  '        run: npm ci',
+  '        run: npm ci --ignore-scripts',
 ].join('\n');
 
 const assertReadOnlyPermissions = (text) => {
@@ -75,7 +75,7 @@ assert.throws(
 assert.match(prepublish, /uses: actions\/checkout@[a-f0-9]+/);
 assert.match(prepublish, /uses: actions\/setup-node@[a-f0-9]+/);
 assert.match(prepublish, /^\s{10}node-version: 22$/m);
-assert.match(prepublish, /^\s{8}run: npm install -g npm@11\.12\.1$/m);
+assert.match(prepublish, /^\s{8}run: npm install -g --ignore-scripts npm@11\.12\.1$/m);
 assert.match(prepublish, /^\s{8}run: \.\/scripts\/check\.sh version-sync$/m);
 assert.match(
   prepublish,
@@ -88,7 +88,22 @@ assert.throws(
 );
 assert.match(build, /^\s{4}needs: prepublish$/m);
 assert.match(publishCrate, /^\s{4}needs: build$/m);
-assert.match(publish, /^\s{4}needs: publish-crate$/m);
+assert.match(publish, /^\s{4}needs: prepare-npm$/m);
+const prepare = textOf(findBlock(jobs, 'prepare-npm', 2));
+assert.match(prepare, /^\s{4}needs: publish-crate$/m);
+assert.doesNotMatch(prepare, /id-token: write|contents: write/);
+const assertPublisherIsolation = (text) => {
+  assert.match(text, /^\s{4}environment: release$/m);
+  assert.doesNotMatch(text, /actions\/checkout@|npm ci|npx napi|npm run/);
+  assert.match(text, /sha256sum --check --strict SHA256SUMS/);
+  for (const line of text.split('\n').filter((line) => /\bnpm publish\b/.test(line))) {
+    assert.match(line, /--ignore-scripts/);
+  }
+};
+assertPublisherIsolation(publish);
+assert.throws(() => assertPublisherIsolation(publish.replace(' --provenance --ignore-scripts', ' --provenance')));
+assert.throws(() => assertPublisherIsolation(publish + '\n        run: npx napi artifacts'));
+
 
 const benchmarkWorkflow = readFileSync(`${root}/.github/workflows/bench.yml`, 'utf8');
 const assertSimulationHost = (text) => {

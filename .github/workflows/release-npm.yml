@@ -16,27 +16,50 @@ env:
   DEBUG: napi:*
 
 jobs:
+  release-source:
+    name: Verify release source
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a release from main history
+        shell: bash
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_REF" == refs/heads/main || "$RELEASE_REF" == refs/tags/v* ]]
+          git merge-base --is-ancestor HEAD origin/main
+
   prepublish:
+    needs: release-source
     name: Prepublication validation
     runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          package-manager-cache: false
           node-version: 22
 
       - name: Install trusted-publishing npm
-        run: npm install -g npm@11.12.1
+        run: npm install -g --ignore-scripts npm@11.12.1
 
       - name: Validate release metadata
         run: ./scripts/check.sh version-sync
 
       - name: Validate exact npm install
         working-directory: crates/oxc_coverage_instrument_napi
-        run: npm ci
+        run: npm ci --ignore-scripts
 
   build:
     name: Build ${{ matrix.target }}
@@ -101,6 +124,8 @@ jobs:
         run: git config --system core.longpaths true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # `./.github/actions/setup-rust`, not the dtolnay action directly, so the
       # rust-toolchain.toml channel pin is honored when installing the cross
@@ -115,6 +140,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          package-manager-cache: false
           node-version: 22
 
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
@@ -130,7 +156,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: crates/oxc_coverage_instrument_napi
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build native binding
         working-directory: crates/oxc_coverage_instrument_napi
@@ -185,13 +211,17 @@ jobs:
           if-no-files-found: error
 
   publish-crate:
+    environment: release
     name: Publish to crates.io
     runs-on: ubuntu-26.04
     needs: build
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Use the shared setup-rust action so rust-toolchain.toml drives the
       # channel here too (cargo publish is sensitive to channel-level changes
@@ -208,6 +238,10 @@ jobs:
       - name: Verify no unbumped src drift on published crates
         run: ./scripts/check-version-sync.sh --mode=published
 
+      - name: Authenticate to crates.io
+        id: crates_io_auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
       # Publish in topological order:
       #   oxc_coverage_types          (no internal deps)
       #   oxc_coverage_source_maps    (depends on types)
@@ -223,7 +257,7 @@ jobs:
       - name: Publish oxc_coverage_types
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_types --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_types --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -231,12 +265,12 @@ jobs:
           fi
           echo "::error::oxc_coverage_types publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
       - name: Publish oxc_coverage_source_maps
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_source_maps --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_source_maps --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -244,12 +278,12 @@ jobs:
           fi
           echo "::error::oxc_coverage_source_maps publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
       - name: Publish oxc_coverage_v8
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_v8 --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_v8 --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -257,12 +291,12 @@ jobs:
           fi
           echo "::error::oxc_coverage_v8 publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
       - name: Publish oxc_coverage_report
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_report --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_report --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -270,12 +304,12 @@ jobs:
           fi
           echo "::error::oxc_coverage_report publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
       - name: Publish oxc_coverage_reports
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_reports --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_reports --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -283,12 +317,12 @@ jobs:
           fi
           echo "::error::oxc_coverage_reports publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
       - name: Publish oxc_coverage_instrument
         run: |
           set +e
-          out=$(cargo publish -p oxc_coverage_instrument --allow-dirty 2>&1); code=$?
+          out=$(cargo publish -p oxc_coverage_instrument --allow-dirty --no-verify 2>&1); code=$?
           echo "$out"
           [ $code -eq 0 ] && exit 0
           if echo "$out" | grep -qiE "already (exists|uploaded)"; then
@@ -296,31 +330,33 @@ jobs:
           fi
           echo "::error::oxc_coverage_instrument publish failed (not an already-published skip)"; exit 1
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
 
-  publish:
-    name: Publish to npm
+  prepare-npm:
+    name: Prepare npm tarballs
     runs-on: ubuntu-26.04
     needs: publish-crate
     permissions:
       contents: read
-      id-token: write
     env:
       TAG_REF: ${{ github.ref }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          package-manager-cache: false
           node-version: 22
           registry-url: https://registry.npmjs.org
 
       - name: Install trusted-publishing npm
-        run: npm install -g npm@11.12.1
+        run: npm install -g --ignore-scripts npm@11.12.1
 
       - name: Install dependencies
         working-directory: crates/oxc_coverage_instrument_napi
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -440,35 +476,61 @@ jobs:
       - name: Verify npm pack surfaces
         run: node scripts/npm-pack-surface-check.mjs --require-release-artifacts
 
-      - name: Publish platform packages
+      - name: Pack prepared release artifacts without lifecycle scripts
         working-directory: crates/oxc_coverage_instrument_napi
+        shell: bash
         run: |
-          VERSION="${TAG_REF#refs/tags/v}"
-          FAILED=0
-          for dir in npm/*/; do
-            if [ -f "$dir/package.json" ]; then
-              PKG_NAME=$(node -e "console.log(require('./$dir/package.json').name)")
-              echo "Publishing $PKG_NAME@$VERSION..."
-              if npm view "$PKG_NAME@$VERSION" version >/dev/null 2>&1; then
-                echo "  Already published, skipping"
-                continue
-              fi
-              if ! npm publish "$dir" --access public --provenance; then
-                echo "::error::Failed to publish $PKG_NAME@$VERSION with provenance"
-                FAILED=1
-              fi
-            fi
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/npm-release"
+          for dir in ./npm/*/ .; do
+            npm pack "$dir" --ignore-scripts --json --pack-destination "$RUNNER_TEMP/npm-release" |
+              jq -er '.[0].filename' >> "$RUNNER_TEMP/npm-release/PUBLISH_ORDER"
           done
-          if [ "$FAILED" -eq 1 ]; then
-            exit 1
-          fi
+          cd "$RUNNER_TEMP/npm-release"
+          sha256sum ./*.tgz PUBLISH_ORDER > SHA256SUMS
 
-      - name: Publish root package
-        working-directory: crates/oxc_coverage_instrument_napi
+      - name: Upload prepared npm tarballs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: npm-release-ready
+          path: ${{ runner.temp }}/npm-release/
+          if-no-files-found: error
+
+  publish:
+    name: Publish prepared npm tarballs
+    needs: prepare-npm
+    environment: release
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          package-manager-cache: false
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Install pinned publishing tool without lifecycle scripts
+        run: npm install --global --ignore-scripts npm@11.19.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: npm-release-ready
+          path: tarballs
+      - name: Verify and publish prepared tarballs
+        shell: bash
         run: |
-          VERSION="${TAG_REF#refs/tags/v}"
-          if npm view "oxc-coverage-instrument@$VERSION" version >/dev/null 2>&1; then
-            echo "oxc-coverage-instrument@$VERSION already published, skipping"
-          else
-            npm publish --access public --provenance --ignore-scripts
-          fi
+          set -euo pipefail
+          cd tarballs
+          sha256sum --check --strict SHA256SUMS
+          while IFS= read -r file; do
+            [[ "$file" == *.tgz && "$file" != */* ]]
+            file="./$file"
+            manifest=$(tar -xOf "$file" package/package.json)
+            name=$(jq -er .name <<< "$manifest")
+            version=$(jq -er .version <<< "$manifest")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "Skipping $name@$version; already present on npm"
+              continue
+            fi
+            npm publish "$file" --access public --provenance --ignore-scripts
+          done < PUBLISH_ORDER
