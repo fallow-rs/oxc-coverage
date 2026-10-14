@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791457123862,
+  "lastUpdate": 1791996732429,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2638,6 +2638,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 92444816,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c16b862bf867c543084cdd9b6ce88ce2c6310ae9",
+          "message": "chore: bump the Rust toolchain to 1.99.0 (#263)\n\nThe MSRV stays at 1.96. Clippy 1.99 no longer reports float_cmp in two\ntest modules, so the expect attributes are removed. A new\nassert_is_empty lint is fixed, and the deprecated unit-bindings lint\nname is changed to unit_bindings.",
+          "timestamp": "2026-10-14T16:48:18Z",
+          "tree_id": "79c8b446efae130b7c7292b4b36e7eaf031c6fad",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/c16b862bf867c543084cdd9b6ce88ce2c6310ae9"
+        },
+        "date": 1791996731884,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97489024,
             "unit": "bytes"
           }
         ]
