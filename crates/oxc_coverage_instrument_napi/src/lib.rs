@@ -738,7 +738,7 @@ mod tests {
         assert!(!opts.compose_input_source_map);
         assert!(!opts.report_logic);
         assert!(opts.track_optional_chain);
-        assert!(opts.ignore_class_methods.is_empty());
+        assert_eq!(opts.ignore_class_methods, Vec::<String>::new());
         assert!(!opts.strip_typescript);
         assert_eq!(opts.decorator_mode, DecoratorMode::PassThrough);
         assert!(!opts.function_identity_overlay);
