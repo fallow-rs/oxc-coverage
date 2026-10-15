@@ -63,7 +63,7 @@
   },
   "dependencies": {
     "@emnapi/core": "2.0.0-alpha.5",
-    "@emnapi/runtime": "2.0.0-alpha.5",
+    "@emnapi/runtime": "2.0.0-alpha.6",
     "@napi-rs/wasm-runtime": "^1.2.4"
   },
   "devDependencies": {
@@ -87,7 +87,7 @@
   "overrides": {
     "emnapi": "2.0.0-alpha.5",
     "@emnapi/core": "2.0.0-alpha.5",
-    "@emnapi/runtime": "2.0.0-alpha.5"
+    "@emnapi/runtime": "2.0.0-alpha.6"
   },
   "optionalDependencies": {
     "@oxc-coverage-instrument/binding-darwin-arm64": "0.14.0",
