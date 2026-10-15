@@ -1,6 +1,6 @@
 {
   "name": "@oxc-coverage-instrument/binding-wasm32-wasi",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "main": "coverage-instrument.wasi.cjs",
   "browser": "coverage-instrument.wasi-browser.js",
   "types": "coverage-instrument.wasi.d.cts",

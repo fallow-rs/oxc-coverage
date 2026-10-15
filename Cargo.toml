@@ -26,9 +26,9 @@ rust-version = "1.96.0"
 [workspace.dependencies]
 # Suite crates. Path for workspace builds, version so that a `cargo publish`d
 # crate resolves its siblings from crates.io.
-oxc_coverage_instrument = { version = "0.13.0", path = "crates/oxc_coverage_instrument" }
-oxc_coverage_report = { version = "0.2.4", path = "crates/oxc_coverage_report" }
-oxc_coverage_reports = { version = "0.4.2", path = "crates/oxc_coverage_reports" }
+oxc_coverage_instrument = { version = "0.14.0", path = "crates/oxc_coverage_instrument" }
+oxc_coverage_report = { version = "0.2.5", path = "crates/oxc_coverage_report" }
+oxc_coverage_reports = { version = "0.4.3", path = "crates/oxc_coverage_reports" }
 oxc_coverage_source_maps = { version = "0.8.1", path = "crates/oxc_coverage_source_maps" }
 oxc_coverage_types = { version = "0.4.1", path = "crates/oxc_coverage_types" }
 oxc_coverage_v8 = { version = "0.4.2", path = "crates/oxc_coverage_v8" }
