@@ -181,7 +181,7 @@ jobs:
         run: node scripts/patch-browser-loader.mjs
 
       - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: bindings-${{ matrix.target }}
           # `napi build` generates the JS/TS wrapper (index.js, index.d.ts) alongside
@@ -490,7 +490,7 @@ jobs:
           sha256sum ./*.tgz PUBLISH_ORDER > SHA256SUMS
 
       - name: Upload prepared npm tarballs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: npm-release-ready
           path: ${{ runner.temp }}/npm-release/
