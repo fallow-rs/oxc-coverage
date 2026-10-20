@@ -24,16 +24,12 @@ rules:
       - bloat.yml
       - coverage.yml
       - release-npm.yml
-  # Dependabot auto-merge uses pull_request_target intentionally; no code
-  # checkout, only a gh pr merge API call. Actor-gated to dependabot[bot].
   dangerous-triggers:
     ignore:
-      - dependabot-auto-merge.yml
-  # github.actor == 'dependabot[bot]' is the standard GitHub-documented pattern;
-  # risk is mitigated by --auto (waits for required CI) and no code checkout.
-  bot-conditions:
-    ignore:
-      - dependabot-auto-merge.yml
+      # Calls the org-wide Dependabot workflow in fallow-rs/.github, pinned by
+      # SHA. That workflow acts only on same-repository dependabot/** branches
+      # and loads its scripts from its own commit.
+      - dependabot.yml
   # ci-ok job uses toJSON(needs.*.result), which only contains
   # success/failure/cancelled/skipped tokens; no untrusted user input.
   template-injection:
