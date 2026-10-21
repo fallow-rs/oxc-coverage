@@ -62,15 +62,15 @@
     }
   },
   "dependencies": {
-    "@emnapi/core": "2.0.0-beta.1",
-    "@emnapi/runtime": "2.0.0-beta.1",
+    "@emnapi/core": "2.0.0-beta.2",
+    "@emnapi/runtime": "2.0.0-beta.2",
     "@napi-rs/wasm-runtime": "^1.2.4"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0 || ^8.0.0",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@napi-rs/cli": "3.10.8",
-    "emnapi": "2.0.0-beta.1",
+    "emnapi": "2.0.0-beta.2",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.3",
     "istanbul-lib-source-maps": "^5.0.6"
@@ -78,16 +78,16 @@
   "scripts": {
     "build": "napi build --release --platform && npm run patch-shim",
     "build:debug": "napi build --platform && npm run patch-shim",
-    "patch-shim": "node scripts/patch-wasi-browser-shim.mjs && node scripts/patch-browser-loader.mjs",
+    "patch-shim": "node scripts/patch-wasi-emnapi-plugins.mjs && node scripts/patch-wasi-browser-shim.mjs && node scripts/patch-browser-loader.mjs",
     "prepublishOnly": "napi prepublish -t npm",
     "artifacts": "napi artifacts",
-    "test": "node test.mjs && node scripts/patch-wasi-browser-shim.test.mjs && node scripts/patch-wasi-singlethreaded-artifacts.test.mjs",
+    "test": "node test.mjs && node scripts/patch-wasi-browser-shim.test.mjs && node scripts/patch-wasi-singlethreaded-artifacts.test.mjs && node scripts/patch-wasi-emnapi-plugins.test.mjs",
     "test:browser-loader": "node scripts/browser-loader.test.mjs"
   },
   "overrides": {
-    "emnapi": "2.0.0-beta.1",
-    "@emnapi/core": "2.0.0-beta.1",
-    "@emnapi/runtime": "2.0.0-beta.1"
+    "emnapi": "2.0.0-beta.2",
+    "@emnapi/core": "2.0.0-beta.2",
+    "@emnapi/runtime": "2.0.0-beta.2"
   },
   "optionalDependencies": {
     "@oxc-coverage-instrument/binding-darwin-arm64": "0.14.0",

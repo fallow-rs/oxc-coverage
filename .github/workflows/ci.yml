@@ -278,6 +278,7 @@ jobs:
         run: |
           rm -f coverage-instrument.wasm32-wasi*.wasm
           npx napi build --release --platform --target ${{ matrix.target }}
+          node scripts/patch-wasi-emnapi-plugins.mjs .
 
       - name: Patch single-threaded WASI artifacts
         if: matrix.target == 'wasm32-wasip1'
@@ -597,6 +598,7 @@ jobs:
         run: |
           rm -f coverage-instrument.wasm32-wasi*.wasm
           npx napi build --release --platform --target ${{ matrix.target }}
+          node scripts/patch-wasi-emnapi-plugins.mjs .
 
       - name: Patch single-threaded WASI artifacts
         if: matrix.target == 'wasm32-wasip1'
@@ -667,6 +669,7 @@ jobs:
         run: |
           rm -f coverage-instrument.wasm32-wasi*.wasm
           npx napi build --release --platform --target ${{ matrix.target }}
+          node scripts/patch-wasi-emnapi-plugins.mjs .
 
       - name: Patch single-threaded WASI artifacts
         if: matrix.target == 'wasm32-wasip1'
@@ -737,6 +740,7 @@ jobs:
         run: |
           rm -f coverage-instrument.wasm32-wasi*.wasm
           npx napi build --release --platform --target wasm32-wasip1-threads
+          node scripts/patch-wasi-emnapi-plugins.mjs .
 
       - name: Patch threaded wasi-browser shim
         working-directory: crates/oxc_coverage_instrument_napi
@@ -761,6 +765,7 @@ jobs:
         run: |
           rm -f coverage-instrument.wasm32-wasi*.wasm
           npx napi build --release --platform --target wasm32-wasip1
+          node scripts/patch-wasi-emnapi-plugins.mjs .
           node scripts/patch-wasi-singlethreaded-artifacts.mjs .
           node scripts/patch-browser-loader.mjs
 

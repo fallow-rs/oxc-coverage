@@ -162,6 +162,13 @@ jobs:
         working-directory: crates/oxc_coverage_instrument_napi
         run: ${{ matrix.build }}
 
+      # Load the emnapi plugins from @emnapi/core in the regenerated WASI
+      # loaders. See scripts/patch-wasi-emnapi-plugins.mjs.
+      - name: Patch emnapi plugins in WASI loaders
+        if: startsWith(matrix.target, 'wasm32-')
+        working-directory: crates/oxc_coverage_instrument_napi
+        run: node scripts/patch-wasi-emnapi-plugins.mjs .
+
       - name: Patch single-threaded WASI artifacts
         if: matrix.target == 'wasm32-wasip1'
         working-directory: crates/oxc_coverage_instrument_napi
