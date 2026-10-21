@@ -11,9 +11,9 @@
 //! ```
 //!
 //! Each per-metric object has `total`, `covered`, `skipped`, `pct`. `pct` is a
-//! JSON number rounded to two decimal places (Codecov / Vitest treat `pct` as
-//! a float and threshold against it; integers or unrounded floats break
-//! consumers).
+//! JSON number truncated to two decimal places, as istanbul-lib-coverage
+//! computes it (Codecov / Vitest treat `pct` as a float and threshold against
+//! it; integers or unrounded floats break consumers).
 //!
 //! Output ordering is stable: `total` first, then files in alphabetical order
 //! (via `BTreeMap`). Folder rollups are intentionally omitted; istanbul-reports

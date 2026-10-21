@@ -20,7 +20,7 @@ pub struct Metric {
     /// on ingestion, and [`Metric::new`] sets this field to `0`. It exists so
     /// json-summary output matches the istanbul-reports schema.
     pub skipped: u32,
-    /// `covered / total` as a percentage, rounded to two decimal places, or
+    /// `covered / total` as a percentage, truncated to two decimal places, or
     /// `100.0` when `total` is `0`.
     pub pct: f64,
 }
@@ -36,8 +36,9 @@ impl Default for Metric {
 impl Metric {
     /// Build a metric from a total and covered count.
     ///
-    /// `pct` is rounded to two decimal places. A zero-total metric reports
-    /// `pct = 100.0`, matching istanbul-lib-coverage.
+    /// `pct` is truncated (not rounded) to two decimal places, and a
+    /// zero-total metric reports `pct = 100.0`, both matching
+    /// istanbul-lib-coverage.
     pub fn new(total: u32, covered: u32) -> Self {
         Self { total, covered, skipped: 0, pct: pct(covered, total) }
     }
@@ -88,8 +89,12 @@ fn pct(covered: u32, total: u32) -> f64 {
     if total == 0 {
         return 100.0;
     }
-    let raw = f64::from(covered) * 100.0 / f64::from(total);
-    (raw * 100.0).round() / 100.0
+    // The same float steps as istanbul-lib-coverage 3.2.2 `lib/percent.js`:
+    // `Math.floor((1000 * 100 * covered) / total / 10) / 100`. Truncating
+    // rather than rounding matters at a threshold: 2/3 is 66.66, not 66.67,
+    // so 79.996% fails an 80% threshold as it does under Istanbul.
+    let raw = 1000.0 * 100.0 * f64::from(covered) / f64::from(total);
+    (raw / 10.0).floor() / 100.0
 }
 
 /// Narrow a container length to the `u32` width Istanbul counters use.
@@ -185,13 +190,16 @@ mod tests {
     }
 
     #[test]
-    fn pct_rounds_to_two_decimals() {
+    fn pct_truncates_to_two_decimals_like_istanbul() {
         // 1/3 = 33.333... -> 33.33
         let m = Metric::new(3, 1);
         assert_eq!(m.pct, 33.33);
-        // 2/3 = 66.666... -> 66.67
+        // 2/3 = 66.666... -> 66.66; rounding would give 66.67.
         let m = Metric::new(3, 2);
-        assert_eq!(m.pct, 66.67);
+        assert_eq!(m.pct, 66.66);
+        // 79.996% must stay below an 80% threshold.
+        let m = Metric::new(25_000, 19_999);
+        assert_eq!(m.pct, 79.99);
     }
 
     #[test]
