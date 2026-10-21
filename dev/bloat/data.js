@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792055455717,
+  "lastUpdate": 1792556927926,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2696,6 +2696,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97438928,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "25efdeb68e868b112fa3f593b0c452db7778f6ae",
+          "message": "chore(deps): bump serde_json from 1.0.151 to 1.0.154 (#281)\n\nBumps [serde_json](https://github.com/serde-rs/json) from 1.0.151 to 1.0.154.\n- [Release notes](https://github.com/serde-rs/json/releases)\n- [Commits](https://github.com/serde-rs/json/compare/v1.0.151...v1.0.154)\n\n---\nupdated-dependencies:\n- dependency-name: serde_json\n  dependency-version: 1.0.154\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-10-21T04:26:18Z",
+          "tree_id": "1cd182f686358e6a0b56afd4d915d5edb14e2efb",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/25efdeb68e868b112fa3f593b0c452db7778f6ae"
+        },
+        "date": 1792556926970,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97495888,
             "unit": "bytes"
           }
         ]
