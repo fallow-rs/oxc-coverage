@@ -349,6 +349,7 @@ write_fake_surface_fixture() {
     "writeFileSync(new URL('../browser.js', import.meta.url), 'selector\\n');" \
     >"$napi_dir/scripts/patch-browser-loader.mjs"
   : >"$napi_dir/scripts/patch-wasi-browser-shim.mjs"
+  : >"$napi_dir/scripts/patch-wasi-emnapi-plugins.mjs"
   printf '%s\n' \
     "import { copyFileSync, readFileSync } from 'node:fs';" \
     "const root = new URL('../', import.meta.url);" \
