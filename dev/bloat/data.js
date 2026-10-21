@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792557079608,
+  "lastUpdate": 1792606511990,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2749,6 +2749,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/abc3dbcf4590a3ea77b40af63d851204113a4121"
         },
         "date": 1792557079192,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97505856,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "528b93edca5922c472c1e9e44394ae026107c4a3",
+          "message": "chore(deps): move emnapi to 2.0.0-beta.2 and load its plugins from @emnapi/core (#291)\n\nemnapi 2.0.0-beta renamed the shared napiModule field to addonModule, which broke the plugins that @napi-rs/wasm-runtime bundles. The WASI loaders now import the async-work and threadsafe-function plugins from @emnapi/core/plugins.",
+          "timestamp": "2026-10-21T20:13:01+02:00",
+          "tree_id": "c400020ec9b5912cfd975feaebd9fcf8413aee22",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/528b93edca5922c472c1e9e44394ae026107c4a3"
+        },
+        "date": 1792606511169,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
