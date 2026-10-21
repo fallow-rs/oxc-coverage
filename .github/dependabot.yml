@@ -30,6 +30,10 @@ updates:
     groups:
       napi-toolchain:
         patterns: ["@napi-rs/*"]
+      # emnapi, @emnapi/core and @emnapi/runtime must share one version. A
+      # bump of one alone breaks every WASM job.
+      emnapi:
+        patterns: ["emnapi", "@emnapi/*"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: npm
