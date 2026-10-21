@@ -37,8 +37,8 @@
   },
   "bugs": "https://github.com/fallow-rs/oxc-coverage-instrument/issues",
   "dependencies": {
-    "@emnapi/core": "2.0.0-alpha.5",
-    "@emnapi/runtime": "2.0.0-alpha.5",
+    "@emnapi/core": "2.0.0-beta.1",
+    "@emnapi/runtime": "2.0.0-beta.1",
     "@napi-rs/wasm-runtime": "^1.2.4"
   }
 }
