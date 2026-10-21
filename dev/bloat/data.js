@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792556927926,
+  "lastUpdate": 1792557079608,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2725,6 +2725,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97495888,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "abc3dbcf4590a3ea77b40af63d851204113a4121",
+          "message": "chore(deps): bump sha2 from 0.11.0 to 0.11.1 (#280)\n\nBumps [sha2](https://github.com/RustCrypto/hashes) from 0.11.0 to 0.11.1.\n- [Commits](https://github.com/RustCrypto/hashes/compare/sha2-v0.11.0...sha2-v0.11.1)\n\n---\nupdated-dependencies:\n- dependency-name: sha2\n  dependency-version: 0.11.1\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-10-21T04:28:54Z",
+          "tree_id": "9c5654dbb2adaa034a1dac9124f0836e1b331ec2",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/abc3dbcf4590a3ea77b40af63d851204113a4121"
+        },
+        "date": 1792557079192,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97505856,
             "unit": "bytes"
           }
         ]
