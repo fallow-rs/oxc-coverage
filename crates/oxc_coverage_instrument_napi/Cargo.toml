@@ -26,11 +26,19 @@ doctest = false
 
 [dependencies]
 oxc_coverage_instrument = { workspace = true }
+oxc_coverage_report = { workspace = true }
+oxc_coverage_reports = { workspace = true }
 
 napi = { workspace = true }
 napi-derive = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# The html reporter writes a directory tree and embeds the syntax-highlighting
+# grammars. The WebAssembly binding has to stay under its size ceiling, so only
+# the native bindings carry it.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+oxc_coverage_reports = { workspace = true, features = ["html"] }
 
 [build-dependencies]
 napi-build = { workspace = true }

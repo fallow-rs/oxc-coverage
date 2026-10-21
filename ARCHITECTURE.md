@@ -68,7 +68,10 @@ Two more crates are workspace-local rather than published to crates.io:
 [`oxc_coverage_instrument_cli`](crates/oxc_coverage_instrument_cli/README.md)
 ships the `oxc-coverage-instrument` binary, and
 [`oxc_coverage_instrument_napi`](crates/oxc_coverage_instrument_napi/README.md)
-ships the `oxc-coverage-instrument` npm package.
+ships the `oxc-coverage-instrument` npm package. The npm package exposes the
+instrumenter, remapping, V8 conversion, summaries, and reporters; the html
+reporter is in the native bindings only, to keep the WebAssembly binding under
+its size ceiling.
 
 At runtime the crates compose into one pipeline, from source on disk to a
 rendered report.

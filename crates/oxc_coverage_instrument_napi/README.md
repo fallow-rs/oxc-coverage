@@ -6,9 +6,9 @@ the [Oxc](https://oxc.rs) parser and exposed to Node.js through napi-rs.
 ## Overview
 
 The `oxc-coverage-instrument` npm package wraps the native instrumenter. It
-exposes instrumentation, coverage remapping, and V8-to-Istanbul conversion, plus
-a ready-made adapter for Vitest's Istanbul provider and for
-`vite-plugin-istanbul`.
+exposes instrumentation, coverage remapping, V8-to-Istanbul conversion, coverage
+summaries, and the Istanbul reporters, plus a ready-made adapter for Vitest's
+Istanbul provider and for `vite-plugin-istanbul`.
 
 ```bash
 npm install oxc-coverage-instrument
@@ -173,10 +173,54 @@ call to fold the input map in eagerly instead. The coverage map is then keyed by
 the original source path, carries original-source positions, and has no
 `inputSourceMap`, so a later `remapCoverageMap` is a no-op.
 
+### Summaries and reports
+
+`summarizeCoverage` returns the total and per-file metrics of a coverage map.
+The numbers match `istanbul-lib-coverage`, including the truncation of `pct` to
+two decimals:
+
+```js
+import { summarizeCoverage } from 'oxc-coverage-instrument';
+
+const { total, files } = summarizeCoverage(JSON.stringify(coverageMap));
+total.lines.pct; // for example 66.66
+```
+
+`createReport` renders the `text`, `text-summary`, `json-summary`, `lcov`, or
+`cobertura` report and returns it as a string. Pass `rootDir` to make the `lcov`
+and `cobertura` source paths relative; without it, paths stay as the coverage map
+records them. Pass `process.cwd()` to match `istanbul-reports`:
+
+```js
+import { createReport } from 'oxc-coverage-instrument';
+import { writeFileSync } from 'node:fs';
+
+const json = JSON.stringify(coverageMap);
+writeFileSync('coverage/lcov.info', createReport(json, 'lcov', { rootDir: process.cwd() }));
+console.log(createReport(json, 'text'));
+```
+
+`writeHtmlReport` writes the html report into a directory and creates it when
+needed. It reads the source files from disk, remaps entries that carry an
+`inputSourceMap`, and accepts a `greenThreshold` in `[0, 100]` (default `80`):
+
+```js
+import { writeHtmlReport } from 'oxc-coverage-instrument';
+
+writeHtmlReport(JSON.stringify(coverageMap), 'coverage/html', { rootDir: process.cwd() });
+```
+
+The html reporter is only in the native bindings. The WebAssembly binding returns
+an error for `writeHtmlReport` and keeps the other reports.
+
+`createReport` and `summarizeCoverage` do not remap. Call `remapCoverageMap`
+first when the map carries an `inputSourceMap`.
+
 ## Architecture
 
-The package is a napi-rs binding over `oxc_coverage_instrument`; all
-instrumentation, remapping, and conversion logic lives in Rust, and the
+The package is a napi-rs binding over `oxc_coverage_instrument`,
+`oxc_coverage_report`, and `oxc_coverage_reports`; all instrumentation,
+remapping, conversion, and reporting logic lives in Rust, and the
 JavaScript layer only marshals options and JSON. Coverage maps cross the boundary
 as JSON strings rather than as object graphs, which keeps one serialization
 format between the native and WebAssembly bindings.

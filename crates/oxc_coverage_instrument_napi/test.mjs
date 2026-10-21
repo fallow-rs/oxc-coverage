@@ -5,12 +5,15 @@ import {
   remapCoverageMapWithLoader,
   v8ToIstanbul,
   v8ToIstanbulWithLoader,
+  createReport,
+  summarizeCoverage,
+  writeHtmlReport,
 } from './index.js';
 import { createOxcInstrumenter } from './vitest.js';
 import { strict as assert } from 'node:assert';
 import libCoverage from 'istanbul-lib-coverage';
 import { createInstrumenter } from 'istanbul-lib-instrument';
-import { existsSync, statSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, statSync, readFileSync, writeFileSync, rmSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -2457,6 +2460,99 @@ globalThis.__result = {
   );
 
   console.log('  [PASS] strictNullChecks controls nullable design:type metadata');
+}
+
+// Test: reporters and summary over real instrumented coverage
+{
+  const root = mkdtempSync(join(tmpdir(), 'oxc-cov-report-'));
+  mkdirSync(join(root, 'src'));
+  const sources = {
+    'src/math.js':
+      'function add(a, b) { return a + b; }\nfunction sub(a, b) {\n  if (a > b) { return a - b; }\n  return b - a;\n}\nadd(1, 2);\nsub(3, 1);\n',
+    'src/unused.js': 'function never() {\n  return 1;\n}\n',
+  };
+  const coverage = {};
+  for (const [relative, source] of Object.entries(sources)) {
+    const filename = join(root, relative);
+    writeFileSync(filename, source);
+    const result = instrument(source, filename);
+    const sharedGlobal = {};
+    new Function('globalThis', result.code)(sharedGlobal);
+    coverage[filename] = sharedGlobal.__coverage__[filename];
+  }
+  const coverageJson = JSON.stringify(coverage);
+
+  // The summary must agree with istanbul-lib-coverage, metric for metric.
+  const summary = summarizeCoverage(coverageJson);
+  const istanbulMap = createCoverageMap(JSON.parse(coverageJson));
+  const metrics = ['lines', 'statements', 'functions', 'branches'];
+  const pick = (s) =>
+    Object.fromEntries(metrics.map((m) => [m, { total: s[m].total, covered: s[m].covered, skipped: s[m].skipped, pct: s[m].pct }]));
+  assert.deepEqual(pick(summary.total), pick(istanbulMap.getCoverageSummary().toJSON()));
+  assert.deepEqual(Object.keys(summary.files).sort(), Object.keys(coverage).sort());
+  for (const filename of Object.keys(coverage)) {
+    assert.deepEqual(
+      pick(summary.files[filename]),
+      pick(istanbulMap.fileCoverageFor(filename).toSummary().toJSON()),
+      `summary for ${filename} must match istanbul-lib-coverage`,
+    );
+  }
+  assert.equal(summary.files[join(root, 'src/unused.js')].functions.covered, 0);
+  console.log('  [PASS] summarizeCoverage matches istanbul-lib-coverage');
+
+  // json-summary carries the same numbers as summarizeCoverage.
+  const jsonSummary = JSON.parse(createReport(coverageJson, 'json-summary'));
+  assert.deepEqual(pick(jsonSummary.total), pick(summary.total));
+  console.log('  [PASS] createReport json-summary');
+
+  // lcov paths are relative to rootDir, and absolute without it.
+  const lcov = createReport(coverageJson, 'lcov', { rootDir: root });
+  assert.match(lcov, /^SF:src\/math\.js$/m);
+  assert.match(lcov, /^FNF:2$/m);
+  assert.equal((lcov.match(/^end_of_record$/gm) ?? []).length, 2);
+  const lcovAbsolute = createReport(coverageJson, 'lcov');
+  assert(lcovAbsolute.includes(`SF:${join(root, 'src/math.js')}`), 'without rootDir, paths stay verbatim');
+  console.log('  [PASS] createReport lcov honours rootDir');
+
+  const cobertura = createReport(coverageJson, 'cobertura', { rootDir: root });
+  assert(cobertura.startsWith('<?xml'), 'cobertura is an XML document');
+  assert(cobertura.includes('filename="src/math.js"'), 'cobertura filename is relative to rootDir');
+  console.log('  [PASS] createReport cobertura');
+
+  const text = createReport(coverageJson, 'text');
+  assert.match(text, /math\.js/);
+  assert.match(text, /unused\.js/);
+  const textSummary = createReport(coverageJson, 'text-summary');
+  assert.match(textSummary, /Statements\s*:/);
+  assert.match(textSummary, /Branches\s*:/);
+  console.log('  [PASS] createReport text and text-summary');
+
+  assert.throws(() => createReport(coverageJson, 'html'), /writeHtmlReport/);
+  assert.throws(() => createReport(coverageJson, 'clover'), /clover/);
+  assert.throws(() => createReport('{not json', 'lcov'), /coverage/i);
+  assert.throws(() => summarizeCoverage('[]'), /coverage/i);
+  console.log('  [PASS] createReport rejects html, unknown formats, and invalid input');
+
+  // html writes a directory tree and is native-only.
+  const isWasi = !!process.env.NAPI_RS_FORCE_WASI;
+  const outDir = join(root, 'html-report');
+  if (isWasi) {
+    assert.throws(() => writeHtmlReport(coverageJson, outDir, { rootDir: root }), /native/);
+    console.log('  [PASS] writeHtmlReport reports that it needs the native binding under WASI');
+  } else {
+    writeHtmlReport(coverageJson, outDir, { rootDir: root, greenThreshold: 90 });
+    assert(existsSync(join(outDir, 'index.html')), 'html report writes index.html');
+    // The page tree starts at the common path prefix (here `src/`), as in Istanbul.
+    assert(existsSync(join(outDir, 'math.js.html')), 'html report writes one page per file');
+    assert(existsSync(join(outDir, 'unused.js.html')), 'html report writes one page per file');
+    assert.throws(
+      () => writeHtmlReport(coverageJson, outDir, { greenThreshold: 101 }),
+      /threshold/,
+      'an out-of-range greenThreshold is rejected',
+    );
+    console.log('  [PASS] writeHtmlReport writes the html tree');
+  }
+  rmSync(root, { recursive: true, force: true });
 }
 
 console.log('\nAll tests passed!');
