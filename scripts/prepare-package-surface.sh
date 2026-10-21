@@ -189,6 +189,7 @@ echo "[prepare:package-surface] build threaded wasm32-wasip1-threads artifacts"
   cd "$NAPI_DIR"
   rm -f coverage-instrument.wasm32-wasi*.wasm
   npx napi build --release --platform --target wasm32-wasip1-threads
+  node scripts/patch-wasi-emnapi-plugins.mjs .
   node scripts/patch-wasi-browser-shim.mjs
 )
 snapshot_root_artifacts "$TMP/threaded-root"
@@ -198,6 +199,7 @@ echo "[prepare:package-surface] build single-threaded wasm32-wasip1 artifacts"
   cd "$NAPI_DIR"
   rm -f coverage-instrument.wasm32-wasi*.wasm
   npx napi build --release --platform --target wasm32-wasip1
+  node scripts/patch-wasi-emnapi-plugins.mjs .
   node scripts/prepare-wasi-singlethreaded-package.mjs .
   node scripts/validate-wasi-singlethreaded-package.mjs npm/wasm32-wasi-singlethreaded
 )
