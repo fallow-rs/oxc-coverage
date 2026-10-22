@@ -5,13 +5,13 @@ use std::mem;
 
 use oxc_ast::ast::*;
 use oxc_span::{GetSpan, SPAN, Span};
-use oxc_traverse::{Ancestor, TraverseCtx};
+use oxc_traverse::TraverseCtx;
 
 use crate::pragma::IgnoreType;
 
 use super::counters::{CounterKind, build_counter_stmt, dummy_expr, prepend_counter};
 use super::coverage_map::is_synthetic_span;
-use super::ignore::method_ignored_by_pragma;
+use super::ignore::{consume_value_pragma, method_ignored_by_pragma};
 use super::names::{callback_argument_name, method_label, property_key_to_name};
 use super::{CoverageState, CoverageTransform};
 
@@ -23,7 +23,11 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         func: &Function<'arena>,
         ctx: &TraverseCtx<'arena, CoverageState>,
     ) {
-        let has_pragma = ctx.state.pragmas.get(func.span.start) == Some(IgnoreType::Next);
+        if self.reserved_method_fns.last().is_some_and(|(start, _)| *start == func.span.start) {
+            self.enter_reserved_method_function();
+            return;
+        }
+        let has_pragma = ctx.state.pragmas.get_for_node(func.span.start) == Some(IgnoreType::Next);
         let ignored_named_function_expression = func.r#type == FunctionType::FunctionExpression
             && func
                 .id
@@ -34,41 +38,73 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             || self.skip_next
             || self.in_ignored_subtree()
             || ignored_named_function_expression;
-        let fn_counter_only_skip = self.skip_fn_counter_only;
         self.skip_next = false;
-        self.skip_fn_counter_only = false;
         self.ignored_fn_stack.push(pragma_skip);
         if pragma_skip {
-            self.pending_name = None;
-            return;
-        }
-        if fn_counter_only_skip {
-            if func.body.is_some() {
-                self.pending_fn_counters.push(None);
-            }
-            self.pending_name = None;
+            self.take_inferred_name(func.span.start);
             return;
         }
 
         let name = self.resolve_function_name(func, ctx);
         // istanbul-lib-instrument points `decl` at the identifier itself:
-        // `function foo()` gives the `foo` identifier span, a method gives a
-        // marker at the method start (see `method_decl_span`), and an
-        // anonymous `function ()` gives a
-        // one-character marker where the name would have been.
-        let decl_span = if let Some(id) = &func.id {
-            id.span
-        } else if let Some(span) = self.method_decl_from_parent(ctx) {
-            span
-        } else {
-            Span::new(func.span.start, func.span.start + 1)
-        };
+        // `function foo()` gives the `foo` identifier span, and an anonymous
+        // `function ()` gives a one-character marker where the name would have
+        // been. A method gets its `decl` in `reserve_method_function`.
+        let decl_span = func
+            .id
+            .as_ref()
+            .map_or_else(|| Span::new(func.span.start, func.span.start + 1), |id| id.span);
         if let Some(body) = &func.body {
             // Pushed for every function with a body so the stack stays balanced
             // with the body hook's pop; `None` emits no counter.
             let fn_id = self.add_function(name, decl_span, body.span);
             self.pending_fn_counters.push(fn_id);
         }
+    }
+
+    /// Enter the value function of a method whose `fnMap` id was reserved when
+    /// the method was entered. The method gates (pragma, private key,
+    /// `ignoreClassMethods`) already ran, so no gate of the function applies.
+    fn enter_reserved_method_function(&mut self) {
+        let Some((_, fn_id)) = self.reserved_method_fns.pop() else { return };
+        self.skip_next = false;
+        self.ignored_fn_stack.push(self.in_ignored_subtree());
+        // Balanced with the body hook's pop; `None` emits no counter.
+        self.pending_fn_counters.push(fn_id);
+    }
+
+    /// Reserve the `fnMap` id of a method or a method-like object property
+    /// before the traverse visits its decorators and its key.
+    ///
+    /// istanbul-lib-instrument registers a `ClassMethod` or an `ObjectMethod`
+    /// when Babel enters the method node, so a function in a decorator or in
+    /// a computed key gets a higher id. Oxc keeps the function in a separate
+    /// `Function` node, which the traverse enters after those children.
+    /// `fn_id` is `None` when the method gets no counter.
+    fn reserve_method_function(&mut self, value: &Function<'arena>, fn_id: Option<usize>) {
+        if value.body.is_some() {
+            self.reserved_method_fns.push((value.span.start, fn_id));
+        }
+    }
+
+    /// Register the `fnMap` entry of a method or a method-like object property
+    /// and reserve its id for the value function.
+    fn register_method_function(
+        &mut self,
+        member: Span,
+        key: &PropertyKey<'arena>,
+        computed: bool,
+        label: Option<String>,
+        value: &Function<'arena>,
+    ) {
+        let Some(body) = &value.body else { return };
+        let name = match label {
+            Some(label) if !self.istanbul_compat => label,
+            _ => format!("(anonymous_{})", self.fn_map.len()),
+        };
+        let decl = self.method_decl_span(member, key, computed);
+        let fn_id = self.add_function(name, decl, body.span);
+        self.reserve_method_function(value, fn_id);
     }
 
     /// Prepend the function counter to a body, if the function was registered.
@@ -105,22 +141,22 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             arrow.body.is_expression() || self.pre_expanded_arrows.contains(arrow.span.start);
         self.arrow_expression_bodies.push(was_concise);
 
-        let pragma_skip = ctx.state.pragmas.get(arrow.span.start) == Some(IgnoreType::Next)
+        let pragma_skip = ctx.state.pragmas.get_for_node(arrow.span.start)
+            == Some(IgnoreType::Next)
             || self.skip_next
             || self.in_ignored_subtree();
         // Only pragma-driven skips suppress body statements.
         self.ignored_fn_stack.push(pragma_skip);
+        let inferred_name = self.take_inferred_name(arrow.span.start);
         if pragma_skip {
             self.skip_next = false;
-            self.pending_name = None;
             return;
         }
 
-        let pending_name = self.pending_name.take();
         let name = if self.istanbul_compat {
             format!("(anonymous_{})", self.fn_map.len())
         } else {
-            pending_name
+            inferred_name
                 .or_else(|| {
                     self.name_callback_arguments.then(|| callback_argument_name(ctx)).flatten()
                 })
@@ -178,33 +214,39 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         &mut self,
         decl: &ExportDefaultDeclaration<'arena>,
     ) {
-        if self.in_ignored_subtree() {
+        // A named function export (`export default function foo`) keeps its
+        // declared identifier, because an own name comes first. A class
+        // export needs no name: its constructor (if any) takes the name of
+        // its key, and a class without a constructor has no `fnMap` entry.
+        if self.istanbul_compat {
             return;
         }
-        // Named function exports (`export default function foo`) keep their
-        // declared identifier. Class exports do not need handling here
-        // because their constructor (if any) receives its name via
-        // `register_method_definition`, and a class without a constructor
-        // produces no `fnMap` entry at all.
-        let anonymous = match &decl.declaration {
-            ExportDefaultDeclarationKind::FunctionDeclaration(func) => func.id.is_none(),
-            ExportDefaultDeclarationKind::ArrowFunctionExpression(_) => true,
-            _ => false,
-        };
-        if anonymous {
-            self.pending_name = Some("default".to_string());
+        match &decl.declaration {
+            ExportDefaultDeclarationKind::FunctionDeclaration(func) => {
+                self.inferred_names.insert(func.span.start, "default".to_string());
+            }
+            kind => {
+                if let Some(value) = kind.as_expression() {
+                    self.infer_name_for_value(value, Some("default".to_string()));
+                }
+            }
         }
     }
 
-    /// Carry a method's name and `decl` span into its inner `Function`, or
-    /// record that the method is suppressed.
+    /// Register the `fnMap` entry of a method, or record that the method is
+    /// suppressed.
     pub(super) fn register_method_definition(
         &mut self,
         method: &MethodDefinition<'arena>,
         ctx: &TraverseCtx<'arena, CoverageState>,
     ) {
         let parent_ignored = self.in_ignored_subtree();
-        if method_ignored_by_pragma(method, &ctx.state.pragmas, self.skip_next) {
+        if method_ignored_by_pragma(
+            method,
+            &ctx.state.pragmas,
+            self.skip_next,
+            self.istanbul_compat,
+        ) {
             self.ignored_prop_stack.push(true);
             self.skip_next = false;
             return;
@@ -216,35 +258,24 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         if matches!(method.key, PropertyKey::PrivateIdentifier(_)) {
             // istanbul-lib-instrument instruments private method bodies for
             // statement coverage but does not surface them in `fnMap`.
-            self.skip_fn_counter_only = true;
+            self.reserve_method_function(&method.value, None);
             return;
         }
-        let Some(name) = property_key_to_name(&method.key) else { return };
-        if self.ignore_class_methods.contains(&name) {
+        let name = property_key_to_name(&method.key);
+        if name.as_ref().is_some_and(|name| self.ignore_class_methods.contains(name)) {
             if let Some(ignored) = self.ignored_prop_stack.last_mut() {
                 *ignored = true;
             }
             return;
         }
-        self.pending_name = Some(method_label(method.kind, name));
-    }
-
-    /// The `decl` of a function that is the value of a method or of a
-    /// method-like object property. Read from the direct parent, so a function
-    /// in a computed key or a decorator argument keeps its own `decl`.
-    fn method_decl_from_parent(&self, ctx: &TraverseCtx<'arena, CoverageState>) -> Option<Span> {
-        match ctx.parent() {
-            Ancestor::MethodDefinitionValue(method) => {
-                Some(self.method_decl_span(*method.span(), method.key(), *method.computed()))
-            }
-            Ancestor::ObjectPropertyValue(prop)
-                if *prop.method()
-                    || matches!(prop.kind(), PropertyKind::Get | PropertyKind::Set) =>
-            {
-                Some(self.method_decl_span(*prop.span(), prop.key(), *prop.computed()))
-            }
-            _ => None,
-        }
+        let label = name.map(|name| method_label(method.kind, name));
+        self.register_method_function(
+            method.span,
+            &method.key,
+            method.computed,
+            label,
+            &method.value,
+        );
     }
 
     /// The `decl` of a method or a method-like object property.
@@ -265,7 +296,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
     pub(super) fn instrument_property_definition(
         &mut self,
         prop: &mut PropertyDefinition<'arena>,
-        ctx: &TraverseCtx<'arena, CoverageState>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
     ) {
         let parent_ignored = self.in_ignored_subtree();
         let has_ignore_next =
@@ -284,6 +315,9 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // rather than a `Statement`, so the statement hook never sees it. The
         // initializer is wrapped in place: `x = (++cov.s[N], expr)`.
         let Some(value) = prop.value.as_mut() else { return };
+        // Istanbul wraps the value with `replaceWith`, which moves its
+        // comments to the wrapper, so a pragma before the value is lost.
+        consume_value_pragma(value, &mut ctx.state.pragmas);
         let span = value.without_parentheses().span();
         if is_synthetic_span(span) {
             return;
@@ -303,34 +337,46 @@ impl<'arena> CoverageTransform<'_, 'arena> {
     ) {
         let is_method_like =
             prop.method || matches!(prop.kind, PropertyKind::Get | PropertyKind::Set);
-        let key_has_ignore_next = ctx.state.pragmas.get(prop.span.start) == Some(IgnoreType::Next)
-            || ctx.state.pragmas.get(prop.key.span().start) == Some(IgnoreType::Next)
-            || self.skip_next;
         let is_function_valued = matches!(
             prop.value.without_parentheses(),
             Expression::FunctionExpression(_) | Expression::ArrowFunctionExpression(_)
         );
-        // On a method-like property the pragma suppresses the method, on a
-        // plain data property it suppresses the value. A function-valued data
-        // property is left to the inner function/arrow hook, which consumes
-        // `skip_next` itself.
-        let has_ignore_next = key_has_ignore_next && (is_method_like || !is_function_valued);
+        let has_ignore_next = if self.istanbul_compat {
+            // Istanbul visits an object method but not a data property, so a
+            // pragma at the start of the property ignores only a method. Babel
+            // attaches a pragma after a modifier or in a computed key to the
+            // key, which istanbul does not visit.
+            is_method_like
+                && (ctx.state.pragmas.get(prop.span.start) == Some(IgnoreType::Next)
+                    || self.skip_next)
+        } else {
+            // On a method-like property the pragma suppresses the method, on a
+            // plain data property it suppresses the value. A function-valued
+            // data property is left to the inner function/arrow hook, which
+            // consumes `skip_next` itself.
+            let key_has_ignore_next = ctx.state.pragmas.get(prop.span.start)
+                == Some(IgnoreType::Next)
+                || ctx.state.pragmas.get(prop.key.span().start) == Some(IgnoreType::Next)
+                || self.skip_next;
+            key_has_ignore_next && (is_method_like || !is_function_valued)
+        };
         self.push_prop_ignore_frame(has_ignore_next);
 
-        // Carry the property's key name into the inner function or arrow so
-        // `fnMap[N].name` reads as the source does instead of
-        // `(anonymous_N)`. Covers shorthand methods, accessors and
-        // function-valued properties.
-        if !has_ignore_next && !self.in_ignored_subtree() {
-            let inherits_name = is_method_like || is_function_valued;
-            if inherits_name && let Some(base) = property_key_to_name(&prop.key) {
-                let label = match prop.kind {
-                    PropertyKind::Get => format!("get {base}"),
-                    PropertyKind::Set => format!("set {base}"),
-                    PropertyKind::Init => base,
-                };
-                self.pending_name = Some(label);
-            }
+        if has_ignore_next || self.in_ignored_subtree() || !(is_method_like || is_function_valued) {
+            return;
+        }
+        // Name the function after the property key so `fnMap[N].name` reads
+        // as the source does instead of `(anonymous_N)`. Covers shorthand
+        // methods, accessors and function-valued properties.
+        let label = property_key_to_name(&prop.key).map(|base| match prop.kind {
+            PropertyKind::Get => format!("get {base}"),
+            PropertyKind::Set => format!("set {base}"),
+            PropertyKind::Init => base,
+        });
+        if is_method_like && let Expression::FunctionExpression(value) = &prop.value {
+            self.register_method_function(prop.span, &prop.key, prop.computed, label, value);
+        } else {
+            self.infer_name_for_value(&prop.value, label);
         }
     }
 }

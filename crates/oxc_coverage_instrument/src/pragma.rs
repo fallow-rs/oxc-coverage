@@ -4,9 +4,14 @@
 //! building a lookup table that the coverage transform uses to skip
 //! instrumentation for specific nodes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use oxc_ast::ast::{Comment, Program};
+use oxc_ast::{
+    AstKind,
+    ast::{Comment, Expression, ParenthesizedExpression, Program},
+};
+use oxc_ast_visit::{Visit, walk};
+use oxc_span::GetSpan;
 
 use oxc_coverage_types::UnhandledPragma;
 
@@ -40,20 +45,29 @@ pub struct PragmaMap {
     ignores: BTreeMap<u32, IgnoreType>,
     /// Ranges ignored by `ignore start` / `ignore stop` block pragmas.
     ignored_ranges: Vec<(u32, u32)>,
+    /// `ignore next` keys whose outermost node is a type that istanbul does
+    /// not visit, such as the call in `/* istanbul ignore next */ f().g()`.
+    /// See [`PragmaMap::get_for_node`].
+    wrapper_owned: BTreeSet<u32>,
     /// Whether the entire file should be ignored.
     pub ignore_file: bool,
 }
 
 impl PragmaMap {
     /// Build a pragma map from the program's comments and source text.
-    pub fn from_program(program: &Program, source: &str) -> (Self, Vec<UnhandledPragma>) {
+    /// `istanbul_compat` limits the map to the pragmas that istanbul reads.
+    pub fn from_program(
+        program: &Program,
+        source: &str,
+        istanbul_compat: bool,
+    ) -> (Self, Vec<UnhandledPragma>) {
         let mut state = PragmaCollect::default();
         let mut comments: Vec<_> = program.comments.iter().collect();
         comments.sort_by_key(|comment| comment.span.start);
 
         for comment in comments {
             let text = Self::comment_text(comment, source);
-            if let Some(result) = Self::parse_pragma(&text) {
+            if let Some(result) = Self::parse_pragma(&text, istanbul_compat) {
                 state.apply(result, comment, source);
             }
         }
@@ -61,11 +75,22 @@ impl PragmaMap {
         if let Some(start) = state.active_ignore_start {
             state.ignored_ranges.push((start, to_offset(source.len())));
         }
+        let mut wrapper_owned = BTreeSet::new();
+        if state.ignores.values().any(|&kind| kind == IgnoreType::Next) {
+            let mut owners = PragmaOwners {
+                ignores: &mut state.ignores,
+                parents: Vec::new(),
+                seen: BTreeSet::new(),
+                wrapper_owned: &mut wrapper_owned,
+            };
+            owners.visit_program(program);
+        }
 
         (
             Self {
                 ignores: state.ignores,
                 ignored_ranges: state.ignored_ranges,
+                wrapper_owned,
                 ignore_file: state.ignore_file,
             },
             state.unhandled,
@@ -74,12 +99,38 @@ impl PragmaMap {
 
     /// Get the ignore type for a given token start offset.
     pub fn get(&self, token_start: u32) -> Option<IgnoreType> {
-        self.ignores.get(&token_start).copied().or_else(|| {
-            self.ignored_ranges
-                .iter()
-                .any(|&(start, end)| token_start >= start && token_start < end)
-                .then_some(IgnoreType::Next)
-        })
+        self.ignores
+            .get(&token_start)
+            .copied()
+            .or_else(|| self.in_ignored_range(token_start).then_some(IgnoreType::Next))
+    }
+
+    /// Get the ignore type for a function, arrow, conditional or logical
+    /// expression that starts at `node_start`.
+    ///
+    /// Babel attaches a comment to the outermost node after it. When that node
+    /// is a type istanbul does not visit, such as a call, a member or a
+    /// sequence expression, the pragma has no effect on a node that only
+    /// shares its start: `function () {}` in `function () {}.call(this)`.
+    pub fn get_for_node(&self, node_start: u32) -> Option<IgnoreType> {
+        if self.wrapper_owned.contains(&node_start) {
+            return self.in_ignored_range(node_start).then_some(IgnoreType::Next);
+        }
+        self.get(node_start)
+    }
+
+    fn in_ignored_range(&self, offset: u32) -> bool {
+        self.ignored_ranges.iter().any(|&(start, end)| offset >= start && offset < end)
+    }
+
+    /// Remove the `ignore next` pragma keyed at `start`, if there is one.
+    /// Istanbul wraps some values in a counter with Babel's `replaceWith`,
+    /// which moves the leading comments of the value to the wrapper. The value
+    /// itself then has no pragma. `ignore start` ranges stay in effect.
+    pub(crate) fn consume_next(&mut self, start: u32) {
+        if self.ignores.get(&start) == Some(&IgnoreType::Next) {
+            self.ignores.remove(&start);
+        }
     }
 
     /// Extract comment text from source.
@@ -159,13 +210,21 @@ impl PragmaMap {
     /// Matches `<tool> ignore <kind>` where `<tool>` is one of `istanbul`, `v8`, `c8`,
     /// and `<kind>` is one of `next`, `if`, `else`, `file`, `start`, or `stop`. Any ASCII whitespace run
     /// (spaces, tabs, newlines) between tokens is accepted, matching Istanbul's behavior.
+    /// As in Istanbul, `<kind>` ends at the first character that is not an
+    /// ASCII letter, digit or `_`, so `next: reason` and `next-reason` are `next`.
     ///
     /// A single leading `!` (the legal-comment marker preserved by esbuild,
     /// terser, swc, and most other minifiers) is skipped before parsing so
     /// `/*! istanbul ignore next */` and `//! istanbul ignore next` are
     /// honored identically to their plain forms.
-    fn parse_pragma(text: &str) -> Option<PragmaResult> {
+    ///
+    /// With `istanbul_compat`, only the `istanbul ignore next|if|else|file`
+    /// pragmas that `istanbul-lib-instrument` reads have an effect. The other
+    /// forms (`v8`, `c8`, `start`, `stop` and the legal-comment marker) are
+    /// reported as unhandled.
+    fn parse_pragma(text: &str, istanbul_compat: bool) -> Option<PragmaResult> {
         let trimmed = text.trim();
+        let legal_marker = trimmed.starts_with('!');
         let after_legal_marker = trimmed.strip_prefix('!').unwrap_or(trimmed);
         let mut tokens = after_legal_marker.split_whitespace();
         let tool = tokens.next()?;
@@ -175,16 +234,118 @@ impl PragmaMap {
         if tokens.next()? != "ignore" {
             return None;
         }
-        let kind = tokens.next().unwrap_or("");
-        Some(match kind {
+        let kind_token = tokens.next().unwrap_or("");
+        let kind_end = kind_token
+            .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+            .unwrap_or(kind_token.len());
+        let result = match &kind_token[..kind_end] {
             "next" => PragmaResult::Ignore(IgnoreType::Next),
             "if" => PragmaResult::Ignore(IgnoreType::If),
             "else" => PragmaResult::Ignore(IgnoreType::Else),
             "file" => PragmaResult::File,
             "start" => PragmaResult::Start,
             "stop" => PragmaResult::Stop,
-            _ => PragmaResult::Unknown(trimmed.to_string()),
-        })
+            _ => return Some(PragmaResult::Unknown(trimmed.to_string())),
+        };
+        let istanbul_reads = !legal_marker
+            && tool == "istanbul"
+            && !matches!(result, PragmaResult::Start | PragmaResult::Stop);
+        if istanbul_compat && !istanbul_reads {
+            return Some(PragmaResult::Unknown(trimmed.to_string()));
+        }
+        Some(result)
+    }
+}
+
+/// Finds the node that Babel attaches each `ignore next` pragma to.
+///
+/// Babel has no node for parentheses. It attaches a comment before `(` to the
+/// outermost node that starts after the comment, and that is the expression in
+/// the parentheses. Oxc keys the pragma at `(` instead, so the pass copies the
+/// key to the expression. The exception is a parent that starts at the same
+/// `(`, such as the call in `(f)()` or the logical expression in `(a) || b`:
+/// Babel attaches the comment to that parent.
+///
+/// The pass also records each key whose outermost node is a type that istanbul
+/// does not visit.
+struct PragmaOwners<'m> {
+    ignores: &'m mut BTreeMap<u32, IgnoreType>,
+    /// The start offset of each node on the current path, and whether that
+    /// node is a parenthesized expression.
+    parents: Vec<(u32, bool)>,
+    /// The `ignore next` keys whose outermost node the pass has found.
+    seen: BTreeSet<u32>,
+    wrapper_owned: &'m mut BTreeSet<u32>,
+}
+
+/// Node types that istanbul does not visit and that can start at the same
+/// offset as a child function, conditional or logical expression.
+const fn is_unvisited_wrapper(kind: &AstKind) -> bool {
+    matches!(
+        kind,
+        AstKind::CallExpression(_)
+            | AstKind::StaticMemberExpression(_)
+            | AstKind::ComputedMemberExpression(_)
+            | AstKind::PrivateFieldExpression(_)
+            | AstKind::ChainExpression(_)
+            | AstKind::TaggedTemplateExpression(_)
+            | AstKind::SequenceExpression(_)
+            | AstKind::BinaryExpression(_)
+            | AstKind::AssignmentExpression(_)
+            | AstKind::UpdateExpression(_)
+            | AstKind::TSAsExpression(_)
+            | AstKind::TSSatisfiesExpression(_)
+            | AstKind::TSNonNullExpression(_)
+            | AstKind::TSInstantiationExpression(_)
+    )
+}
+
+impl PragmaOwners<'_> {
+    fn alias_chain(&mut self, outer: &ParenthesizedExpression) {
+        let inner_start = outer.expression.without_parentheses().span().start;
+        let parent_start = self.parents.last().map(|&(start, _)| start);
+        let mut paren_starts = Vec::new();
+        if parent_start != Some(outer.span.start) {
+            paren_starts.push(outer.span.start);
+        }
+        let mut expr = &outer.expression;
+        while let Expression::ParenthesizedExpression(inner) = expr {
+            paren_starts.push(inner.span.start);
+            expr = &inner.expression;
+        }
+        if paren_starts.iter().any(|start| self.ignores.get(start) == Some(&IgnoreType::Next)) {
+            self.ignores.entry(inner_start).or_insert(IgnoreType::Next);
+        }
+    }
+}
+
+impl<'a> Visit<'a> for PragmaOwners<'_> {
+    fn enter_node(&mut self, kind: AstKind<'a>) {
+        let start = kind.span().start;
+        let is_paren = matches!(kind, AstKind::ParenthesizedExpression(_));
+        // The walk enters an outer node before the nodes in it, so the first
+        // node entered at a key is the outermost one.
+        if !is_paren
+            && self.ignores.get(&start) == Some(&IgnoreType::Next)
+            && self.seen.insert(start)
+            && is_unvisited_wrapper(&kind)
+        {
+            self.wrapper_owned.insert(start);
+        }
+        self.parents.push((start, is_paren));
+    }
+
+    fn leave_node(&mut self, _kind: AstKind<'a>) {
+        self.parents.pop();
+    }
+
+    fn visit_parenthesized_expression(&mut self, it: &ParenthesizedExpression<'a>) {
+        // Only the outermost parenthesis of a chain such as `((a))` starts
+        // the alias. It reads the inner parentheses itself.
+        if !self.parents.last().is_some_and(|&(_, is_paren)| is_paren) {
+            self.alias_chain(it);
+        }
+        walk::walk_parenthesized_expression(self, it);
     }
 }
 
@@ -251,7 +412,7 @@ mod tests {
     #[test]
     fn parses_plain_block_pragma() {
         assert!(matches!(
-            PragmaMap::parse_pragma(" istanbul ignore next "),
+            PragmaMap::parse_pragma(" istanbul ignore next ", false),
             Some(PragmaResult::Ignore(IgnoreType::Next))
         ));
     }
@@ -259,11 +420,11 @@ mod tests {
     #[test]
     fn parses_legal_block_pragma() {
         assert!(matches!(
-            PragmaMap::parse_pragma("! istanbul ignore next "),
+            PragmaMap::parse_pragma("! istanbul ignore next ", false),
             Some(PragmaResult::Ignore(IgnoreType::Next))
         ));
         assert!(matches!(
-            PragmaMap::parse_pragma("!istanbul ignore next"),
+            PragmaMap::parse_pragma("!istanbul ignore next", false),
             Some(PragmaResult::Ignore(IgnoreType::Next))
         ));
     }
@@ -271,24 +432,24 @@ mod tests {
     #[test]
     fn parses_legal_line_pragma() {
         assert!(matches!(
-            PragmaMap::parse_pragma("! v8 ignore next"),
+            PragmaMap::parse_pragma("! v8 ignore next", false),
             Some(PragmaResult::Ignore(IgnoreType::Next))
         ));
         assert!(matches!(
-            PragmaMap::parse_pragma("! istanbul ignore else"),
+            PragmaMap::parse_pragma("! istanbul ignore else", false),
             Some(PragmaResult::Ignore(IgnoreType::Else))
         ));
     }
 
     #[test]
     fn rejects_bang_only() {
-        assert!(PragmaMap::parse_pragma("!").is_none());
-        assert!(PragmaMap::parse_pragma("!!!").is_none());
+        assert!(PragmaMap::parse_pragma("!", false).is_none());
+        assert!(PragmaMap::parse_pragma("!!!", false).is_none());
     }
 
     #[test]
     fn rejects_non_pragma_legal_comment() {
-        assert!(PragmaMap::parse_pragma("! Copyright (c) 2026").is_none());
+        assert!(PragmaMap::parse_pragma("! Copyright (c) 2026", false).is_none());
     }
 
     #[test]

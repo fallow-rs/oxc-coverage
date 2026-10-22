@@ -799,3 +799,124 @@ fn unknown_pragma_populates_unhandled_pragmas() {
     assert!(result.unhandled_pragmas[0].comment.contains("banana"));
     assert_eq!(result.unhandled_pragmas[0].line, 1);
 }
+
+/// The `(functions, branch location counts, statements)` of `source`, in the
+/// order the coverage map holds them.
+fn coverage_shape(source: &str) -> (usize, Vec<usize>, usize) {
+    let map = instrument_js(source).coverage_map;
+    let branches = map.branch_map.values().map(|entry| entry.locations.len()).collect();
+    (map.fn_map.len(), branches, map.statement_map.len())
+}
+
+#[test]
+fn pragma_before_parentheses_ignores_the_wrapped_function() {
+    for source in [
+        "x = /* istanbul ignore next */ (function () {});",
+        "x = /* istanbul ignore next */ (() => 1);",
+        "f(/* istanbul ignore next */ (() => 1));",
+        "x = [/* istanbul ignore next */ ((function () {}))];",
+        "x = (/* istanbul ignore next */ (function () {}));",
+    ] {
+        assert_eq!(coverage_shape(source), (0, vec![], 1), "{source}");
+    }
+}
+
+#[test]
+fn pragma_before_parentheses_owned_by_a_call_keeps_the_function() {
+    for source in [
+        "x = /* istanbul ignore next */ (function () {})();",
+        "x = /* istanbul ignore next */ (function () {}).call(this);",
+        "x = /* istanbul ignore next */ (a, function () {});",
+    ] {
+        assert_eq!(coverage_shape(source).0, 1, "{source}");
+    }
+}
+
+#[test]
+fn pragma_before_parenthesized_logical_operand_drops_the_operand() {
+    assert_eq!(coverage_shape("x = a || /* istanbul ignore next */ (b);").1, [1]);
+    assert_eq!(coverage_shape("x = a || /* istanbul ignore next */ (b && c) || d;").1, [2]);
+    assert_eq!(coverage_shape("x = /* istanbul ignore next */ (a || b);").1, Vec::<usize>::new());
+    assert_eq!(coverage_shape("f(/* istanbul ignore next */ ((a || b)));").1, Vec::<usize>::new());
+}
+
+#[test]
+fn pragma_on_parenthesized_conditional_arm_drops_the_arm() {
+    assert_eq!(coverage_shape("x = a ? (/* istanbul ignore next */ b) : c;").1, [1]);
+    assert_eq!(coverage_shape("x = a ? b : (/* istanbul ignore next */ c);").1, [1]);
+    assert_eq!(
+        coverage_shape("x = a ? /* istanbul ignore next */ (function () {}) : c;"),
+        (0, vec![1], 1)
+    );
+    assert_eq!(
+        coverage_shape("x = /* istanbul ignore next */ (a ? b : c);").1,
+        Vec::<usize>::new()
+    );
+}
+
+#[test]
+fn ignored_conditional_and_logical_expressions_ignore_their_subtree() {
+    for source in [
+        "x = /* istanbul ignore next */ a || (b ? c : d);",
+        "x = /* istanbul ignore next */ a || function () {};",
+        "x = /* istanbul ignore next */ a ? (b || c) : d;",
+        "x = /* istanbul ignore next */ (a ? b : c) ? d : e;",
+        "x = /* istanbul ignore next */ (a) ? function () {} : d;",
+    ] {
+        assert_eq!(coverage_shape(source), (0, vec![], 1), "{source}");
+    }
+}
+
+#[test]
+fn pragma_in_concise_arrow_body_keeps_the_body_statement() {
+    for source in [
+        "g = () => /* istanbul ignore next */ a;",
+        "g = () => /* istanbul ignore next */ (a);",
+        "g = () => /* istanbul ignore next */ (a ? b : c);",
+        "g = () => /* istanbul ignore next */ a ? b : c;",
+    ] {
+        assert_eq!(coverage_shape(source), (1, vec![], 2), "{source}");
+    }
+    assert_eq!(coverage_shape("g = () => /* istanbul ignore next */ (() => 1);"), (1, vec![], 2));
+}
+
+#[test]
+fn pragma_before_a_rewrapped_value_does_not_ignore_it() {
+    // The variable initializer, the class field value and the default value
+    // each get a counter wrapped around them, which moves the comment off the
+    // value. Only a hoisted function initializer keeps it.
+    assert_eq!(coverage_shape("var y = /* istanbul ignore next */ a || b;").1, [2]);
+    assert_eq!(coverage_shape("var y = /* istanbul ignore next */ (a ? b : c);").1, [2]);
+    assert_eq!(coverage_shape("var y = /* istanbul ignore next */ (function () {});").0, 0);
+    assert_eq!(
+        coverage_shape("for (var y = /* istanbul ignore next */ function () {};;) break;").0,
+        1
+    );
+    assert_eq!(coverage_shape("class A { m = /* istanbul ignore next */ () => 1; }").0, 1);
+    assert_eq!(coverage_shape("class A { m = /* istanbul ignore next */ (a || b); }").1, [2]);
+    assert_eq!(coverage_shape("function f(p = /* istanbul ignore next */ () => 1) {}").0, 2);
+    assert_eq!(coverage_shape("function f(p = /* istanbul ignore next */ (b || c)) {}").1, [1, 2]);
+    assert_eq!(coverage_shape("var { q = /* istanbul ignore next */ function () {} } = o;").0, 1);
+}
+
+#[test]
+fn pragma_owned_by_a_call_or_sequence_keeps_the_function_at_the_same_start() {
+    for source in [
+        "x = /* istanbul ignore next */ function () {}.call(this);",
+        "x = (/* istanbul ignore next */ function () {}, b);",
+        "x = /* istanbul ignore next */ (function () {}, b);",
+    ] {
+        assert_eq!(coverage_shape(source).0, 1, "{source}");
+    }
+    // The logical expression owns the pragma here, so its subtree is ignored.
+    assert_eq!(
+        coverage_shape("x = /* istanbul ignore next */ function () {}.x || b;"),
+        (0, vec![], 1)
+    );
+}
+
+#[test]
+fn pragma_before_an_assignment_target_default_does_not_ignore_it() {
+    assert_eq!(coverage_shape("({ a = /* istanbul ignore next */ (() => 1) } = o);").0, 1);
+    assert_eq!(coverage_shape("[a = /* istanbul ignore next */ (b || c)] = o;").1, [1, 2]);
+}

@@ -81,7 +81,7 @@ use coverage_map::is_synthetic_span;
 use ignore::{
     is_ignored_case, jsx_attribute_ignored, jsx_child_ignored, jsx_spread_attribute_ignored,
 };
-use names::{AssignmentTargetName, assignment_target_name};
+use names::assignment_target_name;
 
 pub use preamble::{PreambleInputs, djb31_hex, generate_cov_fn_name, generate_preamble_source};
 
@@ -115,8 +115,9 @@ pub struct CoverageTransform<'src, 'arena> {
     /// with `(0, 0)` represent unknown bodies (e.g. synthetic else-arms) and
     /// are skipped by callers.
     pub branch_arm_body_byte_spans: Vec<Vec<(u32, u32)>>,
-    /// Name inherited from a parent node (variable declarator, method definition).
-    pending_name: Option<String>,
+    /// Names inherited from a parent node (binding, property key, assignment
+    /// target), keyed on the start of the function or arrow that takes them.
+    inferred_names: BTreeMap<u32, String>,
     /// Counters to inject before the statement whose span starts at
     /// [`PendingInsertion::target_start`].
     pending_insertions: Vec<PendingInsertion>,
@@ -149,8 +150,12 @@ pub struct CoverageTransform<'src, 'arena> {
     /// Istanbul still treats their initializer subtree as skippable.
     ignored_prop_stack: Vec<bool>,
     /// Per-switch-case record of whether an `ignore next` pragma targets the
-    /// case label or its first consequent statement.
+    /// case label or, in the default profile, its first consequent statement.
     ignored_switch_case_stack: Vec<bool>,
+    /// Per-conditional, per-logical-expression and per-default record of
+    /// whether an `ignore next` pragma targets that node. A default is a
+    /// parameter default or an `AssignmentPattern` in Babel terms.
+    ignored_expr_stack: Vec<bool>,
     /// Spans for `if` arms suppressed by `/* istanbul ignore if */` or
     /// `/* istanbul ignore else */`. The branch visitor decides which arm is
     /// suppressed, while statement/function visitors use this to skip nested
@@ -161,10 +166,13 @@ pub struct CoverageTransform<'src, 'arena> {
     ignored_if_arm_push_counts: Vec<usize>,
     /// When true, skip instrumentation for the next node.
     skip_next: bool,
-    /// When true, the next function/arrow should skip its own function counter
-    /// without setting `skip_next`. Used for private class methods: Istanbul
-    /// instruments their bodies but does not add function counters for them.
-    skip_fn_counter_only: bool,
+    /// `fnMap` ids reserved when a method or a method-like object property
+    /// is entered, keyed on the start of its value function. The value
+    /// function hook pops the entry, so a function in a decorator or in a
+    /// computed key, which the traverse enters first, gets a later id. `None`
+    /// is reserved for a method that gets no counter (a private method, or one
+    /// the eager-compose gate dropped).
+    reserved_method_fns: Vec<(u32, Option<usize>)>,
     /// True while traversing a `VariableDeclaration` carrying an `ignore next`
     /// pragma. Consumed by `enter_variable_declarator` to skip both the
     /// per-declarator statement counter and any inner function counter.
@@ -284,7 +292,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             statement_map: Vec::new(),
             branch_map: Vec::new(),
             branch_arm_body_byte_spans: Vec::new(),
-            pending_name: None,
+            inferred_names: BTreeMap::new(),
             pending_insertions: Vec::new(),
             pending_fn_counters: Vec::new(),
             arrow_expression_bodies: Vec::new(),
@@ -293,10 +301,11 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             ignored_stmt_stack: Vec::new(),
             ignored_prop_stack: Vec::new(),
             ignored_switch_case_stack: Vec::new(),
+            ignored_expr_stack: Vec::new(),
             ignored_if_arm_spans: Vec::new(),
             ignored_if_arm_push_counts: Vec::new(),
             skip_next: false,
-            skip_fn_counter_only: false,
+            reserved_method_fns: Vec::new(),
             skip_current_var_decl: false,
             cov_fn_name,
             cov_fn_bt_name: report_logic.then(|| allocator.alloc_str(&format!("{cov_fn_name}_bt"))),
@@ -401,14 +410,6 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         self.instrument_variable_declarator(decl, ctx);
     }
 
-    fn exit_variable_declarator(
-        &mut self,
-        _decl: &mut VariableDeclarator<'a>,
-        _ctx: &mut TraverseCtx<'a, CoverageState>,
-    ) {
-        self.pending_name = None;
-    }
-
     fn enter_export_default_declaration(
         &mut self,
         decl: &mut ExportDefaultDeclaration<'a>,
@@ -430,7 +431,6 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         _method: &mut MethodDefinition<'a>,
         _ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
-        self.pending_name = None;
         self.ignored_prop_stack.pop();
     }
 
@@ -464,7 +464,6 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         _ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.ignored_prop_stack.pop();
-        self.pending_name = None;
     }
 
     fn enter_statement(
@@ -513,6 +512,15 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.instrument_conditional_branches(expr, ctx);
+        self.push_expr_ignore_frame(expr.span.start, &ctx.state.pragmas);
+    }
+
+    fn exit_conditional_expression(
+        &mut self,
+        _expr: &mut ConditionalExpression<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_expr_stack.pop();
     }
 
     fn enter_switch_statement(
@@ -528,7 +536,11 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         case: &mut SwitchCase<'a>,
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
-        self.ignored_switch_case_stack.push(is_ignored_case(case, &ctx.state.pragmas));
+        self.ignored_switch_case_stack.push(is_ignored_case(
+            case,
+            &ctx.state.pragmas,
+            self.istanbul_compat,
+        ));
     }
 
     fn exit_switch_case(
@@ -596,6 +608,15 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.instrument_logical_expression(expr, ctx);
+        self.push_expr_ignore_frame(expr.span.start, &ctx.state.pragmas);
+    }
+
+    fn exit_logical_expression(
+        &mut self,
+        _expr: &mut LogicalExpression<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_expr_stack.pop();
     }
 
     // Istanbul does not treat `for` / `while` / `do-while` as branches.
@@ -671,6 +692,14 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         self.instrument_parameter_default(param, ctx);
     }
 
+    fn exit_formal_parameter(
+        &mut self,
+        _param: &mut FormalParameter<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_expr_stack.pop();
+    }
+
     fn enter_static_member_expression(
         &mut self,
         member: &mut StaticMemberExpression<'a>,
@@ -716,6 +745,38 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         self.instrument_destructuring_default(pattern, ctx);
     }
 
+    fn exit_assignment_pattern(
+        &mut self,
+        _pattern: &mut AssignmentPattern<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_expr_stack.pop();
+    }
+
+    fn enter_assignment_target_with_default(
+        &mut self,
+        target: &mut AssignmentTargetWithDefault<'a>,
+        ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.instrument_assignment_target_default(target, ctx);
+    }
+
+    fn exit_assignment_target_with_default(
+        &mut self,
+        _target: &mut AssignmentTargetWithDefault<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_expr_stack.pop();
+    }
+
+    fn enter_assignment_target_property_identifier(
+        &mut self,
+        target: &mut AssignmentTargetPropertyIdentifier<'a>,
+        ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.instrument_shorthand_target_default(target, ctx);
+    }
+
     fn enter_assignment_expression(
         &mut self,
         expr: &mut AssignmentExpression<'a>,
@@ -725,9 +786,7 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
             return;
         }
 
-        if let AssignmentTargetName::Update(name) = assignment_target_name(expr) {
-            self.pending_name = name;
-        }
+        self.infer_name_for_value(&expr.right, assignment_target_name(expr));
         self.try_instrument_logical_assignment(expr, ctx);
     }
 }

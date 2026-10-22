@@ -14,6 +14,7 @@ mod conformance_suite;
 mod error_display;
 mod fixture_validation;
 mod function_identity_overlay;
+mod function_names;
 mod integration;
 mod pragma;
 mod real_world;

@@ -182,6 +182,11 @@ The profile disables logical-assignment and optional-chain branches, uses
 declaration spans to the first character of the method, and emits Istanbul's
 empty synthetic `else` locations. Explicitly named functions keep their names.
 
+The profile reads only the `istanbul ignore next`, `if`, `else`, and `file`
+pragmas, and reports the `v8`, `c8`, `start`, `stop`, and `/*!` forms in
+`unhandledPragmas`. Each pragma applies to the node that Babel attaches it to
+(see difference 8).
+
 The profile is authoritative over the individual extension options. In
 particular, optional-chain tracking and callback-argument name inference remain
 off under the profile. With no profile, all existing Oxc defaults and the
@@ -221,6 +226,9 @@ class method, this instrumenter uses the name the JavaScript runtime assigns to
 |---|---|---|
 | `const f = function() {}` | `f` | `(anonymous_0)` |
 | `const g = () => 1` | `g` | `(anonymous_0)` |
+| `x = () => 1` | `x` | `(anonymous_0)` |
+| `o.x = (function() {})` | `x` | `(anonymous_0)` |
+| `const f = function g() {}` | `g` | `g` |
 | `class C { bar() {} }` | `bar` | `(anonymous_0)` |
 | `(function() {})()` | `(anonymous_0)` | `(anonymous_0)` |
 
@@ -307,6 +315,31 @@ function and class expressions keep their declared names.
 
 Pinned by `integration.rs::sequence_wrapped_class_field_functions_are_anonymous`
 and the per-kind class-field runtime counter tests.
+
+The `default-arg` counter wraps a default value the same way, so an anonymous
+function default of a parameter or a destructuring target
+(`({ a = () => 1 } = o)`) also keeps an empty runtime `name`. Istanbul does the
+same.
+
+### 8. Ignore pragmas on data properties and case statements
+
+Two `ignore next` placements reach further than in Istanbul:
+
+| Source | Here | istanbul |
+|---|---|---|
+| `({ /* istanbul ignore next */ a: b \|\| c })` | value ignored | counted |
+| `switch (x) { case 1: /* istanbul ignore next */ y(); }` | case ignored | `y()` ignored |
+
+The strict Istanbul profile follows Istanbul.
+
+All other placements follow Istanbul in both profiles. Istanbul wraps some
+values in a counter with Babel's `replaceWith`, which moves the leading
+comments of the value to the wrapper, so an `ignore next` before such a value
+has no effect: `var x = /* istanbul ignore next */ a || b` keeps its branch,
+and `class A { m = /* istanbul ignore next */ () => 1 }` keeps its function. A
+pragma before a whole default, conditional, or logical expression ignores
+everything in it: `function f(/* istanbul ignore next */ x = () => 1) {}`
+ignores the arrow too.
 
 This crate is the entry point of the oxc-coverage suite; the source-map,
 V8, and reporting layers live in sibling crates.

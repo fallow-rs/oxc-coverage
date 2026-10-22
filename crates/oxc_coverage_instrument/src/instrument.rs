@@ -490,7 +490,11 @@ pub fn instrument(
     let mut parsed = parse_program(&allocator, source, filename, options.source_type)?;
     let prepared_input_source_map = prepare_input_source_map(options);
 
-    let (pragmas, unhandled_pragmas) = PragmaMap::from_program(&parsed.program, source);
+    let (pragmas, unhandled_pragmas) = PragmaMap::from_program(
+        &parsed.program,
+        source,
+        options.compat == Some(CompatProfile::Istanbul),
+    );
     // The strip pass inside `prepare_scoping` rewrites the body of a concise
     // arrow whose expression is a TypeScript wrapper (`(x: number) => x as T`)
     // down to the inner expression, which is all the span that survives. Giving
@@ -730,7 +734,11 @@ pub fn instrument_program<'arena>(
     filename: &str,
     options: &InstrumentOptions,
 ) -> Result<InstrumentProgramResult, InstrumentError> {
-    let (pragmas, unhandled_pragmas) = PragmaMap::from_program(program, source_text);
+    let (pragmas, unhandled_pragmas) = PragmaMap::from_program(
+        program,
+        source_text,
+        options.compat == Some(CompatProfile::Istanbul),
+    );
     let prepared_input_source_map = prepare_input_source_map(options);
     instrument_program_with_pragmas(InstrumentProgramInput {
         allocator,
@@ -1059,7 +1067,7 @@ pub fn collect_for_v8_to_istanbul(
     let allocator = Allocator::default();
     let mut parsed = parse_program(&allocator, source, filename, None)?;
 
-    let (pragmas, _unhandled_pragmas) = PragmaMap::from_program(&parsed.program, source);
+    let (pragmas, _unhandled_pragmas) = PragmaMap::from_program(&parsed.program, source, false);
     if pragmas.ignore_file {
         return Ok(V8CollectResult {
             coverage_map: empty_coverage(filename),

@@ -15,6 +15,13 @@ impl CoverageTransform<'_, '_> {
             || self.ignored_stmt_stack.iter().any(|&ignored| ignored)
             || self.ignored_prop_stack.iter().any(|&ignored| ignored)
             || self.ignored_switch_case_stack.iter().any(|&ignored| ignored)
+            || self.ignored_expr_stack.iter().any(|&ignored| ignored)
+    }
+
+    /// Open an ignore frame for a conditional or logical expression. Istanbul
+    /// skips the whole subtree of a node that carries `ignore next`.
+    pub(super) fn push_expr_ignore_frame(&mut self, start: u32, pragmas: &PragmaMap) {
+        self.ignored_expr_stack.push(pragmas.get_for_node(start) == Some(IgnoreType::Next));
     }
 
     pub(super) fn is_in_ignored_if_arm(&self, span: Span) -> bool {
@@ -38,7 +45,8 @@ impl CoverageTransform<'_, '_> {
 /// return true if it carries an `ignore next` pragma at its start. Handles
 /// the common shape `function f({ /* istanbul ignore next */ key: x = 1 })`,
 /// where the pragma anchors on the property's key, not on the
-/// AssignmentPattern itself.
+/// AssignmentPattern itself. Only the default profile reads this pragma:
+/// Babel attaches it to the property, which istanbul does not visit.
 pub(super) fn enclosing_destructure_property_pragma(ctx: &TraverseCtx<'_, CoverageState>) -> bool {
     use oxc_traverse::Ancestor;
     for a in ctx.ancestors() {
@@ -56,12 +64,32 @@ pub(super) fn enclosing_destructure_property_pragma(ctx: &TraverseCtx<'_, Covera
     false
 }
 
-pub(super) fn is_ignored_case(case: &SwitchCase, pragmas: &PragmaMap) -> bool {
+/// Remove the `ignore next` pragma of a value that istanbul wraps in a counter
+/// with `replaceWith`. Babel drops parentheses, so the pragma can be keyed at
+/// any parenthesis around the value or at the value itself.
+pub(super) fn consume_value_pragma(value: &Expression, pragmas: &mut PragmaMap) {
+    let mut expr = value;
+    while let Expression::ParenthesizedExpression(paren) = expr {
+        pragmas.consume_next(paren.span.start);
+        expr = &paren.expression;
+    }
+    pragmas.consume_next(expr.span().start);
+}
+
+/// Under `istanbul_compat`, only a pragma before the `case` keyword ignores
+/// the case. Babel attaches a pragma after `case x:` to the first consequent
+/// statement. The default profile also ignores the case for that pragma.
+pub(super) fn is_ignored_case(
+    case: &SwitchCase,
+    pragmas: &PragmaMap,
+    istanbul_compat: bool,
+) -> bool {
     pragmas.get(case.span.start) == Some(IgnoreType::Next)
-        || case
-            .consequent
-            .first()
-            .is_some_and(|stmt| pragmas.get(stmt.span().start) == Some(IgnoreType::Next))
+        || (!istanbul_compat
+            && case
+                .consequent
+                .first()
+                .is_some_and(|stmt| pragmas.get(stmt.span().start) == Some(IgnoreType::Next)))
 }
 
 pub(super) fn jsx_attribute_ignored(
@@ -98,13 +126,18 @@ pub(super) fn jsx_child_ignored(child: &JSXChild, pragmas: &PragmaMap, skip_next
         || skip_next
 }
 
+/// Under `istanbul_compat`, only a pragma at the start of the method ignores
+/// it. Babel attaches a pragma after a modifier or a decorator, or in a
+/// computed key, to the key, and istanbul does not visit the key. The default
+/// profile also reads a pragma at the key.
 pub(super) fn method_ignored_by_pragma(
     method: &MethodDefinition<'_>,
     pragmas: &PragmaMap,
     skip_next: bool,
+    istanbul_compat: bool,
 ) -> bool {
     !matches!(method.key, PropertyKey::PrivateIdentifier(_))
         && (pragmas.get(method.span.start) == Some(IgnoreType::Next)
-            || pragmas.get(method.key.span().start) == Some(IgnoreType::Next)
+            || (!istanbul_compat && pragmas.get(method.key.span().start) == Some(IgnoreType::Next))
             || skip_next)
 }
