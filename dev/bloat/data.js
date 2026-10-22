@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792652591485,
+  "lastUpdate": 1792653623198,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2812,6 +2812,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97509088,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bartwaardenburg@gmail.com",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5fe153d8c83e952712526dfb5554726b93013cea",
+          "message": "Merge pull request #299 from fallow-rs/chore/release-v0.15.0\n\nchore: release v0.15.0\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-10-22T09:17:24+02:00",
+          "tree_id": "050a5f0c865c1890326f51c4506b24021d18802e",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/5fe153d8c83e952712526dfb5554726b93013cea"
+        },
+        "date": 1792653622419,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97510808,
             "unit": "bytes"
           }
         ]
