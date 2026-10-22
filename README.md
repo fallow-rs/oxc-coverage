@@ -22,7 +22,7 @@ reporters. It does not claim to port every Istanbul package or reporter.
 
 ```toml
 [dependencies]
-oxc_coverage_instrument = "0.15"
+oxc_coverage_instrument = "0.16"
 ```
 
 ```bash
