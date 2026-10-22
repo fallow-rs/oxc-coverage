@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792606511990,
+  "lastUpdate": 1792652591485,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2783,6 +2783,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97505856,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ff7e7d0237af8544c98d03b3589a5240f229d425",
+          "message": "feat(napi): expose coverage summaries and the Istanbul reporters (#296)\n\nThe npm package now exports summarizeCoverage, createReport (text,\ntext-summary, json-summary, lcov, cobertura) and writeHtmlReport. The\nhtml reporter is in the native bindings only, so the WebAssembly binding\nstays under its size ceiling.\n\nThe summary now truncates pct to two decimals like istanbul-lib-coverage,\nso json-summary, text and thresholds match Istanbul at a boundary.\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-10-22T09:01:07+02:00",
+          "tree_id": "d9ede18e55efefde9c06e475ab7f0197cb8869af",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/ff7e7d0237af8544c98d03b3589a5240f229d425"
+        },
+        "date": 1792652590861,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97509088,
             "unit": "bytes"
           }
         ]
