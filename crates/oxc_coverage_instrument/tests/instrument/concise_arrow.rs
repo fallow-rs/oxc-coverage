@@ -298,7 +298,7 @@ fn object_literal_body_is_counted_and_spans_the_literal() {
     let result = instrument_js(source);
 
     assert_eq!(result.coverage_map.fn_map.len(), 1);
-    assert_body_span_recorded(&result, source, "({ v: x })");
+    assert_body_span_recorded(&result, source, "{ v: x }");
     assert!(result.code.contains(".f[0]"), "object-literal body must carry a function counter");
 }
 
@@ -358,7 +358,7 @@ fn concise_body_that_is_a_branch_keeps_both_branch_and_function_entries() {
     let result = instrument_js(source);
 
     assert_eq!(result.coverage_map.fn_map.len(), 1);
-    assert_body_span_recorded(&result, source, "(x > 0 ? 'pos' : 'neg')");
+    assert_body_span_recorded(&result, source, "x > 0 ? 'pos' : 'neg'");
 
     let branch_types: Vec<&str> =
         result.coverage_map.branch_map.values().map(|entry| entry.branch_type.as_str()).collect();

@@ -189,7 +189,9 @@ impl CoverageTransform<'_, '_> {
         if let Some(key) = key {
             self.eager_function_ids.insert(key, id_num);
         }
-        let line = decl.start.line;
+        // istanbul-lib-instrument takes the deprecated `line` from the body, not
+        // the declaration, so a multi-line parameter list moves it down.
+        let line = loc.start.line;
         self.fn_map.push(FnEntry { name, line, decl, loc });
         Some(id_num)
     }

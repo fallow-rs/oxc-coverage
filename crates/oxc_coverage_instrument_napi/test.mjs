@@ -150,6 +150,19 @@ function runInstrumented(result, filename, callExpression) {
   console.log('  [PASS] Default-arg runtime branch counters');
 }
 
+// Test: Parenthesized initializers keep their inferred function names
+{
+  const result = instrument(
+    'const f = (function () {});\nconst g = (() => 1);\nglobalThis.names = [f.name, g.name];',
+    'paren-names.js',
+    { sourceType: 'script' },
+  );
+  const context = {};
+  new Function('globalThis', result.code)(context);
+  assert.deepEqual(context.names, ['f', 'g']);
+  console.log('  [PASS] Parenthesized initializers keep inferred names');
+}
+
 // Test: Same path with changed shape refreshes stale coverage data
 {
   const first = instrument('function f() { return 1; }\nf();', 'same.js');

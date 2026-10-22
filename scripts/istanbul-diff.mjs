@@ -70,6 +70,8 @@ const normalize = (coverage) => ({
 
 const isEqual = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
+const comparePositions = (left, right) => left.line - right.line || left.column - right.column;
+
 const diffKeys = (left, right, path = '') => {
   if (isEqual(left, right)) return [];
   if (
@@ -152,13 +154,17 @@ const compareFunctionMaps = (strict, defaults, observedExtensions) => {
     }
 
     if (!isEqual(expected.decl, actual.decl)) {
+      // The strict marker sits on the first character of the method, which can
+      // be a decorator or a modifier; the default span is the key, which comes
+      // later but always ends before the body.
       const widenedMethodSpan =
         inferredName &&
-        isEqual(expected.decl.start, actual.decl.start) &&
         expected.decl.start.line === expected.decl.end.line &&
-        actual.decl.start.line === actual.decl.end.line &&
         expected.decl.end.column === expected.decl.start.column + 1 &&
-        actual.decl.end.column > expected.decl.end.column;
+        actual.decl.start.line === actual.decl.end.line &&
+        comparePositions(actual.decl.start, expected.decl.start) >= 0 &&
+        comparePositions(actual.decl.end, actual.decl.start) > 0 &&
+        comparePositions(actual.decl.end, actual.loc.start) <= 0;
       if (!widenedMethodSpan) {
         diffs.push({ path: `fnMap.${id}.decl`, expected: expected.decl, actual: actual.decl });
       } else {

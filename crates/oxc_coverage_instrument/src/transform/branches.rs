@@ -137,12 +137,12 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         let mut consequent_arm = None;
         if !ignore_consequent {
             consequent_arm = Some(arms.len());
-            arms.push(PendingArm::new(expr.consequent.span()));
+            arms.push(PendingArm::new(expr.consequent.without_parentheses().span()));
         }
         let mut alternate_arm = None;
         if !ignore_alternate {
             alternate_arm = Some(arms.len());
-            arms.push(PendingArm::new(expr.alternate.span()));
+            arms.push(PendingArm::new(expr.alternate.without_parentheses().span()));
         }
 
         let Some(reg) = self.register_branch(PendingBranch {
@@ -245,7 +245,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             {
                 self.pending_name = Some(id.name.to_string());
             }
-            let init_span = init.span();
+            let init_span = init.without_parentheses().span();
             let Some(reg) = self.register_branch(PendingBranch {
                 branch_type: "default-arg",
                 umbrella_span: param.span,
@@ -297,7 +297,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         }
         // Istanbul types destructuring defaults (`const { x = 1 } = obj`) as
         // `default-arg` too.
-        let right_span = pattern.right.span();
+        let right_span = pattern.right.without_parentheses().span();
         let Some(reg) = self.register_branch(PendingBranch {
             branch_type: "default-arg",
             umbrella_span: pattern.span,
@@ -324,7 +324,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             return;
         }
         let left_span = expr.left.span();
-        let right_span = expr.right.span();
+        let right_span = expr.right.without_parentheses().span();
         // `gate_arms: false`: the left counter rides the `BranchLeft` pending
         // insertion at slot 0 and the right is hard-wired to slot 1, so both
         // arms must be registered together or not at all.

@@ -1,0 +1,219 @@
+{
+  "path": "36-multiline-parameters.js",
+  "statements": 6,
+  "functions": 3,
+  "branches": 2,
+  "statementMap": {
+    "0": {
+      "start": {
+        "line": 5,
+        "column": 2
+      },
+      "end": {
+        "line": 5,
+        "column": 24
+      }
+    },
+    "1": {
+      "start": {
+        "line": 8,
+        "column": 13
+      },
+      "end": {
+        "line": 11,
+        "column": 19
+      }
+    },
+    "2": {
+      "start": {
+        "line": 11,
+        "column": 5
+      },
+      "end": {
+        "line": 11,
+        "column": 19
+      }
+    },
+    "3": {
+      "start": {
+        "line": 13,
+        "column": 15
+      },
+      "end": {
+        "line": 20,
+        "column": 1
+      }
+    },
+    "4": {
+      "start": {
+        "line": 18,
+        "column": 4
+      },
+      "end": {
+        "line": 18,
+        "column": 27
+      }
+    },
+    "5": {
+      "start": {
+        "line": 22,
+        "column": 0
+      },
+      "end": {
+        "line": 22,
+        "column": 86
+      }
+    }
+  },
+  "fnMap": {
+    "0": {
+      "name": "configure",
+      "line": 4,
+      "decl": {
+        "start": {
+          "line": 1,
+          "column": 9
+        },
+        "end": {
+          "line": 1,
+          "column": 18
+        }
+      },
+      "loc": {
+        "start": {
+          "line": 4,
+          "column": 3
+        },
+        "end": {
+          "line": 6,
+          "column": 1
+        }
+      }
+    },
+    "1": {
+      "name": "(anonymous_1)",
+      "line": 11,
+      "decl": {
+        "start": {
+          "line": 8,
+          "column": 13
+        },
+        "end": {
+          "line": 8,
+          "column": 14
+        }
+      },
+      "loc": {
+        "start": {
+          "line": 11,
+          "column": 5
+        },
+        "end": {
+          "line": 11,
+          "column": 19
+        }
+      }
+    },
+    "2": {
+      "name": "(anonymous_2)",
+      "line": 17,
+      "decl": {
+        "start": {
+          "line": 14,
+          "column": 2
+        },
+        "end": {
+          "line": 14,
+          "column": 3
+        }
+      },
+      "loc": {
+        "start": {
+          "line": 17,
+          "column": 4
+        },
+        "end": {
+          "line": 19,
+          "column": 3
+        }
+      }
+    }
+  },
+  "branchMap": {
+    "0": {
+      "type": "default-arg",
+      "line": 2,
+      "loc": {
+        "start": {
+          "line": 2,
+          "column": 2
+        },
+        "end": {
+          "line": 2,
+          "column": 11
+        }
+      },
+      "locations": [
+        {
+          "start": {
+            "line": 2,
+            "column": 10
+          },
+          "end": {
+            "line": 2,
+            "column": 11
+          }
+        }
+      ],
+      "locationCount": 1
+    },
+    "1": {
+      "type": "default-arg",
+      "line": 3,
+      "loc": {
+        "start": {
+          "line": 3,
+          "column": 2
+        },
+        "end": {
+          "line": 3,
+          "column": 12
+        }
+      },
+      "locations": [
+        {
+          "start": {
+            "line": 3,
+            "column": 11
+          },
+          "end": {
+            "line": 3,
+            "column": 12
+          }
+        }
+      ],
+      "locationCount": 1
+    }
+  },
+  "s": {
+    "0": 0,
+    "1": 0,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0
+  },
+  "f": {
+    "0": 0,
+    "1": 0,
+    "2": 0
+  },
+  "b": {
+    "0": [
+      0
+    ],
+    "1": [
+      0
+    ]
+  }
+}
