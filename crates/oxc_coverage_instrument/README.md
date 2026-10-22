@@ -230,13 +230,13 @@ The strict Istanbul profile uses `(anonymous_N)` instead.
 
 ### 3. Full method-key spans in `fnMap[*].decl`
 
-For class and object methods with a non-computed key, the declaration span
-runs from the start of the method to the end of its key, modifiers included.
-`istanbul-lib-instrument` truncates a method declaration to the first character
-of the method, so `class C { static bar() {} }` gives `static bar` here and `s`
-there. A computed key keeps the one-character span. The byte-diff check still
-pins the method declaration start, the line, the body `loc`, and every
-non-method declaration span.
+For class and object methods with a non-computed key, the whole key is the
+declaration span. `istanbul-lib-instrument` marks only the first character of
+the method, which can be a decorator or a modifier, so
+`class C { static bar() {} }` gives `bar` here and `s` there. A computed key
+keeps the one-character marker. The byte-diff check accepts a key span only
+between that marker and the body. It still pins the line, the body `loc`, and
+every non-method declaration span.
 
 The strict Istanbul profile uses the truncated span.
 

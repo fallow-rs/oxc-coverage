@@ -5,7 +5,7 @@ use std::mem;
 
 use oxc_ast::ast::*;
 use oxc_span::{GetSpan, SPAN, Span};
-use oxc_traverse::TraverseCtx;
+use oxc_traverse::{Ancestor, TraverseCtx};
 
 use crate::pragma::IgnoreType;
 
@@ -40,7 +40,6 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         self.ignored_fn_stack.push(pragma_skip);
         if pragma_skip {
             self.pending_name = None;
-            self.pending_method_decl = None;
             return;
         }
         if fn_counter_only_skip {
@@ -48,20 +47,18 @@ impl<'arena> CoverageTransform<'_, 'arena> {
                 self.pending_fn_counters.push(None);
             }
             self.pending_name = None;
-            self.pending_method_decl = None;
             return;
         }
 
         let name = self.resolve_function_name(func, ctx);
         // istanbul-lib-instrument points `decl` at the identifier itself:
         // `function foo()` gives the `foo` identifier span, a method gives a
-        // marker at the method start (recorded by `register_method_definition`
-        // or `register_object_property` before this hook runs), and an
+        // marker at the method start (see `method_decl_span`), and an
         // anonymous `function ()` gives a
         // one-character marker where the name would have been.
         let decl_span = if let Some(id) = &func.id {
             id.span
-        } else if let Some(span) = self.pending_method_decl.take() {
+        } else if let Some(span) = self.method_decl_from_parent(ctx) {
             span
         } else {
             Span::new(func.span.start, func.span.start + 1)
@@ -207,7 +204,6 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         ctx: &TraverseCtx<'arena, CoverageState>,
     ) {
         let parent_ignored = self.in_ignored_subtree();
-        let key_span = method.key.span();
         if method_ignored_by_pragma(method, &ctx.state.pragmas, self.skip_next) {
             self.ignored_prop_stack.push(true);
             self.skip_next = false;
@@ -223,12 +219,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             self.skip_fn_counter_only = true;
             return;
         }
-        let named_key = (!method.computed).then_some(key_span);
-        let decl = self.method_decl_span(method.span.start, named_key);
-        let Some(name) = property_key_to_name(&method.key) else {
-            self.pending_method_decl = Some(decl);
-            return;
-        };
+        let Some(name) = property_key_to_name(&method.key) else { return };
         if self.ignore_class_methods.contains(&name) {
             if let Some(ignored) = self.ignored_prop_stack.last_mut() {
                 *ignored = true;
@@ -236,21 +227,38 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             return;
         }
         self.pending_name = Some(method_label(method.kind, name));
-        self.pending_method_decl = Some(decl);
+    }
+
+    /// The `decl` of a function that is the value of a method or of a
+    /// method-like object property. Read from the direct parent, so a function
+    /// in a computed key or a decorator argument keeps its own `decl`.
+    fn method_decl_from_parent(&self, ctx: &TraverseCtx<'arena, CoverageState>) -> Option<Span> {
+        match ctx.parent() {
+            Ancestor::MethodDefinitionValue(method) => {
+                Some(self.method_decl_span(*method.span(), method.key(), *method.computed()))
+            }
+            Ancestor::ObjectPropertyValue(prop)
+                if *prop.method()
+                    || matches!(prop.kind(), PropertyKind::Get | PropertyKind::Set) =>
+            {
+                Some(self.method_decl_span(*prop.span(), prop.key(), *prop.computed()))
+            }
+            _ => None,
+        }
     }
 
     /// The `decl` of a method or a method-like object property.
     ///
     /// istanbul-lib-instrument has no identifier to point at, so it marks the
-    /// first character of the method node, which includes modifiers such as
-    /// `static`, `async`, `get` and `*`. The default profile widens that
-    /// marker to the end of a non-computed key (`static bar` in
+    /// first character of the method node, which includes decorators and
+    /// modifiers such as `static`, `async`, `get` and `*`. The default profile
+    /// uses the whole key instead when it is not computed (`bar` in
     /// `class C { static bar() {} }`).
-    fn method_decl_span(&self, method_start: u32, named_key: Option<Span>) -> Span {
-        match named_key {
-            Some(key) if !self.istanbul_compat => Span::new(method_start, key.end),
-            _ => Span::new(method_start, method_start.saturating_add(1)),
+    fn method_decl_span(&self, method: Span, key: &PropertyKey<'arena>, computed: bool) -> Span {
+        if !self.istanbul_compat && !computed {
+            return key.span();
         }
+        Span::new(method.start, method.start.saturating_add(1))
     }
 
     /// Attach the statement counter for a class property initializer.
@@ -299,7 +307,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             || ctx.state.pragmas.get(prop.key.span().start) == Some(IgnoreType::Next)
             || self.skip_next;
         let is_function_valued = matches!(
-            prop.value,
+            prop.value.without_parentheses(),
             Expression::FunctionExpression(_) | Expression::ArrowFunctionExpression(_)
         );
         // On a method-like property the pragma suppresses the method, on a
@@ -308,11 +316,6 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // `skip_next` itself.
         let has_ignore_next = key_has_ignore_next && (is_method_like || !is_function_valued);
         self.push_prop_ignore_frame(has_ignore_next);
-
-        if is_method_like && !has_ignore_next && !self.in_ignored_subtree() {
-            let named_key = (!prop.computed).then(|| prop.key.span());
-            self.pending_method_decl = Some(self.method_decl_span(prop.span.start, named_key));
-        }
 
         // Carry the property's key name into the inner function or arrow so
         // `fnMap[N].name` reads as the source does instead of

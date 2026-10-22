@@ -29,8 +29,15 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         let span = stmt.span();
         let parent_ignored = self.in_ignored_subtree();
         let is_injected = is_synthetic_span(span);
+        // The statement that wraps a concise arrow body starts inside the
+        // body's parentheses, so a pragma there belongs to the expression,
+        // not to the statement. Look it up where the source text starts.
+        let pragma_start = match stmt {
+            Statement::ExpressionStatement(expr) => span.start.min(expr.expression.span().start),
+            _ => span.start,
+        };
         let has_ignore_next = !is_injected
-            && (ctx.state.pragmas.get(span.start) == Some(IgnoreType::Next)
+            && (ctx.state.pragmas.get(pragma_start) == Some(IgnoreType::Next)
                 || self.is_in_ignored_if_arm(span));
         self.ignored_stmt_stack.push(has_ignore_next);
         if is_injected || is_container_statement(stmt) || parent_ignored {
@@ -129,7 +136,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // inner arrow/function hook consumes it.
         if self.skip_current_var_decl {
             if matches!(
-                decl.init,
+                decl.init.as_ref().map(Expression::without_parentheses),
                 Some(Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_))
             ) {
                 self.skip_next = true;

@@ -18,4 +18,11 @@ class Holder {
 }
 
 const chosen = (total && ratio) || (wrapped ?? 0);
-globalThis.parenthesizedResult = [pair(1, 2), picked, nested, settings, withDefault(), new Holder().size, chosen];
+const ignoredInside = () => (/* istanbul ignore next */ total);
+const handlers = {
+  /* istanbul ignore next */
+  run: (function () {
+    return total;
+  }),
+};
+globalThis.parenthesizedResult = [pair(1, 2), picked, nested, settings, withDefault(), new Holder().size, chosen, ignoredInside(), handlers.run()];

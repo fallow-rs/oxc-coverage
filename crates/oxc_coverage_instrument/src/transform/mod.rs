@@ -117,13 +117,6 @@ pub struct CoverageTransform<'src, 'arena> {
     pub branch_arm_body_byte_spans: Vec<Vec<(u32, u32)>>,
     /// Name inherited from a parent node (variable declarator, method definition).
     pending_name: Option<String>,
-    /// `decl` span inherited from a class `MethodDefinition`. A method's inner
-    /// `Function` has no `id` of its own, so without this override
-    /// `enter_function` would fall back to the anonymous one-char marker at
-    /// the start of `function`. For a method that starts with a parameter list
-    /// (`bar(x) {}`), `func.span.start` points at `(`, which is not a
-    /// meaningful `decl`, so the method key span is carried down instead.
-    pending_method_decl: Option<Span>,
     /// Counters to inject before the statement whose span starts at
     /// [`PendingInsertion::target_start`].
     pending_insertions: Vec<PendingInsertion>,
@@ -292,7 +285,6 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             branch_map: Vec::new(),
             branch_arm_body_byte_spans: Vec::new(),
             pending_name: None,
-            pending_method_decl: None,
             pending_insertions: Vec::new(),
             pending_fn_counters: Vec::new(),
             arrow_expression_bodies: Vec::new(),
@@ -439,7 +431,6 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         _ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.pending_name = None;
-        self.pending_method_decl = None;
         self.ignored_prop_stack.pop();
     }
 

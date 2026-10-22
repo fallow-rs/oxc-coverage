@@ -183,3 +183,42 @@ fn istanbul_profile_takes_function_line_from_the_body() {
     assert_eq!(entry.decl.start.line, 1);
     assert_eq!(entry.line, 4);
 }
+
+/// Each function's `decl` start as `(line, column)`, sorted, because istanbul
+/// registers a method before the functions in its decorators or computed key.
+fn decl_starts(result: &oxc_coverage_instrument::InstrumentResult) -> Vec<(u32, u32)> {
+    let mut starts = result
+        .coverage_map
+        .fn_map
+        .values()
+        .map(|entry| (entry.decl.start.line, entry.decl.start.column))
+        .collect::<Vec<_>>();
+    starts.sort_unstable();
+    starts
+}
+
+#[test]
+fn istanbul_profile_keeps_decorator_functions_off_the_method_declaration() {
+    let result = istanbul("class C {\n  @dec(function () {})\n  m() {}\n}");
+
+    // `m` is marked at its decorator (2:2), the decorator argument at its
+    // own `function` keyword (2:7).
+    assert_eq!(decl_starts(&result), [(2, 2), (2, 7)]);
+}
+
+#[test]
+fn istanbul_profile_keeps_computed_key_functions_off_the_method_declaration() {
+    let result = istanbul("class C {\n  [function () { return 'a'; }()]() {}\n}");
+
+    assert_eq!(decl_starts(&result), [(2, 2), (2, 3)]);
+}
+
+#[test]
+fn default_profile_keeps_the_method_key_as_declaration() {
+    let source = "class C {\n  @Input({\n    required: true,\n  })\n  static set value(v) {}\n}";
+    let result =
+        instrument(source, "compat.js", &InstrumentOptions::default()).expect("instrument");
+    let decl = &result.coverage_map.fn_map["0"].decl;
+
+    assert_eq!((decl.start.line, decl.start.column, decl.end.column), (5, 13, 18));
+}
