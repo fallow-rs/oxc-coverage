@@ -7,7 +7,7 @@ use std::mem;
 use oxc_allocator::Vec as ArenaVec;
 use oxc_ast::ast::*;
 use oxc_span::{GetSpan, SPAN};
-use oxc_traverse::TraverseCtx;
+use oxc_traverse::{Ancestor, TraverseCtx};
 
 use crate::pragma::IgnoreType;
 
@@ -15,7 +15,7 @@ use super::counters::{
     CounterKind, CounterType, PendingInsertion, build_counter_stmt, prepend_counter,
 };
 use super::coverage_map::is_synthetic_span;
-use super::names::declarator_function_name;
+use super::ignore::consume_value_pragma;
 use super::{CoverageState, CoverageTransform};
 
 impl<'arena> CoverageTransform<'_, 'arena> {
@@ -29,16 +29,12 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         let span = stmt.span();
         let parent_ignored = self.in_ignored_subtree();
         let is_injected = is_synthetic_span(span);
-        // The statement that wraps a concise arrow body starts inside the
-        // body's parentheses, so a pragma there belongs to the expression,
-        // not to the statement. Look it up where the source text starts.
-        let pragma_start = match stmt {
-            Statement::ExpressionStatement(expr) => span.start.min(expr.expression.span().start),
-            _ => span.start,
-        };
-        let has_ignore_next = !is_injected
-            && (ctx.state.pragmas.get(pragma_start) == Some(IgnoreType::Next)
-                || self.is_in_ignored_if_arm(span));
+        // Istanbul builds a new `return` for a concise arrow body, and that
+        // statement has no comments. A pragma at the start of the body
+        // belongs to the expression, so the wrapper statement never reads it.
+        let has_pragma = !self.is_concise_arrow_body_statement(ctx)
+            && ctx.state.pragmas.get(span.start) == Some(IgnoreType::Next);
+        let has_ignore_next = !is_injected && (has_pragma || self.is_in_ignored_if_arm(span));
         self.ignored_stmt_stack.push(has_ignore_next);
         if is_injected || is_container_statement(stmt) || parent_ignored {
             return;
@@ -61,6 +57,14 @@ impl<'arena> CoverageTransform<'_, 'arena> {
                 counter_type: CounterType::Statement,
             });
         }
+    }
+
+    /// Whether the statement being entered is the one that wraps the
+    /// expression of a concise arrow body.
+    fn is_concise_arrow_body_statement(&self, ctx: &TraverseCtx<'arena, CoverageState>) -> bool {
+        self.arrow_expression_bodies.last() == Some(&true)
+            && matches!(ctx.parent(), Ancestor::FunctionBodyStatements(_))
+            && matches!(ctx.ancestor(1), Ancestor::ArrowFunctionExpressionBody(_))
     }
 
     pub(super) fn finish_statement(&mut self) {
@@ -129,7 +133,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
     pub(super) fn instrument_variable_declarator(
         &mut self,
         decl: &mut VariableDeclarator<'arena>,
-        ctx: &TraverseCtx<'arena, CoverageState>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
     ) {
         // If the enclosing declaration is ignored, skip both the statement
         // counter wrap and any inner function counter. Set `skip_next` so the
@@ -144,8 +148,9 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             return;
         }
 
-        if let Some(name) = declarator_function_name(decl) {
-            self.pending_name = Some(name);
+        if let Some(init) = &decl.init {
+            let name = decl.id.get_binding_identifier().map(|id| id.name.to_string());
+            self.infer_name_for_value(init, name);
         }
 
         // istanbul-lib-instrument's `coverVariableDeclarator` calls
@@ -156,13 +161,6 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         if self.in_ignored_subtree() {
             return;
         }
-        // Babel drops parentheses from the AST, so istanbul records `x = (a, b)`
-        // as `a, b`. Oxc keeps them as a node; every location strips them.
-        let init_span = init.without_parentheses().span();
-        if is_synthetic_span(init_span) {
-            return;
-        }
-
         // The sequence-expression wrap `(++s, fn)` defeats NamedEvaluation, so
         // `const foo = function () {}` would produce an unnamed function. For
         // those initializers the counter is hoisted to a sibling statement
@@ -175,9 +173,21 @@ impl<'arena> CoverageTransform<'_, 'arena> {
                 | Expression::ArrowFunctionExpression(_)
                 | Expression::ClassExpression(_)
         );
-        if is_named_initializer
-            && let Some(hoist_target_start) = enclosing_var_decl_hoist_target(ctx)
-        {
+        let hoist_target_start =
+            if is_named_initializer { enclosing_var_decl_hoist_target(ctx) } else { None };
+        // Istanbul wraps the init with `replaceWith`, which moves its comments
+        // to the wrapper. Only the hoisted counter leaves the init in place.
+        if hoist_target_start.is_none() {
+            consume_value_pragma(init, &mut ctx.state.pragmas);
+        }
+        // Babel drops parentheses from the AST, so istanbul records `x = (a, b)`
+        // as `a, b`. Oxc keeps them as a node; every location strips them.
+        let init_span = init.without_parentheses().span();
+        if is_synthetic_span(init_span) {
+            return;
+        }
+
+        if let Some(hoist_target_start) = hoist_target_start {
             if let Some(stmt_id) = self.add_statement(init_span) {
                 self.pending_insertions.push(PendingInsertion {
                     target_start: hoist_target_start,
@@ -282,7 +292,6 @@ pub(super) fn is_container_statement(stmt: &Statement<'_>) -> bool {
 /// `for (var x of ..)`, `for (var x in ..)`), in which case callers must
 /// keep the sequence-expression wrap.
 pub(super) fn enclosing_var_decl_hoist_target(ctx: &TraverseCtx<'_, CoverageState>) -> Option<u32> {
-    use oxc_traverse::Ancestor;
     let mut iter = ctx.ancestors();
     let var_decl_span = match iter.next()? {
         Ancestor::VariableDeclarationDeclarations(a) => *a.span(),

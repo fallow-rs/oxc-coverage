@@ -2,24 +2,50 @@
 //! keys, assignment targets and call arguments.
 
 use oxc_ast::ast::*;
+use oxc_span::GetSpan;
 use oxc_traverse::TraverseCtx;
 
 use super::{CoverageState, CoverageTransform};
 
 impl<'arena> CoverageTransform<'_, 'arena> {
+    /// Record `name` for the function or arrow that is `value`, through
+    /// parentheses. Any other value gets no name.
+    ///
+    /// The name is keyed on the start of the function node, so only that node
+    /// can take it. A function in a decorator, a computed key, a member object,
+    /// a class body or a later statement has a different start.
+    pub(super) fn infer_name_for_value(&mut self, value: &Expression<'_>, name: Option<String>) {
+        let Some(name) = name else { return };
+        if self.istanbul_compat {
+            return;
+        }
+        let value = value.without_parentheses();
+        if matches!(
+            value,
+            Expression::FunctionExpression(_) | Expression::ArrowFunctionExpression(_)
+        ) {
+            self.inferred_names.insert(value.span().start, name);
+        }
+    }
+
+    /// Take the name recorded for the function or arrow that starts at `start`.
+    pub(super) fn take_inferred_name(&mut self, start: u32) -> Option<String> {
+        self.inferred_names.remove(&start)
+    }
+
     pub(super) fn resolve_function_name(
         &mut self,
         func: &Function,
         ctx: &TraverseCtx<'arena, CoverageState>,
     ) -> String {
-        let pending_name = self.pending_name.take();
-        if !self.istanbul_compat
-            && let Some(name) = pending_name
-        {
-            return name;
-        }
+        // An own name comes first, as for `Function.prototype.name`:
+        // `const f = function g() {}` gives `g`.
+        let inferred_name = self.take_inferred_name(func.span.start);
         if let Some(id) = &func.id {
             return id.name.to_string();
+        }
+        if let Some(name) = inferred_name {
+            return name;
         }
         if !self.istanbul_compat
             && self.name_callback_arguments
@@ -99,47 +125,35 @@ pub(super) fn property_key_to_name(key: &PropertyKey<'_>) -> Option<String> {
     }
 }
 
-pub(super) fn declarator_function_name(decl: &VariableDeclarator<'_>) -> Option<String> {
-    let id = decl.id.get_binding_identifier()?;
-    let init = decl.init.as_ref()?;
-    if matches!(init, Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)) {
-        return Some(id.name.to_string());
-    }
-    None
-}
-
-pub(super) enum AssignmentTargetName {
-    Unchanged,
-    Update(Option<String>),
-}
-
-pub(super) fn assignment_target_name(expr: &AssignmentExpression<'_>) -> AssignmentTargetName {
+/// The name an assignment gives to a function on its right side.
+///
+/// `o.foo = function () {}`, `o['bar'] = () => {}` and `x = () => {}` carry the
+/// target name into the function, as JavaScript NamedEvaluation does for a
+/// plain identifier. A compound or logical operator gives no name.
+pub(super) fn assignment_target_name(expr: &AssignmentExpression<'_>) -> Option<String> {
     use oxc_syntax::operator::AssignmentOperator;
 
-    // `o.foo = function () {}` and `o['bar'] = () => {}` carry the property
-    // name into the inner function so the `fnMap` entry reads as the assignment
-    // target rather than `(anonymous_N)`. A plain identifier target
-    // (`x = function () {}`) instead goes through the `VariableDeclarator`
-    // hoist, which preserves `Function.name` via NamedEvaluation.
-    if !matches!(expr.operator, AssignmentOperator::Assign)
-        || !matches!(
-            expr.right,
-            Expression::FunctionExpression(_)
-                | Expression::ArrowFunctionExpression(_)
-                | Expression::ClassExpression(_)
-        )
-    {
-        return AssignmentTargetName::Unchanged;
+    if !matches!(expr.operator, AssignmentOperator::Assign) {
+        return None;
     }
-
-    AssignmentTargetName::Update(match &expr.left {
+    match &expr.left {
+        AssignmentTarget::AssignmentTargetIdentifier(id) => Some(id.name.to_string()),
         AssignmentTarget::StaticMemberExpression(member) => Some(member.property.name.to_string()),
         AssignmentTarget::ComputedMemberExpression(member) => match &member.expression {
             Expression::StringLiteral(lit) => Some(lit.value.to_string()),
             _ => None,
         },
         _ => None,
-    })
+    }
+}
+
+/// The binding name of a simple assignment target, for a destructuring default
+/// such as `[a = () => 1] = []`.
+pub(super) fn simple_target_name(target: &AssignmentTarget<'_>) -> Option<String> {
+    match target {
+        AssignmentTarget::AssignmentTargetIdentifier(id) => Some(id.name.to_string()),
+        _ => None,
+    }
 }
 
 pub(super) fn method_label(kind: MethodDefinitionKind, name: String) -> String {

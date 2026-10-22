@@ -256,3 +256,6 @@ conformance_test!(c33_typescript_concise_arrows, "33-typescript-concise-arrows",
 conformance_test!(c34_parenthesized_expressions, "34-parenthesized-expressions");
 conformance_test!(c35_method_modifiers, "35-method-modifiers");
 conformance_test!(c36_multiline_parameters, "36-multiline-parameters");
+conformance_test!(c37_parenthesized_pragmas, "37-parenthesized-pragmas");
+conformance_test!(c38_function_order, "38-function-order");
+conformance_test!(c39_default_method_names, "39-default-method-names");

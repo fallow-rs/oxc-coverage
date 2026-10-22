@@ -6,7 +6,7 @@ use std::mem;
 use oxc_allocator::Vec as ArenaVec;
 use oxc_ast::ast::*;
 use oxc_span::{GetSpan, SPAN, Span};
-use oxc_traverse::TraverseCtx;
+use oxc_traverse::{Ancestor, TraverseCtx};
 
 use crate::pragma::IgnoreType;
 
@@ -15,7 +15,8 @@ use super::counters::{
     inject_branch_counter_into_statement, prepend_counter,
 };
 use super::coverage_map::{PendingArm, PendingBranch, is_synthetic_span};
-use super::ignore::{enclosing_destructure_property_pragma, is_ignored_case};
+use super::ignore::{consume_value_pragma, enclosing_destructure_property_pragma, is_ignored_case};
+use super::names::simple_target_name;
 use super::{CoverageState, CoverageTransform};
 
 impl<'arena> CoverageTransform<'_, 'arena> {
@@ -118,15 +119,19 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         ctx: &TraverseCtx<'arena, CoverageState>,
     ) {
         if self.in_ignored_subtree()
-            || ctx.state.pragmas.get(expr.span.start) == Some(IgnoreType::Next)
+            || ctx.state.pragmas.get_for_node(expr.span.start) == Some(IgnoreType::Next)
             || is_synthetic_span(expr.span)
         {
             return;
         }
+        // Babel attaches a comment inside the parentheses of an arm to the arm
+        // itself, and `PragmaMap` copies a comment before them to the same place.
         let ignore_consequent =
-            ctx.state.pragmas.get(expr.consequent.span().start) == Some(IgnoreType::Next);
+            ctx.state.pragmas.get(expr.consequent.without_parentheses().span().start)
+                == Some(IgnoreType::Next);
         let ignore_alternate =
-            ctx.state.pragmas.get(expr.alternate.span().start) == Some(IgnoreType::Next);
+            ctx.state.pragmas.get(expr.alternate.without_parentheses().span().start)
+                == Some(IgnoreType::Next);
         if ignore_consequent && ignore_alternate {
             return;
         }
@@ -189,7 +194,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // surviving case gets here is the slot it reads back through `reg`.
         let mut arms = Vec::new();
         for case in &stmt.cases {
-            if !is_ignored_case(case, &ctx.state.pragmas) {
+            if !is_ignored_case(case, &ctx.state.pragmas, self.istanbul_compat) {
                 arms.push(PendingArm::new(case.span));
             }
         }
@@ -205,7 +210,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         let cov_fn = self.cov_fn_name;
         let mut arm = 0;
         for case in &mut stmt.cases {
-            if is_ignored_case(case, &ctx.state.pragmas) {
+            if is_ignored_case(case, &ctx.state.pragmas, self.istanbul_compat) {
                 continue;
             }
             if let Some(path_idx) = reg.slot(arm) {
@@ -218,97 +223,134 @@ impl<'arena> CoverageTransform<'_, 'arena> {
     }
 
     /// Register the `default-arg` branch for a parameter default and carry the
-    /// parameter name into a function-valued default.
+    /// parameter name into a function-valued default. Open the ignore frame of
+    /// the default.
     pub(super) fn instrument_parameter_default(
         &mut self,
         param: &mut FormalParameter<'arena>,
-        ctx: &TraverseCtx<'arena, CoverageState>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
     ) {
-        if self.in_ignored_subtree() {
+        let parent_ignored = self.in_ignored_subtree();
+        let Some(init) = &mut param.initializer else {
+            self.ignored_expr_stack.push(false);
             return;
-        }
-        if ctx.state.pragmas.get(param.span.start) == Some(IgnoreType::Next) {
+        };
+        let name = param.pattern.get_binding_identifier().map(|id| id.name.to_string());
+        // Babel gives a parameter with a default an `AssignmentPattern`. It
+        // starts at the binding, after any decorator or TypeScript modifier.
+        let pattern_span = Span::new(param.pattern.span().start, param.span.end);
+        let ignored = ctx.state.pragmas.get(pattern_span.start) == Some(IgnoreType::Next)
+            || (!self.istanbul_compat
+                && ctx.state.pragmas.get(param.span.start) == Some(IgnoreType::Next));
+        self.ignored_expr_stack.push(ignored);
+        if parent_ignored || ignored {
             return;
         }
         // Istanbul gives `function f(x = 1) {}` a `default-arg` branch with one
         // location, the default expression.
-        if let Some(init) = &mut param.initializer {
-            // `function f(cb = () => 1)` -> `fnMap[N].name = "cb"`: the inner
-            // arrow or function is the direct initializer of the parameter
-            // binding, so it inherits the parameter's name.
-            if matches!(
-                **init,
-                Expression::FunctionExpression(_)
-                    | Expression::ArrowFunctionExpression(_)
-                    | Expression::ClassExpression(_)
-            ) && let Some(id) = param.pattern.get_binding_identifier()
-            {
-                self.pending_name = Some(id.name.to_string());
-            }
-            let init_span = init.without_parentheses().span();
-            let Some(reg) = self.register_branch(PendingBranch {
-                branch_type: "default-arg",
-                umbrella_span: param.span,
-                gate_arms: true,
-                arms: vec![PendingArm::new(init_span)],
-            }) else {
-                return;
-            };
-            if let Some(path_idx) = reg.slot(0) {
-                prepend_counter(
-                    init,
-                    CounterKind::branch(self.cov_fn_name, reg.branch_id, path_idx),
-                    ctx,
-                );
-            }
-        }
+        self.instrument_default_value(pattern_span, init, name, ctx);
     }
 
     /// Register the `default-arg` branch for a destructuring default and carry
-    /// the binding name into a function-valued default.
+    /// the binding name into a function-valued default. Open the ignore frame
+    /// of the default.
     pub(super) fn instrument_destructuring_default(
         &mut self,
         pattern: &mut AssignmentPattern<'arena>,
-        ctx: &TraverseCtx<'arena, CoverageState>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
+    ) {
+        let parent_ignored = self.in_ignored_subtree();
+        let ignored = if self.istanbul_compat {
+            // Babel attaches a pragma before a shorthand property such as
+            // `{ a = 1 }` to the property, which istanbul does not visit.
+            let shorthand = matches!(
+                ctx.parent(),
+                Ancestor::BindingPropertyValue(prop) if *prop.shorthand()
+            );
+            !shorthand && ctx.state.pragmas.get(pattern.span.start) == Some(IgnoreType::Next)
+        } else {
+            // The default profile also reads a pragma at the enclosing
+            // `BindingProperty`.
+            ctx.state.pragmas.get(pattern.span.start) == Some(IgnoreType::Next)
+                || enclosing_destructure_property_pragma(ctx)
+        };
+        self.ignored_expr_stack.push(ignored);
+        if parent_ignored || ignored {
+            return;
+        }
+        // Istanbul types destructuring defaults (`const { x = 1 } = obj`) as
+        // `default-arg` too.
+        let name = pattern.left.get_binding_identifier().map(|id| id.name.to_string());
+        self.instrument_default_value(pattern.span, &mut pattern.right, name, ctx);
+    }
+
+    /// Register the `default-arg` branch for a default in an assignment
+    /// target, such as `[a = 1] = []` or `({ k: a = 1 } = o)`. Open the ignore
+    /// frame of the default.
+    ///
+    /// Babel gives these an `AssignmentPattern` too, so istanbul instruments
+    /// them as a destructuring default.
+    pub(super) fn instrument_assignment_target_default(
+        &mut self,
+        target: &mut AssignmentTargetWithDefault<'arena>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
+    ) {
+        let parent_ignored = self.in_ignored_subtree();
+        let ignored = ctx.state.pragmas.get(target.span.start) == Some(IgnoreType::Next);
+        self.ignored_expr_stack.push(ignored);
+        if parent_ignored || ignored {
+            return;
+        }
+        let name = simple_target_name(&target.binding);
+        self.instrument_default_value(target.span, &mut target.init, name, ctx);
+    }
+
+    /// Register the `default-arg` branch for a shorthand default in an
+    /// assignment target, such as `({ a = 1 } = o)`.
+    ///
+    /// Babel attaches a pragma before `a` to the property, not to the pattern,
+    /// so istanbul keeps the branch. This hook does the same.
+    pub(super) fn instrument_shorthand_target_default(
+        &mut self,
+        target: &mut AssignmentTargetPropertyIdentifier<'arena>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
     ) {
         if self.in_ignored_subtree() {
             return;
         }
-        // `/* istanbul ignore next */` can sit at the pattern itself (shorthand
-        // object property, array element) or one level up at the enclosing
-        // `BindingProperty`. Either binding suppresses the `default-arg`
-        // branch on this default value.
-        if ctx.state.pragmas.get(pattern.span.start) == Some(IgnoreType::Next)
-            || enclosing_destructure_property_pragma(ctx)
-        {
-            return;
+        if let Some(init) = &mut target.init {
+            let name = Some(target.binding.name.to_string());
+            self.instrument_default_value(target.span, init, name, ctx);
         }
-        // Carry the binding name into any inner function or arrow on the right
-        // of the default, so `function f(cb = () => 1)` and the destructuring
-        // equivalents surface as `fnMap[N].name = "cb"`.
-        if matches!(
-            pattern.right,
-            Expression::FunctionExpression(_)
-                | Expression::ArrowFunctionExpression(_)
-                | Expression::ClassExpression(_)
-        ) && let Some(id) = pattern.left.get_binding_identifier()
-        {
-            self.pending_name = Some(id.name.to_string());
-        }
-        // Istanbul types destructuring defaults (`const { x = 1 } = obj`) as
-        // `default-arg` too.
-        let right_span = pattern.right.without_parentheses().span();
+    }
+
+    /// Carry `name` into a function-valued default, then register the
+    /// `default-arg` branch of the default and wrap it in the branch counter.
+    fn instrument_default_value(
+        &mut self,
+        umbrella_span: Span,
+        value: &mut Expression<'arena>,
+        name: Option<String>,
+        ctx: &mut TraverseCtx<'arena, CoverageState>,
+    ) {
+        // Istanbul wraps the default with `replaceWith`, which moves its
+        // comments to the wrapper, so a pragma before the default is lost.
+        consume_value_pragma(value, &mut ctx.state.pragmas);
+        // `function f(cb = () => 1)` -> `fnMap[N].name = "cb"`: the function
+        // is the direct default of the binding, so it takes the binding name.
+        self.infer_name_for_value(value, name);
+        let value_span = value.without_parentheses().span();
         let Some(reg) = self.register_branch(PendingBranch {
             branch_type: "default-arg",
-            umbrella_span: pattern.span,
+            umbrella_span,
             gate_arms: true,
-            arms: vec![PendingArm::new(right_span)],
+            arms: vec![PendingArm::new(value_span)],
         }) else {
             return;
         };
         if let Some(path_idx) = reg.slot(0) {
             prepend_counter(
-                &mut pattern.right,
+                value,
                 CounterKind::branch(self.cov_fn_name, reg.branch_id, path_idx),
                 ctx,
             );

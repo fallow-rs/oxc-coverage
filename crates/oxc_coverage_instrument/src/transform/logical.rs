@@ -101,7 +101,7 @@ pub(super) fn logical_expression_ignored(
     parent_ignored: bool,
 ) -> bool {
     parent_ignored
-        || ctx.state.pragmas.get(expr.span.start) == Some(IgnoreType::Next)
+        || ctx.state.pragmas.get_for_node(expr.span.start) == Some(IgnoreType::Next)
         || is_synthetic_span(expr.span)
 }
 

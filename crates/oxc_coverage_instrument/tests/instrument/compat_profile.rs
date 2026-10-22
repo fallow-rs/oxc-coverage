@@ -222,3 +222,296 @@ fn default_profile_keeps_the_method_key_as_declaration() {
 
     assert_eq!((decl.start.line, decl.start.column, decl.end.column), (5, 13, 18));
 }
+
+/// Each function's name and `decl` start in `fnMap` id order.
+fn functions_in_id_order(
+    result: &oxc_coverage_instrument::InstrumentResult,
+) -> Vec<(String, u32, u32)> {
+    let fn_map = &result.coverage_map.fn_map;
+    (0..fn_map.len())
+        .map(|id| {
+            let entry = &fn_map[&id.to_string()];
+            (entry.name.clone(), entry.decl.start.line, entry.decl.start.column)
+        })
+        .collect()
+}
+
+fn decl_order(result: &oxc_coverage_instrument::InstrumentResult) -> Vec<(u32, u32)> {
+    functions_in_id_order(result).into_iter().map(|(_, line, column)| (line, column)).collect()
+}
+
+fn default_profile(source: &str) -> oxc_coverage_instrument::InstrumentResult {
+    instrument(source, "default.js", &InstrumentOptions::default()).expect("instrument")
+}
+
+#[test]
+fn istanbul_profile_registers_a_method_before_its_decorator_function() {
+    let result = istanbul("class C {\n  @dec(function () {})\n  m() {}\n}");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 7)]);
+}
+
+#[test]
+fn istanbul_profile_registers_a_method_before_each_of_its_decorators() {
+    let result = istanbul("class C {\n  @a(() => 1)\n  @b(function () {})\n  m() {}\n}");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 5), (3, 5)]);
+}
+
+#[test]
+fn istanbul_profile_registers_a_method_before_a_class_in_its_decorator() {
+    let result = istanbul("class C {\n  @dec(class { k() {} })\n  m() {}\n}");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 15)]);
+}
+
+#[test]
+fn istanbul_profile_registers_class_and_method_decorators_in_source_order() {
+    let source =
+        "@d(() => 0)\nclass C {\n  @a(() => 1)\n  m() { return 1 }\n  [(() => 'k')()]() {}\n}";
+    let result = istanbul(source);
+
+    assert_eq!(decl_order(&result), [(1, 3), (3, 2), (3, 5), (5, 2), (5, 4)]);
+}
+
+#[test]
+fn istanbul_profile_names_a_decorator_function_after_the_method() {
+    let result = istanbul("class C {\n  @dec(function named() {})\n  m() {}\n}");
+    let names = functions_in_id_order(&result).into_iter().map(|(name, ..)| name);
+
+    assert_eq!(names.collect::<Vec<_>>(), ["(anonymous_0)", "named"]);
+}
+
+#[test]
+fn istanbul_profile_registers_a_method_before_its_computed_key_function() {
+    let result = istanbul("class C {\n  [function () { return 'a'; }()]() {}\n}");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 3)]);
+}
+
+#[test]
+fn istanbul_profile_registers_an_object_method_before_its_computed_key_function() {
+    let result = istanbul("({ [(() => 'k')()]() {} })");
+
+    assert_eq!(decl_order(&result), [(1, 3), (1, 5)]);
+}
+
+#[test]
+fn istanbul_profile_counts_a_computed_key_function_on_its_own_counter() {
+    let result = istanbul("class C {\n  [function () { return 'a'; }()]() {}\n}");
+    let key_counter = result.code.find(".f[1]").expect("key function counter");
+    let method_counter = result.code.find(".f[0]").expect("method counter");
+
+    // The key function comes first in the source, and it owns id 1.
+    assert!(key_counter < method_counter, "{}", result.code);
+}
+
+#[test]
+fn istanbul_profile_registers_a_typescript_method_before_its_decorator_function() {
+    let options =
+        InstrumentOptions { compat: Some(CompatProfile::Istanbul), ..InstrumentOptions::default() };
+    let source = "class C {\n  @dec(() => 2)\n  m(@p(function () {}) a) {}\n}";
+    let result = instrument(source, "compat.ts", &options).expect("instrument");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 7), (3, 7)]);
+}
+
+#[test]
+fn default_profile_keeps_the_method_name_off_a_named_decorator_function() {
+    let result = default_profile("class C {\n  @dec(function named() {})\n  m() {}\n}");
+    let names = functions_in_id_order(&result).into_iter().map(|(name, ..)| name);
+
+    assert_eq!(names.collect::<Vec<_>>(), ["m", "named"]);
+}
+
+#[test]
+fn default_profile_keeps_the_method_name_off_an_anonymous_decorator_function() {
+    let result = default_profile("class C {\n  @dec(function () {})\n  m() {}\n}");
+
+    assert_eq!(
+        functions_in_id_order(&result),
+        [("m".to_string(), 3, 2), ("(anonymous_1)".to_string(), 2, 7)]
+    );
+}
+
+#[test]
+fn default_profile_keeps_the_method_name_off_a_class_in_a_decorator() {
+    let result = default_profile("class C {\n  @dec(class { k() {} })\n  m() {}\n}");
+    let names = functions_in_id_order(&result).into_iter().map(|(name, ..)| name);
+
+    assert_eq!(names.collect::<Vec<_>>(), ["m", "k"]);
+}
+
+#[test]
+fn default_profile_registers_a_method_before_its_computed_key_function() {
+    let result = default_profile("class C {\n  [function () { return 'a'; }()]() {}\n}");
+
+    assert_eq!(decl_order(&result), [(2, 2), (2, 3)]);
+}
+
+#[test]
+fn istanbul_profile_keeps_a_decorator_function_on_a_private_method() {
+    let result =
+        istanbul("class C {\n  @dec(function () { return 1; })\n  #p() { return 2; }\n  m() {}\n}");
+
+    // A private method has no `fnMap` entry, and its decorator function keeps one.
+    assert_eq!(decl_order(&result), [(2, 7), (4, 2)]);
+}
+
+#[test]
+fn istanbul_profile_ignores_binding_names_for_inferred_functions() {
+    let cases: [(&str, &[&str]); 8] = [
+        ("class C {\n  @dec(() => 1)\n  m() {}\n}", &["(anonymous_0)", "(anonymous_1)"]),
+        ("function f(cb = (() => 1)) {}", &["f", "(anonymous_1)"]),
+        ("function f(c = class { [k]() {} }) {}", &["f", "(anonymous_1)"]),
+        ("const f = (function () {})", &["(anonymous_0)"]),
+        ("o.x = (() => 1); x = function () {}", &["(anonymous_0)", "(anonymous_1)"]),
+        ("({ a = () => 1 } = o)", &["(anonymous_0)"]),
+        ("const f = function g() {}", &["g"]),
+        ("o.x = function y() {}", &["y"]),
+    ];
+    for (source, expected) in cases {
+        let names = functions_in_id_order(&istanbul(source))
+            .into_iter()
+            .map(|(name, _, _)| name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, expected, "{source}");
+    }
+}
+
+/// The `(functions, branch location counts, statements)` of a coverage map.
+type Shape = (usize, Vec<usize>, usize);
+
+/// The [`Shape`] of `result`, in the order the coverage map holds it.
+fn shape(result: &oxc_coverage_instrument::InstrumentResult) -> Shape {
+    let map = &result.coverage_map;
+    let branches = map.branch_map.values().map(|entry| entry.locations.len()).collect();
+    (map.fn_map.len(), branches, map.statement_map.len())
+}
+
+#[test]
+fn istanbul_profile_keeps_a_member_whose_pragma_follows_a_modifier_or_sits_in_its_key() {
+    let cases: [(&str, Shape); 9] = [
+        ("class A { static /* istanbul ignore next */ m() {} }", (1, vec![], 0)),
+        ("class A { get /* istanbul ignore next */ m() { return 1; } }", (1, vec![], 1)),
+        ("o = { async /* istanbul ignore next */ m() {} };", (1, vec![], 1)),
+        ("o = { get /* istanbul ignore next */ m() { return 1; } };", (1, vec![], 2)),
+        ("class A { [/* istanbul ignore next */ k]() {} }", (1, vec![], 0)),
+        ("class A { @dec(() => 1) /* istanbul ignore next */ m() {} n() {} }", (3, vec![], 1)),
+        ("o = { [/* istanbul ignore next */ (() => 'k')()]: 1 };", (1, vec![], 2)),
+        ("o = { /* istanbul ignore next */ a: b || c };", (0, vec![2], 1)),
+        ("o = { /* istanbul ignore next */ a: b ? c : d };", (0, vec![2], 1)),
+    ];
+    for (source, expected) in cases {
+        assert_eq!(shape(&istanbul(source)), expected, "{source}");
+    }
+}
+
+#[test]
+fn istanbul_profile_ignores_a_member_whose_pragma_precedes_it() {
+    for source in [
+        "class A { /* istanbul ignore next */ static m() {} }",
+        "class A { /* istanbul ignore next */ @dec(() => 1) m() {} }",
+        "o = { /* istanbul ignore next */ async m() {} };",
+        "o = { /* istanbul ignore next */ [k]() {} };",
+    ] {
+        assert_eq!(shape(&istanbul(source)).0, 0, "{source}");
+    }
+}
+
+#[test]
+fn istanbul_profile_keeps_a_switch_case_whose_first_statement_has_the_pragma() {
+    let result =
+        istanbul("switch (a) { case 1: /* istanbul ignore next */ b(); c(); case 2: d(); }");
+
+    assert_eq!(shape(&result), (0, vec![2], 3));
+    let ignored_case =
+        istanbul("switch (a) { /* istanbul ignore next */ case 1: b(); case 2: d(); }");
+    assert_eq!(shape(&ignored_case), (0, vec![1], 2));
+}
+
+#[test]
+fn pragma_kind_ends_at_the_first_non_word_character() {
+    for run in [istanbul, default_profile] {
+        for (source, expected) in [
+            ("/* istanbul ignore next: reason */ function f() {}", (0, vec![], 0)),
+            ("/* istanbul ignore next-reason */ function f() {}", (0, vec![], 0)),
+            ("x = /* istanbul ignore next, reason */ a || b;", (0, vec![], 1)),
+            ("/* istanbul ignore if: why */ if (a) {}", (0, vec![1], 1)),
+            ("/* istanbul ignore else:x */ if (a) {} else {}", (0, vec![1], 1)),
+            ("/* istanbul ignore nextx */ function f() {}", (1, vec![], 0)),
+        ] {
+            assert_eq!(shape(&run(source)), expected, "{source}");
+        }
+    }
+}
+
+#[test]
+fn istanbul_profile_reads_only_the_pragmas_that_istanbul_reads() {
+    for source in [
+        "/* c8 ignore next */ function f() {}",
+        "/* v8 ignore next */ function f() {}",
+        "/*! istanbul ignore next */ function f() {}",
+        "/* istanbul ignore start */ function f() {} /* istanbul ignore stop */",
+        "/* c8 ignore start */ function f() {} /* c8 ignore stop */",
+    ] {
+        let result = istanbul(source);
+        assert_eq!(shape(&result).0, 1, "{source}");
+        assert!(!result.unhandled_pragmas.is_empty(), "{source}");
+        assert_eq!(shape(&default_profile(source)).0, 0, "{source}");
+    }
+    assert_eq!(shape(&istanbul("x = /* c8 ignore next */ (a || b);")).1, [2]);
+    assert_eq!(shape(&istanbul("/* c8 ignore file */ f();")), (0, vec![], 1));
+}
+
+#[test]
+fn ignored_default_ignores_its_subtree() {
+    for run in [istanbul, default_profile] {
+        for source in [
+            "[/* istanbul ignore next */ a = () => 1] = [];",
+            "({ k: /* istanbul ignore next */ a = () => 1 } = {});",
+            "var [/* istanbul ignore next */ a = () => 1] = [];",
+            "var { k: /* istanbul ignore next */ a = () => 1 } = {};",
+            "[/* istanbul ignore next */ a = b || c] = [];",
+        ] {
+            assert_eq!(shape(&run(source)), (0, vec![], 1), "{source}");
+        }
+        assert_eq!(
+            shape(&run("function f(/* istanbul ignore next */ a = b ? c : () => 1) {}")),
+            (1, vec![], 0)
+        );
+    }
+}
+
+#[test]
+fn istanbul_profile_keeps_a_default_whose_pragma_belongs_to_the_property() {
+    for (source, expected) in [
+        ("var { /* istanbul ignore next */ a = () => 1 } = {};", (1, vec![1], 2)),
+        ("function f({ /* istanbul ignore next */ k: a = () => 1 }) {}", (2, vec![1], 1)),
+    ] {
+        assert_eq!(shape(&istanbul(source)), expected, "{source}");
+    }
+}
+
+#[test]
+fn parameter_default_location_starts_at_the_binding() {
+    let options = |compat| InstrumentOptions { compat, ..InstrumentOptions::default() };
+    for compat in [Some(CompatProfile::Istanbul), None] {
+        for (source, start) in [
+            ("class A { constructor(public a = () => 1) {} }", 29),
+            ("class A { constructor(private readonly a = 1) {} }", 39),
+            ("class A { m(@dec a = 1) {} }", 17),
+        ] {
+            let result = instrument(source, "compat.ts", &options(compat)).expect("instrument");
+            let entry = &result.coverage_map.branch_map["0"];
+            assert_eq!(entry.loc.start.column, start, "{source}");
+        }
+        let ignored = "class A { constructor(public /* istanbul ignore next */ a = () => 1) {} }";
+        let result = instrument(ignored, "compat.ts", &options(compat)).expect("instrument");
+        assert_eq!(shape(&result), (1, vec![], 0));
+    }
+    let kept = "class A { constructor(/* istanbul ignore next */ public a = () => 1) {} }";
+    let result =
+        instrument(kept, "compat.ts", &options(Some(CompatProfile::Istanbul))).expect("instrument");
+    assert_eq!(shape(&result), (2, vec![1], 1));
+}
