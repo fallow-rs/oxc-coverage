@@ -1,7 +1,7 @@
 //! Node.js bindings for `oxc_coverage_instrument`.
 //!
-//! Exposes instrumentation, coverage remapping and V8-to-Istanbul conversion to
-//! JavaScript via napi-rs.
+//! Exposes instrumentation, coverage remapping, V8-to-Istanbul conversion,
+//! coverage summaries and the Istanbul reporters to JavaScript via napi-rs.
 
 #![expect(
     clippy::needless_pass_by_value,
@@ -15,6 +15,8 @@
     clippy::disallowed_types,
     reason = "napi-derive keys its TypeScript emit on the `HashMap` ident to produce `Record<K, V>`"
 )]
+
+pub mod report;
 
 use std::{collections::HashMap, fmt};
 
