@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792653623198,
+  "lastUpdate": 1792693372191,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2841,6 +2841,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97510808,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bf0c55f9c27a73e7da6a2465ec9c5cd7d513b64b",
+          "message": "fix(instrument): match istanbul spans for parentheses, methods, and fnMap line (#300)\n\n* fix(instrument): match istanbul spans for parentheses, methods, and fnMap line\n\nThe strict istanbul profile differed from istanbul-lib-instrument on real\ncode in three places:\n\n- Babel drops parentheses from its AST, so istanbul records `x = (a, b)` as\n  `a, b`. Oxc keeps the parentheses as a node, and statement, function, and\n  branch locations included them. Locations now leave them out.\n- istanbul anchors a method `decl` at the start of the method, so modifiers\n  such as `static`, `async`, `get`, and `*` and computed keys are included.\n  We anchored it at the key. The default profile now spans from the method\n  start to the end of a non-computed key.\n- istanbul takes the deprecated `fnMap.line` from the function body. We took\n  it from the declaration, which differs when parameters span several lines.\n\nInitializers in parentheses also keep their inferred function name now,\nbecause the named-initializer check looks through the parentheses.\n\nThe strict profile now matches istanbul-lib-instrument on every statement,\nfunction, and branch entry of the pinned react, lodash, vue, d3, and three\ncorpus. real-world-parity.mjs now compares those entries, locations included,\nand not only the counts. New conformance fixtures cover each shape.\n\n* fix(instrument): read method decl from the parent and keep the default key span\n\nReview follow-ups for the strict istanbul span changes:\n\n- A function in a decorator argument or a computed key took the method\n  `decl`, because the span went through shared state to the first function\n  in the method subtree. The function hook now reads the `decl` from its\n  direct parent, so only the method value gets it.\n- The default profile again uses the method key as `decl`. The method start\n  also covers decorators, so a decorated method moved its `decl` line and\n  with it the `x_fallow_functionMap` id. istanbul-diff now accepts a key span\n  between the strict marker and the body.\n- The statement that wraps a concise arrow body starts inside the\n  parentheses. Its pragma lookup now starts at the opening parenthesis, so\n  `() => (/* istanbul ignore next */ a)` keeps its statement, as istanbul does.\n- A parenthesized function value of an object property is now treated as\n  function-valued for `ignore next`, as it is without parentheses.",
+          "timestamp": "2026-10-22T18:10:07Z",
+          "tree_id": "8f0fa19cc543419a68672ffd01656a0d3d1f8095",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/bf0c55f9c27a73e7da6a2465ec9c5cd7d513b64b"
+        },
+        "date": 1792693371453,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 97521944,
             "unit": "bytes"
           }
         ]
