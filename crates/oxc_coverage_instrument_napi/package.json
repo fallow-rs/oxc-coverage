@@ -1,6 +1,6 @@
 {
   "name": "oxc-coverage-instrument",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Istanbul-compatible JavaScript/TypeScript coverage instrumentation using the Oxc AST.",
   "main": "index.js",
   "browser": "browser.js",
@@ -90,14 +90,14 @@
     "@emnapi/runtime": "2.0.0-beta.2"
   },
   "optionalDependencies": {
-    "@oxc-coverage-instrument/binding-darwin-arm64": "0.14.0",
-    "@oxc-coverage-instrument/binding-darwin-x64": "0.14.0",
-    "@oxc-coverage-instrument/binding-linux-arm64-gnu": "0.14.0",
-    "@oxc-coverage-instrument/binding-linux-x64-gnu": "0.14.0",
-    "@oxc-coverage-instrument/binding-linux-x64-musl": "0.14.0",
-    "@oxc-coverage-instrument/binding-win32-arm64-msvc": "0.14.0",
-    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.14.0",
-    "@oxc-coverage-instrument/binding-wasm32-wasi": "0.14.0",
-    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.14.0"
+    "@oxc-coverage-instrument/binding-darwin-arm64": "0.15.0",
+    "@oxc-coverage-instrument/binding-darwin-x64": "0.15.0",
+    "@oxc-coverage-instrument/binding-linux-arm64-gnu": "0.15.0",
+    "@oxc-coverage-instrument/binding-linux-x64-gnu": "0.15.0",
+    "@oxc-coverage-instrument/binding-linux-x64-musl": "0.15.0",
+    "@oxc-coverage-instrument/binding-win32-arm64-msvc": "0.15.0",
+    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.15.0",
+    "@oxc-coverage-instrument/binding-wasm32-wasi": "0.15.0",
+    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.15.0"
   }
 }
