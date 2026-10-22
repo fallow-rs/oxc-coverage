@@ -1070,7 +1070,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_coverage_instrument"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "cow-utils",
  "criterion2",
@@ -1124,14 +1124,14 @@ dependencies = [
 
 [[package]]
 name = "oxc_coverage_report"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "oxc_coverage_types",
 ]
 
 [[package]]
 name = "oxc_coverage_reports"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
