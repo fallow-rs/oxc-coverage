@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792693372191,
+  "lastUpdate": 1792702767517,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage-instrument",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
@@ -2870,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 97521944,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "af1aeb19c05b3f1c8eeb82baa8f920497973b36c",
+          "message": "fix(instrument): match istanbul pragma owners, function order, and names (#301)\n\nThe strict istanbul profile now matches istanbul-lib-instrument in three\nmore areas, and the default profile follows where istanbul is the rule.\n\nPragma owners. Babel attaches a comment to the outermost node after it and\nhas no node for parentheses. A new pass in the pragma map copies an\n`ignore next` key at `(` to the expression inside, and records keys that\nbelong to a node istanbul does not visit (a call, member, or sequence), so\n`function () {}.call(this)` keeps its function. Values that istanbul wraps\nwith `replaceWith` lose their pragma, as in istanbul. A pragma on a whole\ndefault, conditional, or logical expression ignores its subtree. The kind\ntoken ends at the first non-word character, so `next: reason` is `next`.\nThe strict profile reads only `istanbul ignore next|if|else|file` and\nreports `v8`, `c8`, `start`, `stop`, and `/*!` as unhandled.\n\nFunction order. A method gets its fnMap id before the functions in its\ndecorator arguments or computed key, as istanbul visits them.\n\nNames. The default profile now keys an inferred name on the start of the\nfunction that takes it, instead of a pending name that the first function\nin the subtree took. A function's own name comes first, as for\n`Function.prototype.name`, and `x = () => 1` is named `x`. Assignment\ntarget defaults get a `default-arg` branch.\n\nThe README lists the remaining default-profile differences for pragmas on\ndata properties and case statements, and the runtime name loss of a\nwrapped default value.",
+          "timestamp": "2026-10-22T22:57:33+02:00",
+          "tree_id": "035baae372e8a225cd557cfc51e3789359a02157",
+          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/af1aeb19c05b3f1c8eeb82baa8f920497973b36c"
+        },
+        "date": 1792702766912,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 99697600,
             "unit": "bytes"
           }
         ]
