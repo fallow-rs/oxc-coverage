@@ -149,7 +149,9 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         if self.in_ignored_subtree() {
             return;
         }
-        let init_span = init.span();
+        // Babel drops parentheses from the AST, so istanbul records `x = (a, b)`
+        // as `a, b`. Oxc keeps them as a node; every location strips them.
+        let init_span = init.without_parentheses().span();
         if is_synthetic_span(init_span) {
             return;
         }
@@ -161,7 +163,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // stays the direct init. A `for (var x = fn;;)` or for-in/for-of head
         // has no sibling slot, so it falls back to the wrap.
         let is_named_initializer = matches!(
-            init,
+            init.without_parentheses(),
             Expression::FunctionExpression(_)
                 | Expression::ArrowFunctionExpression(_)
                 | Expression::ClassExpression(_)

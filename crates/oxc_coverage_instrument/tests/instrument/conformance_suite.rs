@@ -253,3 +253,6 @@ conformance_test!(c30_coverage_binding_collisions, "30-coverage-binding-collisio
 conformance_test!(c31_class_fields, "31-class-fields");
 conformance_test!(c32_typescript_stripped, "32-typescript-stripped", ".ts");
 conformance_test!(c33_typescript_concise_arrows, "33-typescript-concise-arrows", ".ts");
+conformance_test!(c34_parenthesized_expressions, "34-parenthesized-expressions");
+conformance_test!(c35_method_modifiers, "35-method-modifiers");
+conformance_test!(c36_multiline_parameters, "36-multiline-parameters");

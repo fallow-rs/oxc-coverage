@@ -119,7 +119,7 @@ may differ only through extensions documented in the README.
 | `scripts/istanbul-diff.mjs` | Strict byte diff plus the default-profile documented-delta gate. |
 | `scripts/istanbul-upstream-specs.mjs` | Runtime cases taken from upstream Istanbul specs. |
 | `scripts/real-world-output.mjs` | Runtime behaviour and counter placement on production-like sources. |
-| `scripts/real-world-parity.mjs` | Count-level parity over the benchmark corpus. |
+| `scripts/real-world-parity.mjs` | Strict-profile entry parity and default-profile count parity over the benchmark corpus. |
 | `scripts/prepare-real-world-corpus.mjs` | Explicit download and SHA-256 verification of the pinned real-project corpus. |
 | `scripts/v8-inspector-smoke.mjs` | Conversion of real Node inspector coverage. |
 | `scripts/native-vs-wasm-parity.mjs` | Native binding output against the WASM binding, fixture by fixture. |

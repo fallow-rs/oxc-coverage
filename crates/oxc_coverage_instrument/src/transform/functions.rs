@@ -40,6 +40,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         self.ignored_fn_stack.push(pragma_skip);
         if pragma_skip {
             self.pending_name = None;
+            self.pending_method_decl = None;
             return;
         }
         if fn_counter_only_skip {
@@ -47,14 +48,16 @@ impl<'arena> CoverageTransform<'_, 'arena> {
                 self.pending_fn_counters.push(None);
             }
             self.pending_name = None;
+            self.pending_method_decl = None;
             return;
         }
 
         let name = self.resolve_function_name(func, ctx);
         // istanbul-lib-instrument points `decl` at the identifier itself:
-        // `function foo()` gives the `foo` identifier span, a class method
-        // `bar() {}` gives the key span (recorded by `register_method_definition`
-        // before this hook runs), and an anonymous `function ()` gives a
+        // `function foo()` gives the `foo` identifier span, a method gives a
+        // marker at the method start (recorded by `register_method_definition`
+        // or `register_object_property` before this hook runs), and an
+        // anonymous `function ()` gives a
         // one-character marker where the name would have been.
         let decl_span = if let Some(id) = &func.id {
             id.span
@@ -129,12 +132,14 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // `arrow.body.span()` dispatches to the block for `(a) => { .. }` and to
         // the bare expression for `(a) => a * 2`, which is the `loc` istanbul
         // records. A wrapper built by either expansion carries the expression's
-        // own span, so it reads the same either way.
-        let fn_id = self.add_function(
-            name,
-            Span::new(arrow.span.start, arrow.span.start + 1),
-            arrow.body.span(),
-        );
+        // own span, so it reads the same either way. Both leave out parentheses
+        // around the expression, which Babel does not keep.
+        let body_span = arrow
+            .body
+            .as_expression()
+            .map_or_else(|| arrow.body.span(), |expr| expr.without_parentheses().span());
+        let fn_id =
+            self.add_function(name, Span::new(arrow.span.start, arrow.span.start + 1), body_span);
 
         // The counter needs a block to live in, which a concise arrow only gets
         // once its body is wrapped, so the body hook is what inserts it. Pushed
@@ -218,7 +223,12 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             self.skip_fn_counter_only = true;
             return;
         }
-        let Some(name) = property_key_to_name(&method.key) else { return };
+        let named_key = (!method.computed).then_some(key_span);
+        let decl = self.method_decl_span(method.span.start, named_key);
+        let Some(name) = property_key_to_name(&method.key) else {
+            self.pending_method_decl = Some(decl);
+            return;
+        };
         if self.ignore_class_methods.contains(&name) {
             if let Some(ignored) = self.ignored_prop_stack.last_mut() {
                 *ignored = true;
@@ -226,13 +236,21 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             return;
         }
         self.pending_name = Some(method_label(method.kind, name));
-        // `decl` for a method is the key's span (`bar` in `class C { bar(x) {} }`),
-        // the same rule istanbul applies to named function declarations.
-        self.pending_method_decl = Some(if self.istanbul_compat {
-            Span::new(key_span.start, key_span.start.saturating_add(1))
-        } else {
-            key_span
-        });
+        self.pending_method_decl = Some(decl);
+    }
+
+    /// The `decl` of a method or a method-like object property.
+    ///
+    /// istanbul-lib-instrument has no identifier to point at, so it marks the
+    /// first character of the method node, which includes modifiers such as
+    /// `static`, `async`, `get` and `*`. The default profile widens that
+    /// marker to the end of a non-computed key (`static bar` in
+    /// `class C { static bar() {} }`).
+    fn method_decl_span(&self, method_start: u32, named_key: Option<Span>) -> Span {
+        match named_key {
+            Some(key) if !self.istanbul_compat => Span::new(method_start, key.end),
+            _ => Span::new(method_start, method_start.saturating_add(1)),
+        }
     }
 
     /// Attach the statement counter for a class property initializer.
@@ -258,7 +276,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // rather than a `Statement`, so the statement hook never sees it. The
         // initializer is wrapped in place: `x = (++cov.s[N], expr)`.
         let Some(value) = prop.value.as_mut() else { return };
-        let span = value.span();
+        let span = value.without_parentheses().span();
         if is_synthetic_span(span) {
             return;
         }
@@ -292,12 +310,8 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         self.push_prop_ignore_frame(has_ignore_next);
 
         if is_method_like && !has_ignore_next && !self.in_ignored_subtree() {
-            let key_span = prop.key.span();
-            self.pending_method_decl = Some(if self.istanbul_compat {
-                Span::new(key_span.start, key_span.start.saturating_add(1))
-            } else {
-                key_span
-            });
+            let named_key = (!prop.computed).then(|| prop.key.span());
+            self.pending_method_decl = Some(self.method_decl_span(prop.span.start, named_key));
         }
 
         // Carry the property's key name into the inner function or arrow so

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // Real-world regression check: compare oxc-coverage-instrument vs
-// istanbul-lib-instrument coverage-map counts across the benchmark JS
-// libraries pinned by `scripts/real-world-corpus.json`.
+// istanbul-lib-instrument coverage maps across the benchmark JS libraries
+// pinned by `scripts/real-world-corpus.json`.
 //
-// Any statement or function count divergence fails the run. Branch counts
-// are allowed to exceed istanbul's (documented `??=`/`||=`/`&&=` superset)
-// but never fall below; that would be a regression. The lodash artifact is
-// also executed before and after instrumentation with an observable API probe.
+// The strict `istanbul` profile must reproduce every statement, function, and
+// branch entry, locations included. The default profile is checked on counts:
+// any statement or function count divergence fails the run, and branch counts
+// may exceed istanbul's (documented `??=`/`||=`/`&&=` superset) but never fall
+// below. The lodash artifact is also executed before and after instrumentation
+// with an observable API probe.
 //
 // Usage:
 //   node scripts/prepare-real-world-corpus.mjs
@@ -32,6 +34,28 @@ const counts = (cov) => ({
   b: Object.keys(cov.branchMap).length,
 });
 
+const MAX_REPORTED_ENTRY_DIFFS = 5;
+
+const canonical = (value) =>
+  JSON.stringify(value, (_key, inner) =>
+    inner && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.keys(inner).sort().map((key) => [key, inner[key]]))
+      : inner,
+  );
+
+const entryDiffs = (expected, actual) => {
+  const diffs = [];
+  for (const map of ['statementMap', 'fnMap', 'branchMap']) {
+    const ids = new Set([...Object.keys(expected[map]), ...Object.keys(actual[map])]);
+    for (const id of ids) {
+      if (canonical(expected[map][id]) !== canonical(actual[map][id])) {
+        diffs.push({ path: `${map}.${id}`, expected: expected[map][id], actual: actual[map][id] });
+      }
+    }
+  }
+  return diffs;
+};
+
 const executeLodashProbe = (code) => {
   const module = { exports: {} };
   const sandbox = { module, exports: module.exports };
@@ -53,11 +77,16 @@ for (const project of projects) {
 
   const istanbulInst = createInstrumenter({ esModules: false, produceSourceMap: false });
   istanbulInst.instrumentSync(src, name);
-  const istanbul = counts(istanbulInst.lastFileCoverage());
+  const istanbulCoverage = istanbulInst.lastFileCoverage();
+  const istanbul = counts(istanbulCoverage);
 
   const oxcInst = createOxcInstrumenter({ coverageVariable: '__coverage__' });
   const instrumented = oxcInst.instrumentSync(src, name);
   const oxc = counts(oxcInst.lastFileCoverage());
+
+  const strictInst = createOxcInstrumenter({ coverageVariable: '__coverage__', compat: 'istanbul' });
+  strictInst.instrumentSync(src, name);
+  const strictDiffs = entryDiffs(istanbulCoverage, strictInst.lastFileCoverage());
 
   if (name === 'lodash.js') {
     const originalResult = executeLodashProbe(src);
@@ -73,12 +102,13 @@ for (const project of projects) {
   const sOk = oxc.s === istanbul.s;
   const fOk = oxc.f === istanbul.f;
   const bOk = oxc.b >= istanbul.b;
-  const ok = sOk && fOk && bOk;
+  const strictOk = strictDiffs.length === 0;
+  const ok = sOk && fOk && bOk && strictOk;
   const tag = ok ? '[OK]  ' : '[DIFF]';
   console.log(
     `${tag} ${label.padEnd(24)} ${sizeKB.padStart(6)} KB  ` +
       `istanbul s=${istanbul.s} f=${istanbul.f} b=${istanbul.b}  ` +
-      `oxc s=${oxc.s} f=${oxc.f} b=${oxc.b}`,
+      `oxc s=${oxc.s} f=${oxc.f} b=${oxc.b}  strict entry diffs=${strictDiffs.length}`,
   );
   if (!ok) {
     diverged++;
@@ -88,6 +118,14 @@ for (const project of projects) {
       console.log(
         `       branches regress:  istanbul=${istanbul.b} oxc=${oxc.b} (oxc should be >= istanbul)`,
       );
+    }
+    for (const diff of strictDiffs.slice(0, MAX_REPORTED_ENTRY_DIFFS)) {
+      console.log(`       strict ${diff.path}:`);
+      console.log(`         istanbul=${canonical(diff.expected)}`);
+      console.log(`         oxc=     ${canonical(diff.actual)}`);
+    }
+    if (strictDiffs.length > MAX_REPORTED_ENTRY_DIFFS) {
+      console.log(`       ... and ${strictDiffs.length - MAX_REPORTED_ENTRY_DIFFS} more strict entry diffs`);
     }
   }
 }

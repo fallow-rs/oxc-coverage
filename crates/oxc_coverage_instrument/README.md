@@ -179,8 +179,8 @@ Set `compat: Some(CompatProfile::Istanbul)` in Rust or `compat: 'istanbul'` in
 Node.js when the coverage shape must match `istanbul-lib-instrument` exactly.
 The profile disables logical-assignment and optional-chain branches, uses
 `(anonymous_N)` for inferred function names, truncates class and object method
-declaration spans to the first key character, and emits Istanbul's empty
-synthetic `else` locations. Explicitly named functions keep their names.
+declaration spans to the first character of the method, and emits Istanbul's
+empty synthetic `else` locations. Explicitly named functions keep their names.
 
 The profile is authoritative over the individual extension options. In
 particular, optional-chain tracking and callback-argument name inference remain
@@ -230,11 +230,13 @@ The strict Istanbul profile uses `(anonymous_N)` instead.
 
 ### 3. Full method-key spans in `fnMap[*].decl`
 
-For class and object methods, the whole method key is the declaration span.
-`istanbul-lib-instrument` truncates a method declaration to the key's first
-character, so `class C { bar() {} }` gives `bar` here and `b` there. The
-byte-diff check still pins the method declaration start, the line, the body
-`loc`, and every non-method declaration span.
+For class and object methods with a non-computed key, the declaration span
+runs from the start of the method to the end of its key, modifiers included.
+`istanbul-lib-instrument` truncates a method declaration to the first character
+of the method, so `class C { static bar() {} }` gives `static bar` here and `s`
+there. A computed key keeps the one-character span. The byte-diff check still
+pins the method declaration start, the line, the body `loc`, and every
+non-method declaration span.
 
 The strict Istanbul profile uses the truncated span.
 

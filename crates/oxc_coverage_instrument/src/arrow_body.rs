@@ -42,6 +42,8 @@ use oxc_span::GetSpan;
 /// Give a concise arrow body the block wrapper the 0.142 parser produced: a
 /// `FunctionBody` holding one `ExpressionStatement`, both carrying the
 /// expression's own span, so `statementMap` and the source map are unchanged.
+/// Parentheses around the expression are left out of that span: Babel drops
+/// them from its AST, so istanbul records `() => (a, b)` as `a, b`.
 ///
 /// Returns whether the body was concise, and so was wrapped. The wrapper must
 /// stay an `ExpressionStatement`: the `return` that keeps the arrow yielding
@@ -51,10 +53,10 @@ pub fn wrap_concise_arrow_body<'arena>(
     body: &mut ArrowFunctionBody<'arena>,
     builder: &impl GetAstBuilder<'arena>,
 ) -> bool {
-    if !body.is_expression() {
+    let Some(expr) = body.as_expression() else {
         return false;
-    }
-    let span = body.span();
+    };
+    let span = expr.without_parentheses().span();
     body.replace_with(|expr| {
         let stmt = Statement::new_expression_statement(span, expr.into_expression(), builder);
         ArrowFunctionBody::new_function_body(span, [], [stmt], builder)
