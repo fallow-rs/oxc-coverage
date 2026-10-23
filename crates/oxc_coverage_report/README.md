@@ -1,4 +1,4 @@
-# Oxc Coverage Report
+# oxc_coverage_report
 
 Coverage summarization and the tree-visitor base for the oxc-coverage suite, a
 Rust port of `istanbul-lib-report`.

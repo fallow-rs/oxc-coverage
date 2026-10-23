@@ -1,7 +1,10 @@
-# Oxc Coverage Instrument
+# oxc_coverage_instrument
 
 Istanbul-compatible JavaScript and TypeScript coverage instrumentation using the
 Oxc AST.
+
+> **Unofficial.** Independent community project built on Oxc crates. Not part
+> of, affiliated with, or endorsed by the Oxc project.
 
 ## Overview
 

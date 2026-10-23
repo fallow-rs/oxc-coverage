@@ -1,4 +1,4 @@
-# Oxc Coverage Reports
+# oxc_coverage_reports
 
 Istanbul-compatible coverage reporters for the oxc-coverage suite, a Rust port of
 `istanbul-reports`.

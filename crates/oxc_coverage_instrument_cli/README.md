@@ -1,7 +1,10 @@
-# Oxc Coverage Instrument CLI
+# oxc-coverage-instrument CLI
 
 The `oxc-coverage-instrument` binary: instrument a file, or render a coverage
 report.
+
+> **Unofficial.** Independent community project built on Oxc crates. Not part
+> of, affiliated with, or endorsed by the Oxc project.
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Oxc Coverage Source Maps
+# oxc_coverage_source_maps
 
 Istanbul-compatible source-map remapping for `FileCoverage`, a Rust port of
 `istanbul-lib-source-maps`.
