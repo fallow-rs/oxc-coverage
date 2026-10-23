@@ -321,17 +321,26 @@ function default of a parameter or a destructuring target
 (`({ a = () => 1 } = o)`) also keeps an empty runtime `name`. Istanbul does the
 same.
 
-### 8. Ignore pragmas on data properties and case statements
+### 8. Ignore pragmas that reach further than in Istanbul
 
-Three `ignore next` placements reach further than in Istanbul:
+These `ignore next` placements ignore more than Istanbul does:
 
 | Source | Here | istanbul |
 |---|---|---|
 | `({ /* istanbul ignore next */ a: b \|\| c })` | value ignored | counted |
 | `var { /* istanbul ignore next */ a = 1 } = o` | default ignored | counted |
 | `switch (x) { case 1: /* istanbul ignore next */ y(); }` | case ignored | `y()` ignored |
+| `class A { static /* istanbul ignore next */ m() {} }` | method ignored | counted |
+| `if (a) {} /* istanbul ignore else */ else if (b) {} else {}` | inner `else` ignored | no effect |
+| `if (a) {} /* istanbul ignore next */ else if (b) {}` | `else if` ignored | no effect |
+| `if (x) { /* istanbul ignore next */ }` then `{ a(); }` | next block ignored | no effect |
 
-The strict Istanbul profile follows Istanbul.
+A pragma after a modifier (`static`, `get`, `set`, `async`, `*`) applies to the
+method. A pragma before `else if` applies to the chained `if`, and a pragma
+alone in an empty block applies to the next block or JSX element. This
+instrumenter also reads the `v8 ignore` and `c8 ignore` forms and the `/*!`
+legal-comment form at every placement. The strict Istanbul profile does none of
+this and follows Istanbul.
 
 All other placements follow Istanbul in both profiles. Istanbul wraps some
 values in a counter with Babel's `replaceWith`, which moves the leading
@@ -341,9 +350,12 @@ and `class A { m = /* istanbul ignore next */ () => 1 }` keeps its function. A
 pragma before a whole default, conditional, or logical expression ignores
 everything in it: `function f(/* istanbul ignore next */ x = () => 1) {}`
 ignores the arrow too. The same holds for a pragma before a block body, a
-`catch` or `finally` block, a variable declarator (`var /* .. */ a = b || c`),
-or a class declaration (`export default /* .. */ class {}`). A class
-expression and the expression of a concise arrow body stay counted.
+`catch`, `finally` or `try` block, a variable declarator
+(`var /* .. */ a = b || c`), or a class declaration (`export default /* .. */
+class {}`). A class expression stays counted. Before the expression of a concise
+arrow body, the pragma ignores that expression but not the statement counter of
+the body: `() => /* istanbul ignore next */ a || b` keeps its statement and
+loses its branch.
 
 This crate is the entry point of the oxc-coverage suite; the source-map,
 V8, and reporting layers live in sibling crates.
