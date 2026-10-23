@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792777827929,
+  "lastUpdate": 1792789926234,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "9ab4ae49a0d820197c94c1d53a2760496d403149",
-          "message": "chore: release v0.7.0",
-          "timestamp": "2026-05-21T16:32:51+02:00",
-          "tree_id": "a00631034241cb13a5cc0a723679bad4d8a4bf6f",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/9ab4ae49a0d820197c94c1d53a2760496d403149"
-        },
-        "date": 1779779384659,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85079496,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103354592,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b4b73c95b8f14718f9f77cc1f9686411091e1589",
+          "message": "fix(instrument): ignore blocks, declarators, and class declarations after a pragma (#307)\n\n* fix(instrument): ignore blocks, declarators, and class declarations after a pragma\n\nBabel attaches an `ignore next` comment to the next node that istanbul\nvisits with a hint, and istanbul then skips that subtree. Three placements\nstill differed in both profiles:\n\n- a block body or block statement: `() => /* .. */ { }`,\n  `function f() /* .. */ { }`, `catch (e) /* .. */ { }`,\n  `finally /* .. */ { }`;\n- a variable declarator: `var /* .. */ a = b || c`,\n  `var a = 1, /* .. */ b = c`, `for (var /* .. */ i = 0;;)`,\n  `export const /* .. */ f = () => 1`;\n- a class declaration: `export default /* .. */ class {}`.\n\nA new ignore frame opens on these nodes when a pragma is keyed at their\nstart. A class expression and the block that wraps a concise arrow body\nget no frame, because istanbul does not read a hint there.\n\nThe README now also lists the destructuring-property pragma, which the\ndefault profile already applied to the default value.\n\n* fix(instrument): keep pragma hops out of the strict profile and document them\n\nTwo older strict-profile differences from istanbul remained:\n\n- `} /* istanbul ignore else */ else if (c) {` and the `ignore next` form\n  moved the pragma to the chained `if`. In istanbul the comment has no\n  effect there.\n- A pragma alone in an empty block moved to the next block. In istanbul it\n  is an inner comment of the empty block.\n\n`pragma_target_start` now takes a `hops` flag, and the strict profile\npasses `false`. The default profile keeps both hops.\n\nREADME difference 8 now lists each placement where the default profile\nignores more than istanbul: data properties, destructuring properties,\ncase statements, a pragma after a method modifier, the `else if` and\nempty-block hops, and the `v8`, `c8`, and `/*!` forms. The concise-arrow\nnote now says that the body keeps its statement counter. New tests cover\nboth hops in both profiles, `export /* .. */ class`, a TypeScript return\ntype before a block body, a `static` block, and a `c8` pragma before a\nblock body.",
+          "timestamp": "2026-10-23T23:10:19+02:00",
+          "tree_id": "1d377add20b554c3ae74b6b88bbdfb4439adb237",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/b4b73c95b8f14718f9f77cc1f9686411091e1589"
+        },
+        "date": 1792789925013,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103386288,
             "unit": "bytes"
           }
         ]
