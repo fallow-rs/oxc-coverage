@@ -97,7 +97,7 @@ fn callee_name(callee: &Expression<'_>) -> Option<String> {
         Expression::Identifier(ident) => Some(ident.name.to_string()),
         Expression::StaticMemberExpression(member) => Some(member.property.name.to_string()),
         Expression::ComputedMemberExpression(member) => match &member.expression {
-            Expression::StringLiteral(lit) => Some(lit.value.to_string()),
+            Expression::StringLiteral(lit) => Some(lit.value.display().to_string()),
             _ => None,
         },
         Expression::ParenthesizedExpression(paren) => callee_name(&paren.expression),
@@ -114,13 +114,15 @@ pub(super) fn property_key_to_name(key: &PropertyKey<'_>) -> Option<String> {
     match key {
         PropertyKey::StaticIdentifier(id) => Some(id.name.to_string()),
         PropertyKey::PrivateIdentifier(id) => Some(format!("#{}", id.name)),
-        PropertyKey::StringLiteral(s) => Some(s.value.to_string()),
+        PropertyKey::StringLiteral(s) => Some(s.value.display().to_string()),
         PropertyKey::NumericLiteral(n) => {
             Some(n.raw.map_or_else(|| n.value.to_string(), |raw| raw.to_string()))
         }
-        PropertyKey::TemplateLiteral(t) if t.expressions.is_empty() => {
-            t.quasis.first().and_then(|quasi| quasi.value.cooked.as_ref()).map(ToString::to_string)
-        }
+        PropertyKey::TemplateLiteral(t) if t.expressions.is_empty() => t
+            .quasis
+            .first()
+            .and_then(|quasi| quasi.value.cooked)
+            .map(|cooked| cooked.display().to_string()),
         _ => None,
     }
 }
@@ -140,7 +142,7 @@ pub(super) fn assignment_target_name(expr: &AssignmentExpression<'_>) -> Option<
         AssignmentTarget::AssignmentTargetIdentifier(id) => Some(id.name.to_string()),
         AssignmentTarget::StaticMemberExpression(member) => Some(member.property.name.to_string()),
         AssignmentTarget::ComputedMemberExpression(member) => match &member.expression {
-            Expression::StringLiteral(lit) => Some(lit.value.to_string()),
+            Expression::StringLiteral(lit) => Some(lit.value.display().to_string()),
             _ => None,
         },
         _ => None,
