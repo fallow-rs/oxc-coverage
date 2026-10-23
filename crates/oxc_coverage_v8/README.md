@@ -1,4 +1,4 @@
-# Oxc Coverage V8
+# oxc_coverage_v8
 
 V8 inspector coverage to Istanbul `FileCoverage` conversion, a Rust port of
 `v8-to-istanbul`.

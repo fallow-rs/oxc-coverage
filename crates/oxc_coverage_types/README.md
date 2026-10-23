@@ -1,4 +1,4 @@
-# Oxc Coverage Types
+# oxc_coverage_types
 
 Istanbul-compatible coverage data types for the oxc-coverage suite.
 

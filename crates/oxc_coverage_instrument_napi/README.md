@@ -1,7 +1,10 @@
-# Oxc Coverage Instrument for Node.js
+# oxc-coverage-instrument for Node.js
 
 Istanbul-compatible JavaScript and TypeScript coverage instrumentation, built on
 the [Oxc](https://oxc.rs) parser and exposed to Node.js through napi-rs.
+
+> **Unofficial.** Independent community project built on Oxc crates. Not part
+> of, affiliated with, or endorsed by the Oxc project.
 
 ## Overview
 
