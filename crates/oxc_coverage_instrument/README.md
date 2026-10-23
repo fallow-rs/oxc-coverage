@@ -323,11 +323,12 @@ same.
 
 ### 8. Ignore pragmas on data properties and case statements
 
-Two `ignore next` placements reach further than in Istanbul:
+Three `ignore next` placements reach further than in Istanbul:
 
 | Source | Here | istanbul |
 |---|---|---|
 | `({ /* istanbul ignore next */ a: b \|\| c })` | value ignored | counted |
+| `var { /* istanbul ignore next */ a = 1 } = o` | default ignored | counted |
 | `switch (x) { case 1: /* istanbul ignore next */ y(); }` | case ignored | `y()` ignored |
 
 The strict Istanbul profile follows Istanbul.
@@ -339,7 +340,10 @@ has no effect: `var x = /* istanbul ignore next */ a || b` keeps its branch,
 and `class A { m = /* istanbul ignore next */ () => 1 }` keeps its function. A
 pragma before a whole default, conditional, or logical expression ignores
 everything in it: `function f(/* istanbul ignore next */ x = () => 1) {}`
-ignores the arrow too.
+ignores the arrow too. The same holds for a pragma before a block body, a
+`catch` or `finally` block, a variable declarator (`var /* .. */ a = b || c`),
+or a class declaration (`export default /* .. */ class {}`). A class
+expression and the expression of a concise arrow body stay counted.
 
 This crate is the entry point of the oxc-coverage suite; the source-map,
 V8, and reporting layers live in sibling crates.

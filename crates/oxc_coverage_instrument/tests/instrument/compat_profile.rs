@@ -548,3 +548,32 @@ fn instrumentation_keeps_private_methods_out_of_fn_map_in_both_profiles() {
         assert_eq!(result.code.matches(".f[").count(), 2, "{profile}: two function counters");
     }
 }
+
+/// Babel attaches a comment after `export const` to the declarator and a
+/// comment after `export default` to the class declaration, and istanbul
+/// ignores each subtree. Both profiles follow it.
+#[test]
+fn ignore_next_after_export_targets_the_declarator_or_the_class() {
+    let sources = [
+        "export const /* istanbul ignore next */ f = () => 1;",
+        "export default /* istanbul ignore next */ class { m() { return 1; } }",
+    ];
+    for source in sources {
+        for options in [
+            InstrumentOptions {
+                compat: Some(CompatProfile::Istanbul),
+                ..InstrumentOptions::default()
+            },
+            InstrumentOptions::default(),
+        ] {
+            let map = instrument(source, "compat.js", &options).expect("instrument").coverage_map;
+            assert!(
+                map.fn_map.is_empty() && map.statement_map.is_empty(),
+                "{source} ({:?}): fn {:?}, statements {:?}",
+                options.compat,
+                map.fn_map,
+                map.statement_map
+            );
+        }
+    }
+}
