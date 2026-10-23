@@ -199,6 +199,9 @@ pub struct CoverageTransform<'src, 'arena> {
     /// When true, an anonymous function/arrow that is a direct call/`new`
     /// argument is named from the callee instead of `(anonymous_N)`.
     name_callback_arguments: bool,
+    /// When true, a private class method (`#name() {}`) gets its own `fnMap`
+    /// entry. Only the V8 collect path sets it.
+    record_private_methods: bool,
     /// Whether transform details should match `istanbul-lib-instrument`.
     istanbul_compat: bool,
     /// Branch IDs of logical expression branches (for building the `bT` map).
@@ -257,6 +260,12 @@ pub struct TransformInit<'src, 'arena> {
     /// call/`new` argument from the callee (`arr.map(cb)` -> `"map"`). Opt-in;
     /// Istanbul leaves these `(anonymous_N)`.
     pub name_callback_arguments: bool,
+    /// When true, a private class method (`#name() {}`) gets a `fnMap` entry
+    /// named `#name`. Istanbul gives a private method no `fnMap` entry, so
+    /// instrumentation keeps this false. The V8 collect path sets it, because
+    /// V8 reports a function range for the private method, and a consumer must
+    /// be able to match that range to the method.
+    pub record_private_methods: bool,
     /// Arrows whose concise body a caller wrapped before handing the program
     /// over, because a pass between parse and traverse rewrites spans. Default
     /// (empty) for every caller that runs no such pass.
@@ -279,6 +288,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             track_optional_chain,
             ignore_class_methods,
             name_callback_arguments,
+            record_private_methods,
             istanbul_compat,
             pre_expanded_arrows,
             eager_remapper,
@@ -315,6 +325,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             track_optional_chain,
             ignore_class_methods,
             name_callback_arguments,
+            record_private_methods,
             istanbul_compat,
             logical_branch_ids: Vec::new(),
             used_optional_chain_helper: false,

@@ -28,6 +28,8 @@ const unicodeUrl = 'oxc-coverage-instrument://unicode-offsets.js';
 const lineTerminatorFilename = 'inspector-line-terminators.js';
 const lineTerminatorUrl = 'oxc-coverage-instrument://line-terminators.js';
 const fixtureUrl = 'oxc-coverage-instrument://repository-nested-functions.js';
+const privateTwinFilename = 'inspector-private-twin.js';
+const privateTwinUrl = 'oxc-coverage-instrument://private-twin.js';
 
 const withSourceUrl = (source, url) => `${source.trimEnd()}\n//# sourceURL=${url}\n`;
 
@@ -178,6 +180,54 @@ const runLineTerminatorSmoke = async () => {
   assert(Object.values(coverage.s).slice(0, 5).every((count) => count > 0));
 };
 
+// fallow-rs/oxc-coverage-instrument#303: a private method and a public method
+// with the same body. Both must get a function entry with the V8 call count.
+const runPrivateMethodSmoke = async () => {
+  const source = withSourceUrl(
+    `class Twin {
+  #privateMethod(value) {
+    if (value === 0) return 10;
+    if (value === 1) return 20;
+    return 70;
+  }
+  publicMethod(value) {
+    if (value === 0) return 10;
+    if (value === 1) return 20;
+    return 70;
+  }
+  callPrivate(value) {
+    return this.#privateMethod(value);
+  }
+}
+const twin = new Twin();
+for (let value = 0; value <= 2; value++) {
+  twin.callPrivate(value);
+  twin.publicMethod(value);
+}`,
+    privateTwinUrl,
+  );
+  const functions = await captureFunctions(source, privateTwinUrl, () => undefined);
+  assert(
+    functions.some(({ functionName }) => functionName === '#privateMethod'),
+    'V8 must report the private method as its own function',
+  );
+  const coverage = JSON.parse(v8ToIstanbul(source, privateTwinFilename, JSON.stringify(functions)));
+
+  assertCounterMetadata(coverage);
+  assert.equal(functionCount(coverage, '#privateMethod'), 3);
+  assert.equal(functionCount(coverage, 'publicMethod'), 3);
+  const entry = (name) => Object.values(coverage.fnMap).find((metadata) => metadata.name === name);
+  assert.deepEqual(entry('#privateMethod').decl, {
+    start: { line: 2, column: 2 },
+    end: { line: 2, column: 16 },
+  });
+  assert.deepEqual(entry('publicMethod').decl, {
+    start: { line: 7, column: 2 },
+    end: { line: 7, column: 14 },
+  });
+  assert(Object.values(coverage.s).every((count) => count > 0), 'every statement must be hit');
+};
+
 const runRepositoryFixtureSmoke = async () => {
   const fixtureSource = await readFile(fixturePath, 'utf8');
   const source = withSourceUrl(fixtureSource, fixtureUrl);
@@ -197,5 +247,6 @@ await runInlineSmoke();
 await runNestedFunctionArmSmoke();
 await runUnicodeOffsetSmoke();
 await runLineTerminatorSmoke();
+await runPrivateMethodSmoke();
 await runRepositoryFixtureSmoke();
 console.log('PASS v8 inspector coverage converts to stable Istanbul behavior');

@@ -48,6 +48,11 @@ impl std::error::Error for V8ToIstanbulError {}
 /// embedded map is decoded and attached as `inputSourceMap` so the result
 /// chains cleanly into [`crate::remap_coverage`].
 ///
+/// A private class method (`#name() {}`) gets its own `fnMap` entry named
+/// `#name`, because V8 reports a function range for it. Istanbul
+/// instrumentation gives a private method no `fnMap` entry, so
+/// [`crate::instrument()`] does not record one.
+///
 /// To resolve an external `//# sourceMappingURL=foo.js.map` reference rather
 /// than the inline data-URL form, use [`v8_to_istanbul_with_loader`] and
 /// supply a loader that reads the map JSON from disk (or fetches it).

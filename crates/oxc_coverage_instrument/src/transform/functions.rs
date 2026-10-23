@@ -255,9 +255,10 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         if parent_ignored {
             return;
         }
-        if matches!(method.key, PropertyKey::PrivateIdentifier(_)) {
+        if matches!(method.key, PropertyKey::PrivateIdentifier(_)) && !self.record_private_methods {
             // istanbul-lib-instrument instruments private method bodies for
-            // statement coverage but does not surface them in `fnMap`.
+            // statement coverage but does not surface them in `fnMap`. The V8
+            // collect path records them, and continues below.
             self.reserve_method_function(&method.value, None);
             return;
         }

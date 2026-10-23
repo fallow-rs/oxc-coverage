@@ -515,3 +515,36 @@ fn parameter_default_location_starts_at_the_binding() {
         instrument(kept, "compat.ts", &options(Some(CompatProfile::Istanbul))).expect("instrument");
     assert_eq!(shape(&result), (2, vec![1], 1));
 }
+
+/// The class from fallow-rs/oxc-coverage-instrument#303: a private and a public
+/// method with the same body.
+const PRIVATE_TWIN: &str = "class Twin {
+  #privateMethod(value){
+    if(value===0)return 10
+    return 70
+  }
+  publicMethod(value){
+    if(value===0)return 10
+    return 70
+  }
+  callPrivate(value){return this.#privateMethod(value)}
+}
+";
+
+#[test]
+fn instrumentation_keeps_private_methods_out_of_fn_map_in_both_profiles() {
+    // Only the V8 collect path records a private method. Instrumentation keeps
+    // the Istanbul shape: the private body gets statement and branch counters,
+    // but no function counter and no `fnMap` entry.
+    for (profile, result) in
+        [("istanbul", istanbul(PRIVATE_TWIN)), ("default", default_profile(PRIVATE_TWIN))]
+    {
+        let map = &result.coverage_map;
+        let lines = decl_order(&result).into_iter().map(|(line, _)| line).collect::<Vec<_>>();
+        assert_eq!(lines, [6, 10], "{profile}: only the public methods are in fnMap");
+        assert!(map.fn_map.values().all(|entry| !entry.name.contains("privateMethod")));
+        assert_eq!(map.branch_map.len(), 2, "{profile}: both bodies keep their branches");
+        assert_eq!(map.statement_map.len(), 7, "{profile}: both bodies keep their statements");
+        assert_eq!(result.code.matches(".f[").count(), 2, "{profile}: two function counters");
+    }
+}

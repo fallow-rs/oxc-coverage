@@ -646,3 +646,180 @@ fn parse_error_propagates_as_v8_to_istanbul_error() {
         "parse error must carry the underlying diagnostic, got empty string",
     );
 }
+
+/// The reproduction from fallow-rs/oxc-coverage-instrument#303: a private and a
+/// public method with the same body, both run through every return.
+const PRIVATE_TWIN_SOURCE: &str = "import assert from 'node:assert/strict'
+class Twin {
+  #privateMethod(value){
+    if(value===0)return 10
+    if(value===1)return 20
+    if(value===2)return 30
+    if(value===3)return 40
+    if(value===4)return 50
+    if(value===5)return 60
+    return 70
+  }
+  publicMethod(value){
+    if(value===0)return 10
+    if(value===1)return 20
+    if(value===2)return 30
+    if(value===3)return 40
+    if(value===4)return 50
+    if(value===5)return 60
+    return 70
+  }
+  callPrivate(value){return this.#privateMethod(value)}
+}
+const twin=new Twin()
+for(let value=0;value<=6;value++){
+  assert.equal(twin.callPrivate(value),(value+1)*10)
+  assert.equal(twin.publicMethod(value),(value+1)*10)
+}
+";
+
+/// Ranges of one method, as Node 24 reports them for [`PRIVATE_TWIN_SOURCE`].
+/// The outer range starts at the method start `method`. The block ranges are
+/// relative to the opening parenthesis `params`. Both methods have the same
+/// block ranges.
+fn private_twin_method_ranges(method: u32, params: u32) -> Vec<V8CoverageRange> {
+    const BLOCKS: [(u32, u32, u32); 11] = [
+        (26, 35, 1),
+        (35, 53, 6),
+        (53, 62, 1),
+        (62, 80, 5),
+        (80, 89, 1),
+        (89, 107, 4),
+        (107, 116, 1),
+        (116, 134, 3),
+        (134, 143, 1),
+        (143, 161, 2),
+        (161, 187, 1),
+    ];
+    let outer = range(method, params + 188, 7);
+    std::iter::once(outer)
+        .chain(BLOCKS.iter().map(|&(start, end, count)| range(params + start, params + end, count)))
+        .collect()
+}
+
+/// The V8 functions that `NODE_V8_COVERAGE` reports for [`PRIVATE_TWIN_SOURCE`]
+/// on Node 24.
+fn private_twin_functions() -> Vec<V8FunctionCoverage> {
+    let end = byte_len(PRIVATE_TWIN_SOURCE);
+    vec![
+        function("", vec![range(0, end, 1), range(574, end - 1, 7)], true),
+        function("#privateMethod", private_twin_method_ranges(55, 69), true),
+        function("publicMethod", private_twin_method_ranges(260, 272), true),
+        function("callPrivate", vec![range(463, 516, 7)], true),
+    ]
+}
+
+fn fn_entry_by_name<'a>(
+    fc: &'a oxc_coverage_instrument::FileCoverage,
+    name: &str,
+) -> (&'a String, &'a oxc_coverage_instrument::FnEntry) {
+    let mut matches = fc.fn_map.iter().filter(|(_, entry)| entry.name == name);
+    let found = matches.next().unwrap_or_else(|| panic!("fnMap must include `{name}`"));
+    assert!(matches.next().is_none(), "fnMap must include `{name}` only once");
+    found
+}
+
+/// `(line, column)` pairs of a location, for compact span assertions.
+fn span_of(loc: &oxc_coverage_instrument::Location) -> ((u32, u32), (u32, u32)) {
+    ((loc.start.line, loc.start.column), (loc.end.line, loc.end.column))
+}
+
+#[test]
+fn private_twin_v8_ranges_match_the_recorded_node_output() {
+    let functions = private_twin_functions();
+    let private = &functions[1].ranges;
+    let public = &functions[2].ranges;
+    assert_eq!((private[0].start_offset, private[0].end_offset), (55, 257));
+    assert_eq!((public[0].start_offset, public[0].end_offset), (260, 460));
+    assert_eq!(private.len(), 12);
+    assert_eq!((private[11].start_offset, private[11].end_offset), (230, 256));
+    assert_eq!((public[11].start_offset, public[11].end_offset), (433, 459));
+    assert!(private.iter().chain(public).all(|range| range.count > 0));
+    assert_eq!(byte_offset_of(PRIVATE_TWIN_SOURCE, "#privateMethod("), 55);
+    assert_eq!(byte_offset_of(PRIVATE_TWIN_SOURCE, "publicMethod("), 260);
+}
+
+#[test]
+fn v8_conversion_records_a_private_method_like_its_public_twin() {
+    let fc =
+        v8_to_istanbul(PRIVATE_TWIN_SOURCE, "fixture.mjs", &private_twin_functions(), 0).unwrap();
+
+    let (private_id, private) = fn_entry_by_name(&fc, "#privateMethod");
+    let (public_id, public) = fn_entry_by_name(&fc, "publicMethod");
+
+    assert_eq!(private.line, 3);
+    assert_eq!(span_of(&private.decl), ((3, 2), (3, 16)), "decl is the `#privateMethod` key");
+    assert_eq!(span_of(&private.loc), ((3, 23), (11, 3)), "loc is the method body");
+    assert_eq!(public.line, 12);
+    assert_eq!(span_of(&public.decl), ((12, 2), (12, 14)), "decl is the `publicMethod` key");
+    assert_eq!(span_of(&public.loc), ((12, 21), (20, 3)), "loc is the method body");
+
+    assert_eq!(fc.f[private_id], 7, "the private method ran 7 times");
+    assert_eq!(fc.f[public_id], 7, "the public method ran 7 times");
+    assert_eq!(fn_entry_by_name(&fc, "callPrivate").1.line, 21);
+}
+
+#[test]
+fn v8_conversion_keeps_private_method_statements_and_branches() {
+    let fc =
+        v8_to_istanbul(PRIVATE_TWIN_SOURCE, "fixture.mjs", &private_twin_functions(), 0).unwrap();
+
+    // Sorted by position, because the map keys sort as strings ("10" < "2").
+    let counts_on_lines = |first: u32, last: u32| -> Vec<u32> {
+        let mut found: Vec<_> = fc
+            .statement_map
+            .iter()
+            .filter(|(_, loc)| (first..=last).contains(&loc.start.line))
+            .map(|(id, loc)| ((loc.start.line, loc.start.column), fc.s[id]))
+            .collect();
+        found.sort_unstable();
+        found.into_iter().map(|(_, count)| count).collect()
+    };
+    let private_statements = counts_on_lines(4, 10);
+    let public_statements = counts_on_lines(13, 19);
+    assert_eq!(private_statements.len(), 13);
+    assert_eq!(private_statements, public_statements, "both bodies have the same counts");
+    assert!(private_statements.iter().all(|count| *count > 0), "every path ran");
+
+    let if_counts_on_lines = |first: u32, last: u32| -> Vec<Vec<u32>> {
+        let mut found: Vec<_> = fc
+            .branch_map
+            .iter()
+            .filter(|(_, branch)| (first..=last).contains(&branch.loc.start.line))
+            .map(|(id, branch)| (branch.loc.start.line, fc.b[id].clone()))
+            .collect();
+        found.sort_unstable();
+        found.into_iter().map(|(_, counts)| counts).collect()
+    };
+    assert_eq!(if_counts_on_lines(4, 10), if_counts_on_lines(13, 19));
+    assert_eq!(if_counts_on_lines(4, 10).len(), 6);
+}
+
+#[test]
+fn v8_conversion_records_private_accessors_and_modifiers() {
+    let source = "class C {\n  get #a() { return 1; }\n  set #a(v) {}\n  static async *#g() {}\n  \"#q\"() {}\n  #q() {}\n}\n";
+    let end = byte_len(source);
+    let fc =
+        v8_to_istanbul(source, "modifiers.js", &[function("", vec![range(0, end, 1)], true)], 0)
+            .unwrap();
+
+    let mut entries: Vec<_> =
+        fc.fn_map.values().map(|entry| (entry.name.as_str(), span_of(&entry.decl))).collect();
+    entries.sort_by_key(|(_, decl)| *decl);
+    assert_eq!(
+        entries,
+        [
+            ("get #a", ((2, 6), (2, 8))),
+            ("set #a", ((3, 6), (3, 8))),
+            ("#g", ((4, 16), (4, 18))),
+            ("#q", ((5, 2), (5, 6))),
+            ("#q", ((6, 2), (6, 4))),
+        ],
+        "a quoted public `\"#q\"` and a private `#q` keep distinct decl spans"
+    );
+}

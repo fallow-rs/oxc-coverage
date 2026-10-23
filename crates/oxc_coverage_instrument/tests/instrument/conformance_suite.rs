@@ -259,3 +259,4 @@ conformance_test!(c36_multiline_parameters, "36-multiline-parameters");
 conformance_test!(c37_parenthesized_pragmas, "37-parenthesized-pragmas");
 conformance_test!(c38_function_order, "38-function-order");
 conformance_test!(c39_default_method_names, "39-default-method-names");
+conformance_test!(c40_private_public_twin, "40-private-public-twin");

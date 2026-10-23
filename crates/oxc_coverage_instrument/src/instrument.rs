@@ -858,6 +858,8 @@ fn run_coverage_transform<'src, 'arena>(
         istanbul_compat: options.compat == Some(CompatProfile::Istanbul),
         ignore_class_methods: options.ignore_class_methods.clone(),
         name_callback_arguments: options.name_callback_arguments,
+        // Istanbul gives a private method no fnMap entry.
+        record_private_methods: false,
         pre_expanded_arrows,
         eager_remapper,
     });
@@ -1089,10 +1091,14 @@ pub fn collect_for_v8_to_istanbul(
         track_optional_chain: true,
         istanbul_compat: false,
         ignore_class_methods: Vec::new(),
-        // V8-collect builds only the position maps that V8 UTF-16 ranges
-        // intersect against; the fnMap names never reach a consumer here, so
-        // it stays Istanbul-exact (no callback naming) with no options to wire.
+        // V8-collect has no options to wire, so it keeps Istanbul naming for
+        // callback arguments. The fnMap names do reach consumers: a caller can
+        // match a function entry on its name, line, decl, and loc.
         name_callback_arguments: false,
+        // V8 reports a function range for a private method, so the method
+        // needs its own fnMap entry. Without it, a consumer cannot match that
+        // range to the method.
+        record_private_methods: true,
         // V8-collect parses and traverses in one step, with no strip pass in
         // between, so no arrow body is wrapped ahead of the traverse.
         pre_expanded_arrows: PreExpandedArrows::default(),
