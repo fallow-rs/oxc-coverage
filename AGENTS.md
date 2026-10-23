@@ -1,6 +1,6 @@
 # Repository guidelines
 
-Istanbul-compatible coverage tooling for the Oxc ecosystem: instrumentation, the
+Unofficial Istanbul-compatible coverage tooling built on Oxc: instrumentation, the
 Istanbul data model, source-map remapping, V8-to-Istanbul conversion, and report
 emitters, as one Cargo workspace with a Node binding on top.
 
