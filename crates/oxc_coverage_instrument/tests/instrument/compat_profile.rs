@@ -548,3 +548,92 @@ fn instrumentation_keeps_private_methods_out_of_fn_map_in_both_profiles() {
         assert_eq!(result.code.matches(".f[").count(), 2, "{profile}: two function counters");
     }
 }
+
+/// Babel attaches a comment after `export const` to the declarator and a
+/// comment after `export default` to the class declaration, and istanbul
+/// ignores each subtree. Both profiles follow it.
+#[test]
+fn ignore_next_after_export_targets_the_declarator_or_the_class() {
+    let sources = [
+        "export const /* istanbul ignore next */ f = () => 1;",
+        "export default /* istanbul ignore next */ class { m() { return 1; } }",
+    ];
+    for source in sources {
+        for options in [
+            InstrumentOptions {
+                compat: Some(CompatProfile::Istanbul),
+                ..InstrumentOptions::default()
+            },
+            InstrumentOptions::default(),
+        ] {
+            let map = instrument(source, "compat.js", &options).expect("instrument").coverage_map;
+            assert!(
+                map.fn_map.is_empty() && map.statement_map.is_empty(),
+                "{source} ({:?}): fn {:?}, statements {:?}",
+                options.compat,
+                map.fn_map,
+                map.statement_map
+            );
+        }
+    }
+}
+
+/// `(statements, functions, branch locations per branch)` of a source in one
+/// profile.
+fn profile_shape(
+    source: &str,
+    filename: &str,
+    compat: Option<CompatProfile>,
+) -> (usize, usize, Vec<usize>) {
+    let options = InstrumentOptions { compat, ..InstrumentOptions::default() };
+    let map = instrument(source, filename, &options).expect("instrument").coverage_map;
+    let branches = map.branch_map.values().map(|branch| branch.locations.len()).collect();
+    (map.statement_map.len(), map.fn_map.len(), branches)
+}
+
+/// The default profile moves a pragma before `else if` to the chained `if`,
+/// and a pragma alone in an empty block to the next block. Istanbul does
+/// neither: the comment then has no effect, and the strict profile follows.
+#[test]
+fn pragma_hops_apply_only_in_the_default_profile() {
+    let strict = Some(CompatProfile::Istanbul);
+    let cases = [
+        (
+            "if (a) { x(); } /* istanbul ignore else */ else if (c) { z(); } else { w(); }",
+            (5, 0, vec![2, 2]),
+            (4, 0, vec![2, 1]),
+        ),
+        (
+            "if (a) { x(); } /* istanbul ignore next */ else if (c) { z(); } else { w(); }",
+            (5, 0, vec![2, 2]),
+            (2, 0, vec![2]),
+        ),
+        ("if (x) { /* istanbul ignore next */ }\n{ a(); }", (2, 0, vec![2]), (1, 0, vec![2])),
+    ];
+    for (source, istanbul_shape, default_shape) in cases {
+        assert_eq!(profile_shape(source, "hop.js", strict), istanbul_shape, "strict: {source}");
+        assert_eq!(profile_shape(source, "hop.js", None), default_shape, "default: {source}");
+    }
+}
+
+/// More placements of the block, declarator and class rules, checked
+/// against istanbul output for the same source.
+#[test]
+fn ignore_next_reaches_exported_classes_and_typed_bodies_but_not_static_blocks() {
+    let strict = Some(CompatProfile::Istanbul);
+    let exported = "export /* istanbul ignore next */ class A { m() { return 1; } }";
+    assert_eq!(profile_shape(exported, "a.js", strict), (0, 0, vec![]));
+    let typed = "function f(): number /* istanbul ignore next */ { return 1; }";
+    assert_eq!(profile_shape(typed, "a.ts", strict), (0, 1, vec![]));
+    let static_block = "class A { static /* istanbul ignore next */ { a(); } }";
+    assert_eq!(profile_shape(static_block, "a.js", strict), (1, 0, vec![]));
+}
+
+/// Istanbul reads only `istanbul` pragmas. The default profile also reads
+/// `c8` and `v8` forms, also at the block placement.
+#[test]
+fn c8_pragma_before_a_block_body_applies_only_in_the_default_profile() {
+    let source = "function f() /* c8 ignore next */ { a(); }";
+    assert_eq!(profile_shape(source, "a.js", Some(CompatProfile::Istanbul)), (1, 1, vec![]));
+    assert_eq!(profile_shape(source, "a.js", None), (0, 1, vec![]));
+}

@@ -58,7 +58,7 @@ use oxc_allocator::{Allocator, Vec as ArenaVec};
 use oxc_ast::ast::*;
 use oxc_coverage_types::{BranchEntry, FnEntry, Location};
 use oxc_span::{GetSpan, Span};
-use oxc_traverse::{Traverse, TraverseCtx};
+use oxc_traverse::{Ancestor, Traverse, TraverseCtx};
 
 use crate::{
     arrow_body::{PreExpandedArrows, wrap_concise_arrow_body},
@@ -156,6 +156,12 @@ pub struct CoverageTransform<'src, 'arena> {
     /// whether an `ignore next` pragma targets that node. A default is a
     /// parameter default or an `AssignmentPattern` in Babel terms.
     ignored_expr_stack: Vec<bool>,
+    /// Per-block, per-declarator and per-class record of whether an
+    /// `ignore next` pragma targets that node. Babel attaches the comment in
+    /// `function f() /* istanbul ignore next */ { .. }`, `var /* .. */ a = b`
+    /// and `export default /* .. */ class {}` to these nodes, and Istanbul
+    /// skips their subtree.
+    ignored_node_stack: Vec<bool>,
     /// Spans for `if` arms suppressed by `/* istanbul ignore if */` or
     /// `/* istanbul ignore else */`. The branch visitor decides which arm is
     /// suppressed, while statement/function visitors use this to skip nested
@@ -312,6 +318,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             ignored_prop_stack: Vec::new(),
             ignored_switch_case_stack: Vec::new(),
             ignored_expr_stack: Vec::new(),
+            ignored_node_stack: Vec::new(),
             ignored_if_arm_spans: Vec::new(),
             ignored_if_arm_push_counts: Vec::new(),
             skip_next: false,
@@ -361,6 +368,47 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.insert_function_counter(body, ctx);
+        // The block that wraps a concise arrow body is not a block in Babel,
+        // so a comment before the expression does not target it.
+        let wraps_concise_body = matches!(ctx.parent(), Ancestor::ArrowFunctionExpressionBody(_))
+            && self.arrow_expression_bodies.last() == Some(&true);
+        let start = if wraps_concise_body { None } else { Some(body.span.start) };
+        self.push_node_ignore_frame(start, &ctx.state.pragmas);
+    }
+
+    fn exit_function_body(
+        &mut self,
+        _body: &mut FunctionBody<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_node_stack.pop();
+    }
+
+    fn enter_block_statement(
+        &mut self,
+        block: &mut BlockStatement<'a>,
+        ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.push_node_ignore_frame(Some(block.span.start), &ctx.state.pragmas);
+    }
+
+    fn exit_block_statement(
+        &mut self,
+        _block: &mut BlockStatement<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_node_stack.pop();
+    }
+
+    fn enter_class(&mut self, class: &mut Class<'a>, ctx: &mut TraverseCtx<'a, CoverageState>) {
+        // Istanbul reads the hint of a class declaration, not of a class
+        // expression: `x = /* istanbul ignore next */ class {}` stays counted.
+        let start = class.is_declaration().then_some(class.span.start);
+        self.push_node_ignore_frame(start, &ctx.state.pragmas);
+    }
+
+    fn exit_class(&mut self, _class: &mut Class<'a>, _ctx: &mut TraverseCtx<'a, CoverageState>) {
+        self.ignored_node_stack.pop();
     }
 
     fn enter_arrow_function_expression(
@@ -418,7 +466,16 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         decl: &mut VariableDeclarator<'a>,
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
+        self.push_node_ignore_frame(Some(decl.span.start), &ctx.state.pragmas);
         self.instrument_variable_declarator(decl, ctx);
+    }
+
+    fn exit_variable_declarator(
+        &mut self,
+        _decl: &mut VariableDeclarator<'a>,
+        _ctx: &mut TraverseCtx<'a, CoverageState>,
+    ) {
+        self.ignored_node_stack.pop();
     }
 
     fn enter_export_default_declaration(

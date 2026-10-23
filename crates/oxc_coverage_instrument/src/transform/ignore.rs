@@ -16,6 +16,14 @@ impl CoverageTransform<'_, '_> {
             || self.ignored_prop_stack.iter().any(|&ignored| ignored)
             || self.ignored_switch_case_stack.iter().any(|&ignored| ignored)
             || self.ignored_expr_stack.iter().any(|&ignored| ignored)
+            || self.ignored_node_stack.iter().any(|&ignored| ignored)
+    }
+
+    /// Open an ignore frame for a block, a declarator or a class that starts
+    /// at `start`. `None` opens a frame that ignores nothing.
+    pub(super) fn push_node_ignore_frame(&mut self, start: Option<u32>, pragmas: &PragmaMap) {
+        let ignored = start.is_some_and(|start| pragmas.get(start) == Some(IgnoreType::Next));
+        self.ignored_node_stack.push(ignored);
     }
 
     /// Open an ignore frame for a conditional or logical expression. Istanbul

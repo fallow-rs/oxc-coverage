@@ -61,7 +61,7 @@ impl PragmaMap {
         source: &str,
         istanbul_compat: bool,
     ) -> (Self, Vec<UnhandledPragma>) {
-        let mut state = PragmaCollect::default();
+        let mut state = PragmaCollect { hops: !istanbul_compat, ..PragmaCollect::default() };
         let mut comments: Vec<_> = program.comments.iter().collect();
         comments.sort_by_key(|comment| comment.span.start);
 
@@ -170,8 +170,15 @@ impl PragmaMap {
         None
     }
 
-    fn pragma_target_start(source: &str, comment: &Comment) -> Option<u32> {
+    /// The start of the token a pragma comment targets. With `hops`, a
+    /// pragma alone in an empty block moves to the next block or JSX element,
+    /// and a pragma before `else if` moves to the chained `if`. Istanbul does
+    /// neither, so the strict profile passes `hops: false`.
+    fn pragma_target_start(source: &str, comment: &Comment, hops: bool) -> Option<u32> {
         let token_start = Self::next_token_start(source, comment.span.end)?;
+        if !hops {
+            return Some(token_start);
+        }
         if source[token_start as usize..].starts_with('}')
             && Self::previous_non_whitespace(source, comment.span.start) == Some('{')
             && let Some(after_close) = Self::next_token_start(source, token_start + 1)
@@ -362,6 +369,8 @@ struct PragmaCollect {
     ignores: BTreeMap<u32, IgnoreType>,
     ignored_ranges: Vec<(u32, u32)>,
     active_ignore_start: Option<u32>,
+    /// Whether pragma targets may hop, see [`PragmaMap::pragma_target_start`].
+    hops: bool,
     ignore_file: bool,
     unhandled: Vec<UnhandledPragma>,
 }
@@ -370,8 +379,8 @@ impl PragmaCollect {
     fn apply(&mut self, result: PragmaResult, comment: &Comment, source: &str) {
         match result {
             PragmaResult::Ignore(it) => {
-                let token_start =
-                    PragmaMap::pragma_target_start(source, comment).unwrap_or(comment.attached_to);
+                let token_start = PragmaMap::pragma_target_start(source, comment, self.hops)
+                    .unwrap_or(comment.attached_to);
                 self.ignores.insert(token_start, it);
             }
             PragmaResult::File => self.ignore_file = true,
@@ -474,14 +483,14 @@ mod tests {
     #[test]
     fn pragma_target_start_hops_past_else_to_chained_if() {
         let source = "if (a) {} /* istanbul ignore else */ else if (b) {}";
-        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source)).unwrap();
+        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source), true).unwrap();
         assert_eq!(target, offset_of(source, "if (b)"), "pragma must anchor on the chained `if`");
     }
 
     #[test]
     fn pragma_target_start_hops_past_else_through_inline_comment() {
         let source = "if (a) {} /* istanbul ignore else */ else /*c*/ if (b) {}";
-        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source)).unwrap();
+        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source), true).unwrap();
         assert_eq!(
             target,
             offset_of(source, "if (b)"),
@@ -492,7 +501,7 @@ mod tests {
     #[test]
     fn pragma_target_start_keeps_else_when_followed_by_block() {
         let source = "if (a) {} /* istanbul ignore else */ else { x }";
-        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source)).unwrap();
+        let target = PragmaMap::pragma_target_start(source, &pragma_comment(source), true).unwrap();
         assert_eq!(
             target,
             offset_of(source, "else {"),
