@@ -310,7 +310,7 @@ pub fn instrument(
 /// location-map entry, is dropped rather than passed through. Such an orphan
 /// crashes `istanbul-lib-coverage`'s `CoverageMap.merge`, and therefore
 /// `nyc report`, with "Cannot destructure property 'start' of 'undefined'"
-/// ([#107](https://github.com/fallow-rs/oxc-coverage-instrument/issues/107)). It
+/// ([#107](https://github.com/fallow-rs/oxc-coverage/issues/107)). It
 /// can reach the input when an upstream instrumenter incremented a counter whose
 /// map slot was later pruned. Dropping it is a no-op on already-consistent
 /// coverage.

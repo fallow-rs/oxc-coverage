@@ -110,7 +110,7 @@ impl FileCoverage {
     /// which destructures `{ start }` of the `undefined` entry and throws
     /// `TypeError: Cannot destructure property 'start' of 'undefined'`. A
     /// single orphan anywhere aborts the whole `nyc report` step
-    /// ([#107](https://github.com/fallow-rs/oxc-coverage-instrument/issues/107)).
+    /// ([#107](https://github.com/fallow-rs/oxc-coverage/issues/107)).
     ///
     /// Orphans cannot arise from this crate's own instrumenter output (the
     /// counter maps are built from the location-map keys), but a coverage

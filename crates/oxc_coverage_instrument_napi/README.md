@@ -237,12 +237,12 @@ binary is available, or explicitly through `NAPI_RS_FORCE_WASI`.
 |:--------|:--------|:------|
 | Node 18+ (darwin/linux/win32, x64/arm64) | native | Preferred when a matching `.node` is installed. |
 | Node 22 LTS (other architectures) | wasm | Loads via `node:wasi` and emits an experimental-feature warning. |
-| Deno 2.x | wasm | Uses Deno's `node:wasi` polyfill. Live deploy smoke tracked in [#88](https://github.com/fallow-rs/oxc-coverage-instrument/issues/88). |
+| Deno 2.x | wasm | Uses Deno's `node:wasi` polyfill. Live deploy smoke tracked in [#88](https://github.com/fallow-rs/oxc-coverage/issues/88). |
 | Browser with COOP/COEP | threaded wasm | Imports the `browser` export and uses the `wasm32-wasip1-threads` binding when `SharedArrayBuffer` is available. Requires `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, and an ESM bundler with top-level await. webpack 4 and Parcel 1 are not supported. |
 | Browser without COOP/COEP | single-threaded wasm | Falls back to the `wasm32-wasip1` binding. |
 | Bun (supported targets) | native | Bun's `node:wasi` is incomplete ([oven-sh/bun#16156](https://github.com/oven-sh/bun/issues/16156)), so the native binding is used. |
 | Cloudflare Workers | single-threaded wasm | Workers has no `SharedArrayBuffer`; the `browser` export selects `wasm32-wasip1`. |
-| StackBlitz / WebContainer | partial | Newer WebContainer images load the wasm binding; older ones may fall through. Live smoke tracked in [#88](https://github.com/fallow-rs/oxc-coverage-instrument/issues/88). |
+| StackBlitz / WebContainer | partial | Newer WebContainer images load the wasm binding; older ones may fall through. Live smoke tracked in [#88](https://github.com/fallow-rs/oxc-coverage/issues/88). |
 
 `examples/wasm-node/` is an end-to-end Node smoke exercising native and WASM.
 `examples/cloudflare-workers/` compares Worker `FileCoverage` with native output
@@ -255,4 +255,4 @@ by the napi-rs 3 loader, not by this package.
 
 Instrumentation semantics, the option reference, and the documented divergences
 from `istanbul-lib-instrument` are shared with the Rust crate and live in
-[its README](https://github.com/fallow-rs/oxc-coverage-instrument/blob/main/crates/oxc_coverage_instrument/README.md).
+[its README](https://github.com/fallow-rs/oxc-coverage/blob/main/crates/oxc_coverage_instrument/README.md).

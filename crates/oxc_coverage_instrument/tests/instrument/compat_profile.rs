@@ -516,7 +516,7 @@ fn parameter_default_location_starts_at_the_binding() {
     assert_eq!(shape(&result), (2, vec![1], 1));
 }
 
-/// The class from fallow-rs/oxc-coverage-instrument#303: a private and a public
+/// The class from fallow-rs/oxc-coverage#303: a private and a public
 /// method with the same body.
 const PRIVATE_TWIN: &str = "class Twin {
   #privateMethod(value){

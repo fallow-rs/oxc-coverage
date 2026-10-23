@@ -5,7 +5,7 @@ Thanks for your interest in contributing.
 ## Getting started
 
 ```bash
-git clone https://github.com/fallow-rs/oxc-coverage-instrument
+git clone https://github.com/fallow-rs/oxc-coverage
 cd oxc-coverage-instrument
 git config core.hooksPath .githooks
 cargo build

@@ -647,7 +647,7 @@ fn parse_error_propagates_as_v8_to_istanbul_error() {
     );
 }
 
-/// The reproduction from fallow-rs/oxc-coverage-instrument#303: a private and a
+/// The reproduction from fallow-rs/oxc-coverage#303: a private and a
 /// public method with the same body, both run through every return.
 const PRIVATE_TWIN_SOURCE: &str = "import assert from 'node:assert/strict'
 class Twin {

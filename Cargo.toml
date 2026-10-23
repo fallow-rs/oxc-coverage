@@ -17,10 +17,10 @@ authors = ["Bart Waardenburg <bart@fallow.tools>"]
 # both literally, since inheritance cannot extend the workspace value.
 categories = ["development-tools::testing"]
 edition = "2024"
-homepage = "https://github.com/fallow-rs/oxc-coverage-instrument"
+homepage = "https://github.com/fallow-rs/oxc-coverage"
 keywords = ["oxc", "istanbul", "coverage", "javascript", "typescript"]
 license = "MIT"
-repository = "https://github.com/fallow-rs/oxc-coverage-instrument"
+repository = "https://github.com/fallow-rs/oxc-coverage"
 rust-version = "1.96.0"
 
 [workspace.dependencies]

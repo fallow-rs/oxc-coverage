@@ -1,7 +1,7 @@
 # oxc-coverage
 
-[![CI](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/ci.yml/badge.svg)](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/fallow-rs/oxc-coverage-instrument/badges/coverage.json)](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/coverage.yml)
+[![CI](https://github.com/fallow-rs/oxc-coverage/actions/workflows/ci.yml/badge.svg)](https://github.com/fallow-rs/oxc-coverage/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/fallow-rs/oxc-coverage/badges/coverage.json)](https://github.com/fallow-rs/oxc-coverage/actions/workflows/coverage.yml)
 [![Crates.io](https://img.shields.io/crates/v/oxc_coverage_instrument.svg)](https://crates.io/crates/oxc_coverage_instrument)
 [![npm](https://img.shields.io/npm/v/oxc-coverage-instrument.svg)](https://www.npmjs.com/package/oxc-coverage-instrument)
 [![docs.rs](https://docs.rs/oxc_coverage_instrument/badge.svg)](https://docs.rs/oxc_coverage_instrument)
@@ -22,9 +22,9 @@ V8-to-Istanbul conversion, report summarization, and the `text`,
 `text-summary`, `json-summary`, `lcov`, `cobertura`, and `html` reporters. It
 does not claim to port every Istanbul package or reporter.
 
-The repository is named `oxc-coverage-instrument` for historical reasons. That
-name now belongs to the instrumenter crate, the npm package, and the CLI binary
-only; the other crates share the `oxc_coverage_*` prefix.
+This repository was previously named `oxc-coverage-instrument`. That name now
+belongs to the instrumenter crate, the npm package, and the CLI binary only; the
+other crates share the `oxc_coverage_*` prefix.
 
 ## Install
 
@@ -38,7 +38,7 @@ npm install oxc-coverage-instrument
 ```
 
 ```bash
-cargo install --git https://github.com/fallow-rs/oxc-coverage-instrument oxc_coverage_instrument_cli
+cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
 ```
 
 ## Usage

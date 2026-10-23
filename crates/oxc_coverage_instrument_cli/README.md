@@ -10,7 +10,7 @@ writes the result to stdout or to disk, and it renders a `coverage-final.json`
 into any of the shipped report formats.
 
 ```bash
-cargo install --git https://github.com/fallow-rs/oxc-coverage-instrument oxc_coverage_instrument_cli
+cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
 ```
 
 ## Key Features
