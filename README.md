@@ -1,22 +1,30 @@
-# Oxc Coverage Instrument
+# oxc-coverage
 
-[![CI](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/ci.yml/badge.svg)](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/fallow-rs/oxc-coverage-instrument/badges/coverage.json)](https://github.com/fallow-rs/oxc-coverage-instrument/actions/workflows/coverage.yml)
+[![CI](https://github.com/fallow-rs/oxc-coverage/actions/workflows/ci.yml/badge.svg)](https://github.com/fallow-rs/oxc-coverage/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/fallow-rs/oxc-coverage/badges/coverage.json)](https://github.com/fallow-rs/oxc-coverage/actions/workflows/coverage.yml)
 [![Crates.io](https://img.shields.io/crates/v/oxc_coverage_instrument.svg)](https://crates.io/crates/oxc_coverage_instrument)
 [![npm](https://img.shields.io/npm/v/oxc-coverage-instrument.svg)](https://www.npmjs.com/package/oxc-coverage-instrument)
 [![docs.rs](https://docs.rs/oxc_coverage_instrument/badge.svg)](https://docs.rs/oxc_coverage_instrument)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Istanbul-compatible JavaScript and TypeScript coverage instrumentation built on
-the [Oxc](https://oxc.rs) parser.
+Istanbul-compatible coverage toolchain for JavaScript and TypeScript, built on
+the [Oxc](https://oxc.rs) parser: instrumentation, source-map remapping,
+V8-to-Istanbul conversion, and reporters.
 
-Instrumentation happens at the AST level through `oxc_traverse` and
-`oxc_codegen`, and the output is checked against `istanbul-lib-instrument` on a
-shared fixture corpus, both by count and byte for byte. The workspace also
-provides the surrounding Istanbul-compatible pipeline: the data model,
-source-map remapping, V8-to-Istanbul conversion, report summarization, and the
-`text`, `text-summary`, `json-summary`, `lcov`, `cobertura`, and `html`
-reporters. It does not claim to port every Istanbul package or reporter.
+> **Unofficial.** This is an independent community project that builds on Oxc
+> crates. It is not part of, affiliated with, or endorsed by the Oxc project.
+
+The core is an AST-level instrumenter built on `oxc_traverse` and
+`oxc_codegen`. Its output is checked against `istanbul-lib-instrument` on a
+shared fixture corpus, both by count and byte for byte. Around it sits the rest
+of the Istanbul-compatible pipeline: the data model, source-map remapping,
+V8-to-Istanbul conversion, report summarization, and the `text`,
+`text-summary`, `json-summary`, `lcov`, `cobertura`, and `html` reporters. It
+does not claim to port every Istanbul package or reporter.
+
+This repository was previously named `oxc-coverage-instrument`. That name now
+belongs to the instrumenter crate, the npm package, and the CLI binary only; the
+other crates share the `oxc_coverage_*` prefix.
 
 ## Install
 
@@ -30,7 +38,7 @@ npm install oxc-coverage-instrument
 ```
 
 ```bash
-cargo install --git https://github.com/fallow-rs/oxc-coverage-instrument oxc_coverage_instrument_cli
+cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
 ```
 
 ## Usage

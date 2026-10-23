@@ -39,11 +39,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fallow-rs/oxc-coverage-instrument.git",
+    "url": "git+https://github.com/fallow-rs/oxc-coverage.git",
     "directory": "crates/oxc_coverage_instrument_napi"
   },
-  "homepage": "https://github.com/fallow-rs/oxc-coverage-instrument",
-  "bugs": "https://github.com/fallow-rs/oxc-coverage-instrument/issues",
+  "homepage": "https://github.com/fallow-rs/oxc-coverage",
+  "bugs": "https://github.com/fallow-rs/oxc-coverage/issues",
   "napi": {
     "binaryName": "coverage-instrument",
     "packageName": "@oxc-coverage-instrument/binding",

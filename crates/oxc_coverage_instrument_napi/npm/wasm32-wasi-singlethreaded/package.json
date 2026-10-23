@@ -24,14 +24,14 @@
     "wasm",
     "wasi"
   ],
-  "homepage": "https://github.com/fallow-rs/oxc-coverage-instrument",
+  "homepage": "https://github.com/fallow-rs/oxc-coverage",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fallow-rs/oxc-coverage-instrument.git",
+    "url": "git+https://github.com/fallow-rs/oxc-coverage.git",
     "directory": "crates/oxc_coverage_instrument_napi/npm/wasm32-wasi-singlethreaded"
   },
-  "bugs": "https://github.com/fallow-rs/oxc-coverage-instrument/issues",
+  "bugs": "https://github.com/fallow-rs/oxc-coverage/issues",
   "dependencies": {
     "@emnapi/core": "2.0.0-beta.2",
     "@emnapi/runtime": "2.0.0-beta.2",

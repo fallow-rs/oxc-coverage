@@ -180,7 +180,7 @@ const runLineTerminatorSmoke = async () => {
   assert(Object.values(coverage.s).slice(0, 5).every((count) => count > 0));
 };
 
-// fallow-rs/oxc-coverage-instrument#303: a private method and a public method
+// fallow-rs/oxc-coverage#303: a private method and a public method
 // with the same body. Both must get a function entry with the V8 call count.
 const runPrivateMethodSmoke = async () => {
   const source = withSourceUrl(

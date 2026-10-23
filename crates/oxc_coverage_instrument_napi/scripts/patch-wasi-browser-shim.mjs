@@ -32,7 +32,7 @@ if (typeof SharedArrayBuffer === 'undefined') {
       'Enable Cross-Origin-Opener-Policy: same-origin and ' +
       'Cross-Origin-Embedder-Policy: require-corp on your host page so the ' +
       'browser is cross-origin isolated. See ' +
-      'https://github.com/fallow-rs/oxc-coverage-instrument#runtime-matrix',
+      'https://github.com/fallow-rs/oxc-coverage#runtime-matrix',
   );
 }
 `;

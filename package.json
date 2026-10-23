@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fallow-rs/oxc-coverage-instrument.git"
+    "url": "git+https://github.com/fallow-rs/oxc-coverage.git"
   },
   "keywords": [
     "oxc",
@@ -23,9 +23,9 @@
   "license": "MIT",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/fallow-rs/oxc-coverage-instrument/issues"
+    "url": "https://github.com/fallow-rs/oxc-coverage/issues"
   },
-  "homepage": "https://github.com/fallow-rs/oxc-coverage-instrument#readme",
+  "homepage": "https://github.com/fallow-rs/oxc-coverage#readme",
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",

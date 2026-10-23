@@ -39,7 +39,7 @@ then emits the rewritten AST and a source map from the instrumented output back
 to the input. When an `inputSourceMap` is supplied it is composed with the
 codegen map, so downstream remappers resolve positions to the original source.
 The suite-level picture is in
-[ARCHITECTURE.md](https://github.com/fallow-rs/oxc-coverage-instrument/blob/main/ARCHITECTURE.md).
+[ARCHITECTURE.md](https://github.com/fallow-rs/oxc-coverage/blob/main/ARCHITECTURE.md).
 
 ## Usage
 
