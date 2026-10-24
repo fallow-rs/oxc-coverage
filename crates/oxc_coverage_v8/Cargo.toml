@@ -1,6 +1,6 @@
 [package]
 name = "oxc_coverage_v8"
-version = "0.4.2"
+version = "0.4.3"
 authors.workspace = true
 edition.workspace = true
 description = "V8 inspector coverage to Istanbul FileCoverage conversion (port of v8-to-istanbul)"
