@@ -37,6 +37,9 @@ const INSTALL_DIR = join(ROOT, '.bench-tmp', 'replacements');
 const WARMUP_RUNS = 2;
 const DEFAULT_RUNS = 7;
 const TEXT_FORMATS = ['text', 'text-summary', 'json-summary', 'lcov', 'cobertura'];
+// The Istanbul `lcov` report also writes an HTML tree. Its `lcovonly` report
+// writes the same `lcov.info` as the oxc `lcov` format, and nothing else.
+const ISTANBUL_FORMAT = { lcov: 'lcovonly' };
 
 const PACKAGES = {
   'istanbul-lib-instrument': '6.0.3',
@@ -179,6 +182,8 @@ const main = async () => {
     };
     istanbulInstrumenter.instrumentSync(file.source, file.path);
     const istanbulFile = istanbulInstrumenter.lastFileCoverage();
+    vitestInstrumenter.instrumentSync(file.source, file.path);
+    const vitestFile = vitestInstrumenter.lastFileCoverage();
     const oxcFile = JSON.parse(
       oxc.instrument(file.source, file.path, { sourceType: 'script', compat: 'istanbul' }).coverageMap,
     );
@@ -187,7 +192,7 @@ const main = async () => {
       file: file.label,
       kb,
       ...instrumentTimes,
-      same: counts(istanbulFile) === counts(oxcFile) ? counts(oxcFile) : `${counts(istanbulFile)} vs ${counts(oxcFile)}`,
+      same: [istanbulFile, vitestFile, oxcFile].map(counts).join(' · '),
     });
 
     // Convert real precise coverage of one run of the build.
@@ -260,9 +265,15 @@ const main = async () => {
     const istanbulRemapped = await istanbulSourceMaps
       .createSourceMapStore()
       .transformCoverage(istanbulCoverage.createCoverageMap(JSON.parse(json)));
+    const vitestRemapped = await vitestSourceMaps
+      .createSourceMapStore()
+      .transformCoverage(vitestCoverage.createCoverageMap(JSON.parse(json)));
     const oxcRemapped = Object.values(JSON.parse(oxc.remapCoverageMap(json)))[0];
-    const istanbulOut = counts(istanbulRemapped.fileCoverageFor(istanbulRemapped.files()[0]).toJSON());
-    rows.remap.at(-1).same = istanbulOut === counts(oxcRemapped) ? istanbulOut : `${istanbulOut} vs ${counts(oxcRemapped)}`;
+    rows.remap.at(-1).same = [
+      counts(istanbulRemapped.fileCoverageFor(istanbulRemapped.files()[0]).toJSON()),
+      counts(vitestRemapped.fileCoverageFor(vitestRemapped.files()[0]).toJSON()),
+      counts(oxcRemapped),
+    ].join(' · ');
   }
 
   // Whole-corpus stages, on the istanbul coverage map of all five files.
@@ -295,7 +306,7 @@ const main = async () => {
       coverageMap: coverageLib.createCoverageMap(JSON.parse(corpusJson)),
     });
     const options = format.startsWith('text') ? { file: `${format}.txt` } : {};
-    (reportsLib ?? reportLib).create(format, options).execute(context);
+    (reportsLib ?? reportLib).create(ISTANBUL_FORMAT[format] ?? format, options).execute(context);
   };
   const reports = [];
   for (const format of [...TEXT_FORMATS, 'html']) {
@@ -322,7 +333,7 @@ const main = async () => {
   lines.push('');
   lines.push('Instrument (`instrumentSync` vs `instrument`):');
   lines.push('');
-  lines.push('| File | KB | istanbul-lib-instrument | @vitest/istanbul-lib-instrument | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b, strict profile |');
+  lines.push('| File | KB | istanbul-lib-instrument | @vitest/istanbul-lib-instrument | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b: istanbul · @vitest · oxc strict |');
   lines.push('|:--|--:|--:|--:|--:|--:|--:|:--|');
   for (const r of rows.instrument) {
     lines.push(`| ${r.file} | ${r.kb} | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} | ${r.same} |`);
@@ -338,7 +349,7 @@ const main = async () => {
   lines.push('');
   lines.push('Source-map remap (coverage of a `@babel/core` build, mapped back to the library source):');
   lines.push('');
-  lines.push('| File | istanbul-lib-source-maps | @vitest/istanbul-lib-source-maps | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b out |');
+  lines.push('| File | istanbul-lib-source-maps | @vitest/istanbul-lib-source-maps | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b out: istanbul · @vitest · oxc |');
   lines.push('|:--|--:|--:|--:|--:|--:|:--|');
   for (const r of rows.remap) {
     lines.push(`| ${r.file} | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} | ${r.same} |`);
@@ -350,7 +361,8 @@ const main = async () => {
   lines.push('|:--|--:|--:|--:|--:|--:|');
   lines.push(`| summary${sameSummary ? '' : ' (totals differ)'} | ${ms(summary.istanbul)} | ${ms(summary.vitest)} | ${ms(summary.oxc)} | ${speedup(summary.istanbul, summary.oxc)} | ${speedup(summary.vitest, summary.oxc)} |`);
   for (const r of reports) {
-    lines.push(`| \`${r.format}\` report | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} |`);
+    const label = ISTANBUL_FORMAT[r.format] ? `\`${r.format}\` (Istanbul \`${ISTANBUL_FORMAT[r.format]}\`)` : `\`${r.format}\``;
+    lines.push(`| ${label} report | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} |`);
   }
   lines.push('');
   lines.push('Package versions: ' + Object.entries(PACKAGES).map(([name, version]) => `\`${name}@${version}\``).join(', ') + '.');

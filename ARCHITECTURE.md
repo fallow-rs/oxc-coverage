@@ -181,9 +181,12 @@ against the package it replaces, and the Vitest fork of that package where one
 exists: instrumentation, V8 conversion, source-map remapping, summaries, and
 each reporter. It installs exact package versions into
 `.bench-tmp/replacements`, uses real V8 inspector coverage and real
-`@babel/core` source maps of the same five builds, and prints the output size of
-each tool next to its time, so a fast result that produces less output is
-visible. The README tables come from this script; regenerate them with the
+`@babel/core` source maps of the same five builds. For instrumentation, V8
+conversion, and remapping it prints the statement, function, and branch counts
+of each tool next to its time, so a fast result that produces less output is
+visible. For the summary it checks that the totals of both sides are equal. The
+Istanbul side of the `lcov` row runs `lcovonly`, because Istanbul's `lcov` also
+writes an HTML tree. The README tables come from this script; regenerate them with the
 release build of the N-API binding (`npm --prefix
 crates/oxc_coverage_instrument_napi run build`) and update the date and machine
 line when you change them.

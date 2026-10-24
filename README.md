@@ -81,38 +81,38 @@ the Rust crates.
 | `babel-plugin-istanbul`, `swc-plugin-coverage-instrument` | | `instrument()` in a Vite or Rollup plugin | `oxc_coverage_instrument` | Same output shape as `istanbul-lib-instrument`. |
 | `v8-to-istanbul`, `ast-v8-to-istanbul` | | `v8ToIstanbul()` | `oxc_coverage_v8` | Statement, function, and branch entries from the AST, as `ast-v8-to-istanbul` gives. `v8-to-istanbul` gives one statement per line. |
 | `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | `remapCoverageMap()` | `oxc_coverage_source_maps` | Full `transformCoverage`, plus the optional `dropUnmapped`. `instrument()` can also compose the input source map at instrument time (`composeInputSourceMap`). |
-| `istanbul-lib-coverage` | `@vitest/istanbul-lib-coverage` | `summarizeCoverage()` | `oxc_coverage_types` | The data model and the summaries. No public merge API. |
-| `istanbul-lib-report`, `istanbul-reports` | `@vitest/istanbul-lib-report` | `createReport()`, `writeHtmlReport()` | `oxc_coverage_report`, `oxc_coverage_reports` | The `text`, `text-summary`, `json-summary`, `lcov`, `cobertura`, and `html` reports. Not `clover`, `json`, `lcovonly`, `teamcity`, `text-lcov`, or `html-spa`. |
+| `istanbul-lib-coverage` | `@vitest/istanbul-lib-coverage` | `summarizeCoverage()` | `oxc_coverage_types`, `oxc_coverage_report` | The data model (`oxc_coverage_types`) and the summaries (`oxc_coverage_report`). No public merge API. |
+| `istanbul-lib-report`, `istanbul-reports` | `@vitest/istanbul-lib-report` | `createReport()`, `writeHtmlReport()` | `oxc_coverage_report`, `oxc_coverage_reports` | The `text`, `text-summary`, `json-summary`, `cobertura`, and `html` reports, and `lcov`, which writes the `lcov.info` of Istanbul's `lcovonly`. Istanbul's `lcov` also writes an HTML tree. Not `clover`, `json`, `teamcity`, `text-lcov`, or `html-spa`. |
 
-The Vitest fork keeps the Istanbul API and replaces Babel with the Oxc parser of
-`rolldown` and `magic-string`. This project replaces the same packages with Rust
-code behind a native or WebAssembly binding.
+The Vitest instrumenter fork keeps the Istanbul API and replaces Babel with the
+Oxc parser of `rolldown` and with `magic-string`. The other Vitest forks are
+JavaScript ports of the Istanbul packages. This project replaces all of them
+with Rust code behind a native or WebAssembly binding.
 
 ## Benchmarks
 
 Times on the five pinned library builds of `scripts/real-world-corpus.json`, in
-one Node.js process, as the median of 7 runs after 2 warm-up runs. Measured on
-2026-10-24 on an Apple M5 (macOS, Darwin 25.5), Node.js 24.20.0, with the
-release build of the native binding. The time is the sum over the five files, in
-milliseconds. A ratio above 1 means that oxc is faster.
+one Node.js process, as the median of 7 runs after 2 warm-up runs, from
+`scripts/replacement-benchmarks.mjs`. Measured on 2026-10-24 on an Apple M5
+(macOS, Darwin 25.5), Node.js 24.20.0, with the release build of the native
+binding. The time is the sum over the five files, in milliseconds. A ratio
+above 1 means that oxc is faster.
 
 | Stage | Package | Package (ms) | oxc (ms) | Ratio |
 |:--|:--|--:|--:|--:|
-| Instrument | `istanbul-lib-instrument` 6.0.3 | 1985 | 65 | 30.5x |
-| Instrument | `@vitest/istanbul-lib-instrument` 2.0.0 | 409 | 65 | 6.3x |
-| Instrument | `babel-plugin-istanbul` 8.0.0 | 571 | 67 | 8.6x |
-| Instrument | `swc-plugin-coverage-instrument` 0.0.33 | 880 | 67 | 13.2x |
-| V8 to Istanbul | `ast-v8-to-istanbul` 1.0.7, with `oxc-parser` | 339 | 91 | 3.7x |
-| V8 to Istanbul | `v8-to-istanbul` 9.3.0 | 32 | 91 | 0.4x |
-| Source-map remap | `istanbul-lib-source-maps` 5.0.6 | 185 | 160 | 1.2x |
-| Source-map remap | `@vitest/istanbul-lib-source-maps` 2.0.0 | 177 | 160 | 1.1x |
-| Summary | `istanbul-lib-coverage` 3.2.2 | 38 | 46 | 0.8x |
-| `text` report | `istanbul-lib-report` 3.0.1 + `istanbul-reports` 3.2.0 | 45 | 42 | 1.1x |
-| `text-summary` report | same | 32 | 37 | 0.9x |
-| `json-summary` report | same | 33 | 37 | 0.9x |
-| `lcov` report | same | 229 | 45 | 5.1x |
-| `cobertura` report | same | 162 | 62 | 2.6x |
-| `html` report | same | 132 | 4299 | 0.03x |
+| Instrument | `istanbul-lib-instrument` 6.0.3 | 1898 | 64 | 29.7x |
+| Instrument | `@vitest/istanbul-lib-instrument` 2.0.0 | 411 | 64 | 6.4x |
+| V8 to Istanbul | `ast-v8-to-istanbul` 1.0.7, with `oxc-parser` | 341 | 88 | 3.9x |
+| V8 to Istanbul | `v8-to-istanbul` 9.3.0 | 33 | 88 | 0.4x |
+| Source-map remap | `istanbul-lib-source-maps` 5.0.6 | 180 | 139 | 1.3x |
+| Source-map remap | `@vitest/istanbul-lib-source-maps` 2.0.0 | 168 | 139 | 1.2x |
+| Summary | `istanbul-lib-coverage` 3.2.2 | 39 | 44 | 0.9x |
+| `text` report | `istanbul-lib-report` 3.0.1 + `istanbul-reports` 3.2.0 | 44 | 41 | 1.1x |
+| `text-summary` report | same | 33 | 35 | 0.9x |
+| `json-summary` report | same | 32 | 36 | 0.9x |
+| `lcov` report | same, as `lcovonly` | 131 | 45 | 2.9x |
+| `cobertura` report | same | 157 | 61 | 2.6x |
+| `html` report | same | 128 | 4112 | 0.03x |
 
 How to read the slower rows:
 
@@ -128,40 +128,54 @@ How to read the slower rows:
 The Vitest fork took the same time as the Istanbul packages for the summary and
 the reports, within about 3%, so the table leaves it out for these rows.
 
+`scripts/benchmark-comparison.sh` compares the instrumenter with
+`babel-plugin-istanbul` and `swc-plugin-coverage-instrument`. It runs each tool
+and file in its own Node.js process, as the median of 5 runs, and installs the
+current release of each tool. Measured on the same machine and day:
+
+| Package | Package (ms) | oxc (ms) | Ratio |
+|:--|--:|--:|--:|
+| `babel-plugin-istanbul` 8.0.0 | 571 | 67 | 8.6x |
+| `swc-plugin-coverage-instrument` 0.0.33 | 880 | 67 | 13.2x |
+
+`swc-plugin-coverage-instrument` runs as WebAssembly inside SWC's plugin
+sandbox, so its time includes that overhead.
+
 <details>
 <summary>Per-file times</summary>
 
 Instrument (ms). The last column is the statement, function, and branch count of
-both Istanbul and oxc in the strict profile, which are equal for every file.
+Istanbul, of the Vitest fork, and of oxc in the strict profile. They are equal
+for every file.
 
-| File | KB | `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | `babel-plugin-istanbul` | `swc-plugin-coverage-instrument` | oxc | s/f/b |
-|:--|--:|--:|--:|--:|--:|--:|:--|
-| React 18.2.0 | 107 | 46 | 7.6 | 16.6 | 23.5 | 1.4 | 1194/176/332 |
-| lodash 4.17.21 | 531 | 181 | 33 | 49.6 | 79.7 | 6.7 | 3714/691/1303 |
-| Vue 3.3.4 | 463 | 356 | 69 | 103.4 | 174.0 | 11 | 7799/1157/3117 |
-| D3 7.8.5 | 573 | 546 | 113 | 165.2 | 248.1 | 20 | 11935/2518/2971 |
-| three.js 0.155.0 | 1237 | 856 | 186 | 236.4 | 354.4 | 26 | 20247/2210/4018 |
+| File | KB | `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | oxc | s/f/b |
+|:--|--:|--:|--:|--:|:--|
+| React 18.2.0 | 107 | 45 | 7.8 | 1.6 | 1194/176/332 |
+| lodash 4.17.21 | 531 | 160 | 35 | 6.5 | 3714/691/1303 |
+| Vue 3.3.4 | 463 | 331 | 67 | 11 | 7799/1157/3117 |
+| D3 7.8.5 | 573 | 523 | 116 | 19 | 11935/2518/2971 |
+| three.js 0.155.0 | 1237 | 839 | 185 | 26 | 20247/2210/4018 |
 
 V8 to Istanbul (ms), on the precise coverage of one run of each build.
 
 | File | V8 functions | `v8-to-istanbul` | `ast-v8-to-istanbul` | oxc |
 |:--|--:|--:|--:|--:|
-| React 18.2.0 | 133 | 0.9 | 9.0 | 1.4 |
-| lodash 4.17.21 | 611 | 5.3 | 40 | 6.9 |
-| Vue 3.3.4 | 755 | 4.7 | 57 | 13 |
-| D3 7.8.5 | 1620 | 6.3 | 92 | 27 |
-| three.js 0.155.0 | 1775 | 15 | 141 | 43 |
+| React 18.2.0 | 133 | 0.8 | 9.3 | 1.3 |
+| lodash 4.17.21 | 611 | 5.1 | 39 | 6.7 |
+| Vue 3.3.4 | 755 | 4.8 | 58 | 13 |
+| D3 7.8.5 | 1620 | 6.0 | 92 | 26 |
+| three.js 0.155.0 | 1775 | 16 | 143 | 41 |
 
 Source-map remap (ms), on the coverage of a `@babel/core` build of each file,
 mapped back to the file. All three give the same entry counts.
 
 | File | `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | oxc |
 |:--|--:|--:|--:|
-| React 18.2.0 | 4.1 | 4.6 | 3.6 |
-| lodash 4.17.21 | 17 | 17 | 15 |
-| Vue 3.3.4 | 37 | 33 | 27 |
-| D3 7.8.5 | 50 | 48 | 46 |
-| three.js 0.155.0 | 77 | 74 | 68 |
+| React 18.2.0 | 4.0 | 4.2 | 3.1 |
+| lodash 4.17.21 | 17 | 16 | 13 |
+| Vue 3.3.4 | 33 | 34 | 23 |
+| D3 7.8.5 | 51 | 46 | 42 |
+| three.js 0.155.0 | 75 | 68 | 58 |
 
 </details>
 
@@ -173,10 +187,6 @@ npm --prefix crates/oxc_coverage_instrument_napi run build
 node scripts/replacement-benchmarks.mjs
 ./scripts/benchmark-comparison.sh
 ```
-
-The second script adds `babel-plugin-istanbul`, `swc-plugin-coverage-instrument`,
-and the native CLI. `swc-plugin-coverage-instrument` runs as WebAssembly inside
-SWC's plugin sandbox, so its time includes that overhead.
 
 ## Documentation
 
