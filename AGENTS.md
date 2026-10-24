@@ -126,6 +126,7 @@ may differ only through extensions documented in the README.
 | `scripts/compose-eager-smoke.mjs` | Eager compose parity with the deferred remap, plus the mapping-boundary sweep. |
 | `scripts/compose-real-map-parity.mjs` | The same parity over real babel-emitted maps for the benchmark corpus. |
 | `scripts/benchmark-comparison.sh` | Timing comparison against the Istanbul, Babel, and SWC instrumenters. |
+| `scripts/replacement-benchmarks.mjs` | Timing of each coverage stage against the Istanbul package it replaces and its Vitest fork. |
 | `scripts/compare-istanbul.mjs` | Reference-output dumper for investigating shape differences. |
 | `scripts/check-version-sync.sh` | Internal version pins and release-workflow coverage. |
 | `scripts/sync-npm-versions.sh` | Version sync across the npm and platform manifests. |

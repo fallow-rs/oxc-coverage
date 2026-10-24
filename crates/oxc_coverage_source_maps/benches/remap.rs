@@ -13,7 +13,9 @@ use srcmap_generator::SourceMapGenerator;
 
 const SOURCE_PATH: &str = "src/app.ts";
 const GENERATED_PATH: &str = "dist/app.js";
-const CASES: &[(&str, u32)] = &[("medium", 200), ("large", 1_000)];
+// "xlarge" is about the size of a real library build. Index work that grows
+// per line of the map only shows at that size.
+const CASES: &[(&str, u32)] = &[("medium", 200), ("large", 1_000), ("xlarge", 10_000)];
 const EOL_CASES: &[(&str, u32)] = &[("medium", 200), ("stress", 1_000)];
 const SPARSE_EOL_LINES: u32 = 10_000;
 const EOL_CONTENT_COLUMN: u32 = 25;
