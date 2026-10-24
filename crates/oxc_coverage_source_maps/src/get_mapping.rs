@@ -56,9 +56,9 @@ fn original_position_try_both(sm: &SourceMap, line: u32, column: u32) -> Option<
 /// original side first, mirroring trace-mapping's `sliceGeneratedPositions`.
 /// Resolving it that way rather than through a generated-position round-trip
 /// keeps the result faithful when several mappings share a generated column.
-/// The first lookup for a `(source, line)` pair scans every mapping to build a
-/// sorted original-column index in [`RemapContext`]; later lookups on that line
-/// are logarithmic.
+/// The first lookup for a source indexes the sorted original columns of every
+/// line of that source in one pass over the mappings, in [`RemapContext`];
+/// every later lookup is logarithmic.
 fn all_generated_positions_for_lub(
     ctx: &mut RemapContext<'_>,
     source: &str,
@@ -80,27 +80,32 @@ fn all_generated_positions_for_lub(
 }
 
 /// Least-upper-bound of `column` among the original columns mapped on
-/// `(source_idx, line)`, memoised per line.
+/// `(source_idx, line)`. The first call for a source indexes all its lines,
+/// because one scan per line makes a large map quadratic.
 fn matched_original_column(
     ctx: &mut RemapContext<'_>,
     source_idx: u32,
     line: u32,
     column: u32,
 ) -> Option<u32> {
-    let key = OriginalLineKey { source: source_idx, line };
-    if !ctx.caches.original_line_columns.contains_key(&key) {
-        let mut columns: Vec<u32> = ctx
-            .sm
-            .all_mappings()
-            .iter()
-            .filter(|m| m.source == source_idx && m.original_line == line)
-            .map(|m| m.original_column)
-            .collect();
-        columns.sort_unstable();
-        columns.dedup();
-        ctx.caches.original_line_columns.insert(key, columns);
+    if ctx.caches.indexed_sources.insert(source_idx) {
+        let index = &mut ctx.caches.original_line_columns;
+        for mapping in ctx.sm.all_mappings().iter().filter(|m| m.source == source_idx) {
+            let key = OriginalLineKey { source: source_idx, line: mapping.original_line };
+            index.entry(key).or_default().push(mapping.original_column);
+        }
+        for (_, columns) in index.range_mut(
+            OriginalLineKey { source: source_idx, line: 0 }..=OriginalLineKey {
+                source: source_idx,
+                line: u32::MAX,
+            },
+        ) {
+            columns.sort_unstable();
+            columns.dedup();
+        }
     }
-    let columns = ctx.caches.original_line_columns.get(&key)?;
+    let columns =
+        ctx.caches.original_line_columns.get(&OriginalLineKey { source: source_idx, line })?;
     let idx = columns.partition_point(|mapped| *mapped < column);
     columns.get(idx).copied()
 }

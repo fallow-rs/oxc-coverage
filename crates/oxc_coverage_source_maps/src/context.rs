@@ -2,7 +2,7 @@
 //! caches that keep repeated `getMapping` lookups cheap, and the key and result
 //! types those lookups are stated in.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use oxc_coverage_types::Location;
 use srcmap_sourcemap::SourceMap;
@@ -18,6 +18,8 @@ use srcmap_sourcemap::SourceMap;
 pub struct RemapCaches {
     pub mapping_cache: BTreeMap<LocationKey, Option<MappedLocation>>,
     pub original_line_columns: BTreeMap<OriginalLineKey, Vec<u32>>,
+    /// Sources whose lines are all in `original_line_columns`.
+    pub indexed_sources: BTreeSet<u32>,
     // Each cache belongs to one SourceMap, so source indices are stable keys.
     original_line_ends: BTreeMap<u32, OriginalLineEndCache>,
 }
