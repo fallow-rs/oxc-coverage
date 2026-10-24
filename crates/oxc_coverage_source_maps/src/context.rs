@@ -2,7 +2,7 @@
 //! caches that keep repeated `getMapping` lookups cheap, and the key and result
 //! types those lookups are stated in.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use oxc_coverage_types::Location;
 use srcmap_sourcemap::SourceMap;
@@ -17,14 +17,55 @@ use srcmap_sourcemap::SourceMap;
 #[derive(Default)]
 pub struct RemapCaches {
     pub mapping_cache: BTreeMap<LocationKey, Option<MappedLocation>>,
-    pub original_line_columns: BTreeMap<OriginalLineKey, Vec<u32>>,
-    /// Sources whose lines are all in `original_line_columns`.
-    pub indexed_sources: BTreeSet<u32>,
+    original_positions: OriginalPositions,
     // Each cache belongs to one SourceMap, so source indices are stable keys.
     original_line_ends: BTreeMap<u32, OriginalLineEndCache>,
 }
 
+/// Original `(line, column)` positions of each source.
+///
+/// The first lookup puts every mapping in the bucket of its source in one
+/// pass, and a bucket is sorted when its source is first read. One scan per
+/// source or per line would make a bundle map with many sources, or a long
+/// map, quadratic.
+#[derive(Default)]
+struct OriginalPositions {
+    buckets: Option<Vec<Vec<(u32, u32)>>>,
+    sorted: Vec<bool>,
+}
+
+impl OriginalPositions {
+    fn of_source(&mut self, sm: &SourceMap, source_idx: u32) -> &[(u32, u32)] {
+        let buckets = self.buckets.get_or_insert_with(|| {
+            let mut buckets = vec![Vec::new(); sm.sources.len()];
+            for mapping in sm.all_mappings() {
+                let bucket =
+                    usize::try_from(mapping.source).ok().and_then(|idx| buckets.get_mut(idx));
+                if let Some(bucket) = bucket {
+                    bucket.push((mapping.original_line, mapping.original_column));
+                }
+            }
+            buckets
+        });
+        let Some(idx) = usize::try_from(source_idx).ok().filter(|&idx| idx < buckets.len()) else {
+            return &[];
+        };
+        self.sorted.resize(buckets.len(), false);
+        if !self.sorted[idx] {
+            buckets[idx].sort_unstable();
+            buckets[idx].dedup();
+            self.sorted[idx] = true;
+        }
+        &buckets[idx]
+    }
+}
+
 impl RemapCaches {
+    /// Sorted, deduplicated `(line, column)` original positions of a source.
+    pub fn original_positions(&mut self, sm: &SourceMap, source_idx: u32) -> &[(u32, u32)] {
+        self.original_positions.of_source(sm, source_idx)
+    }
+
     /// UTF-16 column that ends `line` of the original source, used to clamp
     /// istanbul's `column: Infinity` end. Resolved from `sourcesContent` when
     /// present, otherwise from the greatest original column mapped on that line.
@@ -39,7 +80,13 @@ impl RemapCaches {
         {
             return column;
         }
-        cache.mapped_line_end(sm, source_idx, line)
+        let positions = &mut self.original_positions;
+        cache
+            .mapped
+            .get_or_insert_with(|| {
+                MappedLineEnds::from_positions(positions.of_source(sm, source_idx))
+            })
+            .get(line)
     }
 }
 
@@ -47,12 +94,6 @@ impl RemapCaches {
 struct OriginalLineEndCache {
     content: ContentLineEnds,
     mapped: Option<MappedLineEnds>,
-}
-
-impl OriginalLineEndCache {
-    fn mapped_line_end(&mut self, sm: &SourceMap, source_idx: u32, line: u32) -> u32 {
-        self.mapped.get_or_insert_with(|| MappedLineEnds::from_source_map(sm, source_idx)).get(line)
-    }
 }
 
 // Bound dense storage so an untrusted original line cannot force a large allocation.
@@ -67,13 +108,7 @@ enum MappedLineEnds {
 }
 
 impl MappedLineEnds {
-    fn from_source_map(sm: &SourceMap, source_idx: u32) -> Self {
-        let mappings: Vec<(u32, u32)> = sm
-            .all_mappings()
-            .iter()
-            .filter(|mapping| mapping.source == source_idx)
-            .map(|mapping| (mapping.original_line, mapping.original_column))
-            .collect();
+    fn from_positions(mappings: &[(u32, u32)]) -> Self {
         let dense_len = mappings
             .iter()
             .map(|(line, _)| *line)
@@ -86,7 +121,7 @@ impl MappedLineEnds {
 
         if use_dense {
             let mut line_ends = vec![0; dense_len.unwrap_or(0)];
-            for (line, column) in mappings {
+            for &(line, column) in mappings {
                 if let Ok(line) = usize::try_from(line) {
                     line_ends[line] = line_ends[line].max(column);
                 }
@@ -94,7 +129,7 @@ impl MappedLineEnds {
             Self::Dense(line_ends)
         } else {
             let mut line_ends: BTreeMap<u32, u32> = BTreeMap::new();
-            for (line, column) in mappings {
+            for &(line, column) in mappings {
                 line_ends.entry(line).and_modify(|end| *end = (*end).max(column)).or_insert(column);
             }
             Self::Sparse(line_ends)
@@ -182,11 +217,4 @@ impl From<&Location> for LocationKey {
             end_column: loc.end.column,
         }
     }
-}
-
-/// Cache key for the sorted original-column index of one `(source, line)` pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OriginalLineKey {
-    pub source: u32,
-    pub line: u32,
 }
