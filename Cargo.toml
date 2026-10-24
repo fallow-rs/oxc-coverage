@@ -26,15 +26,15 @@ rust-version = "1.96.0"
 [workspace.dependencies]
 # Suite crates. Path for workspace builds, version so that a `cargo publish`d
 # crate resolves its siblings from crates.io.
-oxc_coverage_instrument = { version = "0.17.0", path = "crates/oxc_coverage_instrument" }
-oxc_coverage_report = { version = "0.2.6", path = "crates/oxc_coverage_report" }
+oxc_coverage_instrument = { version = "0.18.0", path = "crates/oxc_coverage_instrument" }
+oxc_coverage_report = { version = "0.2.7", path = "crates/oxc_coverage_report" }
 # Without default features so a member that cannot carry the html reporter
 # (the WebAssembly binding) does not get it through feature unification.
 # Members that want html enable the `html` feature themselves.
-oxc_coverage_reports = { version = "0.4.4", path = "crates/oxc_coverage_reports", default-features = false }
-oxc_coverage_source_maps = { version = "0.8.1", path = "crates/oxc_coverage_source_maps" }
-oxc_coverage_types = { version = "0.4.1", path = "crates/oxc_coverage_types" }
-oxc_coverage_v8 = { version = "0.4.2", path = "crates/oxc_coverage_v8" }
+oxc_coverage_reports = { version = "0.4.5", path = "crates/oxc_coverage_reports", default-features = false }
+oxc_coverage_source_maps = { version = "0.8.2", path = "crates/oxc_coverage_source_maps" }
+oxc_coverage_types = { version = "0.4.2", path = "crates/oxc_coverage_types" }
+oxc_coverage_v8 = { version = "0.4.3", path = "crates/oxc_coverage_v8" }
 
 # Sandboxed directory handles for the html reporter, which writes a file tree
 # below a caller-supplied output directory.

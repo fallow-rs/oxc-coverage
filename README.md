@@ -30,7 +30,7 @@ other crates share the `oxc_coverage_*` prefix.
 
 ```toml
 [dependencies]
-oxc_coverage_instrument = "0.17"
+oxc_coverage_instrument = "0.18"
 ```
 
 ```bash
