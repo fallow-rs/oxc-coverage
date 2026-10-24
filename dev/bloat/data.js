@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792789926234,
+  "lastUpdate": 1792824927631,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "c696091241b46b71e1a94b47e88b95ac3693a7a0",
-          "message": "chore: release v0.7.1\n\nRepublishes after v0.7.0 left npm side unpublished. The release-npm.yml\nmatrix called dtolnay/rust-toolchain with toolchain: stable + the cross\ntarget, but rust-toolchain.toml pins the channel to 1.95, so the cross\ntarget rustlib landed in stable's sysroot while cargo (under the repo)\npicked up 1.95 and could not find the target's core crate.\n\n5 of 8 build matrix jobs failed (musl, aarch64-linux-gnu,\naarch64-pc-windows, x86_64-darwin, wasm32-wasip1-threads), the publish\nto npm step was skipped, and crates.io v0.7.0 went out without an\naccompanying npm release.\n\nFix: route both the matrix build and the publish-crate job through\n./.github/actions/setup-rust which honors rust-toolchain.toml first.",
-          "timestamp": "2026-05-26T09:16:24+02:00",
-          "tree_id": "76276305dcc2e6b6029dc4b8e3db65f2953a677e",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/c696091241b46b71e1a94b47e88b95ac3693a7a0"
-        },
-        "date": 1779779886388,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85082240,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103386288,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bd871ef2f2fb304cdcdb0356499d6d2115b7bf6d",
+          "message": "docs: list the replaced packages and benchmark each one on real builds (#310)\n\n* perf(source-maps): index the original columns of a source in one pass\n\nThe least-upper-bound lookup for the end of a remapped range built its\ncolumn index per original line, and each new line scanned every mapping of\nthe source map. The cost grew with lines times mappings: remapping the\ncoverage of a three.js build took 1.5 s, against 77 ms in\nistanbul-lib-source-maps.\n\nThe first lookup for a source now indexes the columns of all its lines in\none pass. The same remap takes 68 ms, and the output is byte for byte the\nsame on the five real-world builds, with and without `dropUnmapped`.\n\nThe remap benchmark gets a 10,000-line case. At 1,000 lines the per-line\nscan cost too little to show.\n\n* docs: list the replaced packages and benchmark each one on real builds\n\nThe README now has a table of each Istanbul package, its Vitest fork from\nvitest-dev/istanbuljs, and the npm and Rust replacement, with the scope of\neach replacement. A benchmark table gives the time of every stage of a\ncoverage run on the five pinned library builds: instrumentation, V8\nconversion, source-map remapping, summaries, and each reporter, against\nthe Istanbul package and the Vitest fork. The slower rows say why.\n\nscripts/replacement-benchmarks.mjs produces these numbers. It installs\nexact package versions, uses real V8 inspector coverage and real\n@babel/core source maps, and prints the output size of each tool next to\nits time. ARCHITECTURE.md explains how to regenerate the tables. The\nREADME compatibility line now names Oxc 0.155.\n\n* perf(source-maps): bucket original positions by source in one pass\n\nThe per-line index from the previous commit made a single lookup on a\nsparse 10,000-line map 24 times slower, because it allocated one list per\nline of the source. A bundle map with many sources also still scanned all\nmappings once per source.\n\nThe first lookup now puts every mapping in the bucket of its source in one\npass, and a bucket is sorted when its source is first read. The column\nlookup is a binary search over that bucket, and the end-of-line cache for\nmaps without `sourcesContent` reads the same buckets.\n\nRemap time against 0.17.0, with byte-equal output in every case:\n\n- one lookup in a sparse 10,000-line map: 0.33 ms, now 0.35 ms;\n- a dense map of 10,000 lines: 833 ms, now 19 ms;\n- 10,000 statements over 1 to 2,000 sources: about 14 ms at every source\n  count.\n\n* docs: compare lcov with lcovonly and give each harness its own table\n\nIstanbul's `lcov` report also writes an HTML tree, so the `lcov` row now\ntimes Istanbul's `lcovonly`, which writes the same `lcov.info` as the oxc\n`lcov` format. The ratio is 2.9x, not 5.1x. The README scope row says that\noxc `lcov` is the `lcovonly` output.\n\nThe `babel-plugin-istanbul` and `swc-plugin-coverage-instrument` numbers\ncome from `benchmark-comparison.sh`, which runs one process per tool and\nfile, so they move to their own table with that method. The script now\nalso prints the entry counts of the Vitest fork output for instrumentation\nand remapping.\n\nThe summaries are in `oxc_coverage_report`, and only the Vitest\ninstrumenter fork replaced Babel. Both sentences now say so. All numbers\ncome from one run on the final code.",
+          "timestamp": "2026-10-24T06:53:27Z",
+          "tree_id": "91a329598beaae571ee196267246e1846cba3602",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/bd871ef2f2fb304cdcdb0356499d6d2115b7bf6d"
+        },
+        "date": 1792824926816,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103231568,
             "unit": "bytes"
           }
         ]
