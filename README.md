@@ -7,41 +7,121 @@
 [![docs.rs](https://docs.rs/oxc_coverage_instrument/badge.svg)](https://docs.rs/oxc_coverage_instrument)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Istanbul-compatible coverage toolchain for JavaScript and TypeScript, built on
-the [Oxc](https://oxc.rs) parser: instrumentation, source-map remapping,
-V8-to-Istanbul conversion, and reporters.
+Faster Istanbul coverage for JavaScript and TypeScript. It replaces the slow
+step of Istanbul coverage, inserting the coverage counters into your code, with
+Rust code built on the [Oxc](https://oxc.rs) parser. The coverage numbers stay
+the same.
 
 > **Unofficial.** This is an independent community project that builds on Oxc
 > crates. It is not part of, affiliated with, or endorsed by the Oxc project.
 
-The core is an AST-level instrumenter built on `oxc_traverse` and
-`oxc_codegen`. Its output is checked against `istanbul-lib-instrument` on a
-shared fixture corpus, both by count and byte for byte. Around it sits the rest
-of the Istanbul-compatible pipeline: the data model, source-map remapping,
-V8-to-Istanbul conversion, report summarization, and the `text`,
-`text-summary`, `json-summary`, `lcov`, `cobertura`, and `html` reporters. It
-does not claim to port every Istanbul package or reporter.
+## Use it with Vitest
 
-This repository was previously named `oxc-coverage-instrument`. That name now
-belongs to the instrumenter crate, the npm package, and the CLI binary only; the
-other crates share the `oxc_coverage_*` prefix.
+You need Vitest 4.1.5 or newer.
 
-## Install
+**1. Install** the Istanbul coverage provider and this package:
+
+```bash
+npm install -D @vitest/coverage-istanbul oxc-coverage-instrument
+```
+
+**2. Add the instrumenter** to the coverage config in `vitest.config.ts`. This
+is the only change:
+
+```ts
+import { defineConfig } from 'vitest/config';
+import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';
+
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'istanbul',
+      instrumenter: (options) => createOxcInstrumenter(options),
+    },
+  },
+});
+```
+
+**3. Run your tests** with coverage, as before:
+
+```bash
+npx vitest run --coverage
+```
+
+TypeScript, TSX, and JSX work without extra setup: Vite compiles them as usual,
+and the coverage points at your `.ts` and `.tsx` lines. Your other coverage
+settings (`include`, `exclude`, `reporter`, `thresholds`, Vitest projects,
+browser mode) stay as they are.
+
+To get exactly the numbers of Vitest's own Istanbul instrumenter, use the strict
+profile: `createOxcInstrumenter({ ...options, compat: 'istanbul' })`. Without
+it, the instrumenter also counts the branches of `??=`, `||=`, `&&=`, and
+optional chains, and gives anonymous functions the name they get at runtime.
+
+The [examples](examples/) show React, a monorepo with Vitest projects, and CI
+reports (`lcov`, `cobertura`, coverage thresholds).
+
+## Is it worth it?
+
+Vitest has two coverage providers. `v8` reads the coverage that the V8 engine
+collects. `istanbul` inserts counters into your code before the tests run; that
+works in every browser that Vitest's browser mode supports, and gives Istanbul's
+exact statement, branch, and function counts. Inserting the counters is the slow part
+of `istanbul`, and that is the part this package replaces.
+
+Measured on the test suites of four open-source projects, on a GitHub-hosted
+runner, with a cold Vitest cache as in CI
+([method and full results](examples/vitest-real-projects/)):
+
+| Project | No coverage | `v8` | `istanbul` | `istanbul` + oxc |
+|:--|--:|--:|--:|--:|
+| [hono](https://github.com/honojs/hono) (web framework) | 21.0 s | 24.3 s | 27.3 s | **24.0 s** |
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 13.2 s | 15.7 s | 18.5 s | **16.4 s** |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 172.8 s | 187.6 s | 185.7 s | **181.7 s** |
+| [date-fns](https://github.com/date-fns/date-fns) (browser mode) | 6.9 s | 8.4 s | 34.0 s | **31.9 s** |
+
+- **Coverage costs 30% to 52% less time** in Node.js tests: hono's coverage
+  overhead goes from 6.3 s to 3.0 s, h3 from 5.3 s to 3.2 s, es-toolkit from
+  12.9 s to 8.9 s. The step that inserts the counters is 5.6x to 11.6x faster.
+- **Istanbul is then about as fast as `v8`**, and it keeps Istanbul's counts.
+  The covered and total counts are equal to those of Vitest's own Istanbul
+  instrumenter in all four projects.
+- **In browser mode the gain is small.** For date-fns, inserting the counters
+  is 3.9 s of the 27.1 s that `istanbul` adds. `v8` is much faster there, but in
+  browser mode it works only in Chromium.
+- **Local reruns gain less.** Vitest caches the instrumented files on disk, so a
+  rerun with a warm cache skips the step that this package speeds up.
+
+Choose:
+
+| You use now | Then |
+|:--|:--|
+| `istanbul` | Add the `instrumenter` line. Same numbers, less time. |
+| `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts; in Node.js tests that now costs about the same time as `v8`. |
+| `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
+
+## Other ways to use it
+
+The npm package also works without Vitest:
+
+```javascript
+import { instrument } from 'oxc-coverage-instrument';
+
+const result = instrument(source, 'file.js', { sourceMap: true });
+const coverageMap = JSON.parse(result.coverageMap);
+```
+
+It also converts V8 coverage (`v8ToIstanbul`), remaps coverage through source
+maps (`remapCoverageMap`), and writes reports (`createReport`,
+`writeHtmlReport`). The [npm package README](crates/oxc_coverage_instrument_napi/README.md)
+covers `vite-plugin-istanbul` and custom Vite or Rollup plugins.
+
+From Rust:
 
 ```toml
 [dependencies]
 oxc_coverage_instrument = "0.18"
 ```
-
-```bash
-npm install oxc-coverage-instrument
-```
-
-```bash
-cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
-```
-
-## Usage
 
 ```rust
 use oxc_coverage_instrument::{instrument, InstrumentOptions};
@@ -53,20 +133,18 @@ assert_eq!(result.coverage_map.fn_map["0"].name, "add");
 println!("{}", result.code);
 ```
 
-```javascript
-import { instrument } from 'oxc-coverage-instrument';
-
-const result = instrument(source, 'file.js', { sourceMap: true });
-const coverageMap = JSON.parse(result.coverageMap);
-```
+As a command-line tool:
 
 ```bash
+cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
 oxc-coverage-instrument src/app.js -o dist/app.js --source-map
 oxc-coverage-instrument report --format text coverage-final.json
 ```
 
-Vitest, `vite-plugin-istanbul`, and custom Vite or Rollup plugins are covered in
-the [Node.js package README](crates/oxc_coverage_instrument_napi/README.md).
+The instrumenter is checked against `istanbul-lib-instrument` on a shared
+fixture corpus, by count and byte for byte. This repository was previously named
+`oxc-coverage-instrument`; that name now belongs to the npm package, the
+instrumenter crate, and the CLI binary.
 
 ## What it replaces
 
@@ -89,9 +167,9 @@ Oxc parser of `rolldown` and with `magic-string`. The other Vitest forks are
 JavaScript ports of the Istanbul packages. This project replaces all of them
 with Rust code behind a native or WebAssembly binding.
 
-## Benchmarks
+## Benchmarks per component
 
-Times on the five pinned library builds of `scripts/real-world-corpus.json`, in
+Each part measured on its own, against the package it replaces. Times on the five pinned library builds of `scripts/real-world-corpus.json`, in
 one Node.js process, as the median of 7 runs after 2 warm-up runs, from
 `scripts/replacement-benchmarks.mjs`. Measured on 2026-10-24 on an Apple M5
 (macOS, Darwin 25.5), Node.js 24.20.0, with the release build of the native
