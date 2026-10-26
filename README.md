@@ -66,38 +66,39 @@ reports (`lcov`, `cobertura`, coverage thresholds).
 Vitest has two coverage providers. `v8` reads the coverage that the V8 engine
 collects. `istanbul` inserts counters into your code before the tests run; that
 works in every browser that Vitest's browser mode supports, and gives Istanbul's
-exact statement, branch, and function counts. Inserting the counters is the slow part
-of `istanbul`, and that is the part this package replaces.
+exact statement, branch, and function counts. This package replaces the step
+that inserts the counters.
 
-Measured on the test suites of four open-source projects, on a GitHub-hosted
-runner, with a cold Vitest cache as in CI
+The table shows that step on the test suites of four open-source projects,
+measured on a GitHub-hosted runner with a cold Vitest cache, as in CI. Each time
+is the total time that Vitest's Istanbul provider spends inserting counters, for
+all source files of the run
 ([method and full results](examples/vitest-real-projects/)):
 
-| Project | No coverage | `v8` | `istanbul` | `istanbul` + oxc |
+| Project | Files instrumented | Vitest's instrumenter | oxc | Speedup |
 |:--|--:|--:|--:|--:|
-| [hono](https://github.com/honojs/hono) (web framework) | 21.0 s | 24.3 s | 27.3 s | **24.0 s** |
-| [h3](https://github.com/unjs/h3) (HTTP framework) | 13.2 s | 15.7 s | 18.5 s | **16.4 s** |
-| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 172.8 s | 187.6 s | 185.7 s | **181.7 s** |
-| [date-fns](https://github.com/date-fns/date-fns) (browser mode) | 6.9 s | 8.4 s | 34.0 s | **31.9 s** |
+| [hono](https://github.com/honojs/hono) (web framework) | 636 | 10.7 s | 0.9 s | **11.6x** |
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.4 s | 0.1 s | **11.6x** |
+| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 3.9 s | 0.5 s | **7.2x** |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 5.5 s | 1.0 s | **5.6x** |
 
-- **Coverage costs 30% to 52% less time** in Node.js tests: hono's coverage
-  overhead goes from 6.3 s to 3.0 s, h3 from 5.3 s to 3.2 s, es-toolkit from
-  12.9 s to 8.9 s. The step that inserts the counters is 5.6x to 11.6x faster.
-- **Istanbul is then about as fast as `v8`**, and it keeps Istanbul's counts.
-  The covered and total counts are equal to those of Vitest's own Istanbul
+The times are rounded; the speedup comes from the unrounded times.
+
+- **The coverage numbers stay the same.** The covered and total counts of
+  lines, statements, functions, and branches are equal to those of Vitest's own
   instrumenter in all four projects.
-- **In browser mode the gain is small.** For date-fns, inserting the counters
-  is 3.9 s of the 27.1 s that `istanbul` adds. `v8` is much faster there, but in
-  browser mode it works only in Chromium.
+- **The whole test run gains less.** Running the tests and writing the report
+  take the same time as before. The [full results](examples/vitest-real-projects/)
+  give the wall time of each run.
 - **Local reruns gain less.** Vitest caches the instrumented files on disk, so a
-  rerun with a warm cache skips the step that this package speeds up.
+  rerun with a warm cache skips this step.
 
 Choose:
 
 | You use now | Then |
 |:--|:--|
 | `istanbul` | Add the `instrumenter` line. Same numbers, less time. |
-| `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts; in Node.js tests that now costs about the same time as `v8`. |
+| `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
 | `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
 
 ## Other ways to use it
