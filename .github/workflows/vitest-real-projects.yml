@@ -1,0 +1,69 @@
+name: Vitest real projects
+
+# Runs the test suites of pinned open-source projects with Vitest's default
+# Istanbul instrumenter and with the oxc instrumenter, and writes the timing
+# and coverage tables to the step summary. examples/vitest-real-projects
+# describes the method. It uses the published npm package, so it measures what
+# users install.
+
+on:
+  pull_request:
+    paths:
+      - examples/vitest-real-projects/**
+      - '!examples/vitest-real-projects/README.md'
+      - .github/workflows/vitest-real-projects.yml
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Cold runs per mode
+        default: '3'
+      oxc:
+        description: oxc-coverage-instrument version from npm
+        default: '0.18.0'
+
+concurrency:
+  group: vitest-real-projects-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  measure:
+    name: Measure
+    # The Playwright version that date-fns pins does not support Ubuntu 26.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      # The projects pin their own package manager versions through corepack.
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Run the projects
+        env:
+          RUNS: ${{ inputs.runs || '3' }}
+          OXC: ${{ inputs.oxc || '0.18.0' }}
+          OXC_BENCH_PLAYWRIGHT_WITH_DEPS: '1'
+        run: node examples/vitest-real-projects/run.mjs --runs="$RUNS" --oxc="$OXC" --markdown=results.md
+
+      - name: Write the step summary
+        if: always()
+        run: |
+          if [ -f results.md ]; then cat results.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: vitest-real-projects-results
+          path: results.md
+          if-no-files-found: ignore

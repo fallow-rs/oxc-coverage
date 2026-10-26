@@ -1,0 +1,18 @@
+{
+  "name": "oxc-coverage-instrument-vitest-ci-reports-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "coverage": "vitest run --coverage",
+    "report": "node scripts/report.mjs",
+    "verify": "node scripts/verify-reports.mjs"
+  },
+  "devDependencies": {
+    "@vitest/coverage-istanbul": "^5.0.0",
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
+    "typescript": ">=6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "oxc-coverage-instrument-vitest-monorepo-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "coverage": "vitest run --coverage",
+    "verify": "node scripts/verify-coverage.mjs"
+  },
+  "devDependencies": {
+    "@vitest/coverage-istanbul": "^5.0.0",
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
+    "typescript": ">=6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0"
+  }
+}
