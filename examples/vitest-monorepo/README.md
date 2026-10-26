@@ -1,7 +1,7 @@
 # Vitest monorepo example
 
-Coverage for a workspace with several Vitest projects, with the oxc
-instrumenter set once at the root.
+Coverage for a workspace with several Vitest projects, with the
+`oxc-coverage-instrument` instrumenter set once at the root.
 
 ## What this shows
 

@@ -108,21 +108,21 @@ for (const project of projects) {
   console.log(
     `${tag} ${label.padEnd(24)} ${sizeKB.padStart(6)} KB  ` +
       `istanbul s=${istanbul.s} f=${istanbul.f} b=${istanbul.b}  ` +
-      `oxc s=${oxc.s} f=${oxc.f} b=${oxc.b}  strict entry diffs=${strictDiffs.length}`,
+      `oxc-coverage-instrument s=${oxc.s} f=${oxc.f} b=${oxc.b}  strict entry diffs=${strictDiffs.length}`,
   );
   if (!ok) {
     diverged++;
-    if (!sOk) console.log(`       statements differ: istanbul=${istanbul.s} oxc=${oxc.s}`);
-    if (!fOk) console.log(`       functions differ:  istanbul=${istanbul.f} oxc=${oxc.f}`);
+    if (!sOk) console.log(`       statements differ: istanbul=${istanbul.s} oxc-coverage-instrument=${oxc.s}`);
+    if (!fOk) console.log(`       functions differ:  istanbul=${istanbul.f} oxc-coverage-instrument=${oxc.f}`);
     if (!bOk) {
       console.log(
-        `       branches regress:  istanbul=${istanbul.b} oxc=${oxc.b} (oxc should be >= istanbul)`,
+        `       branches regress:  istanbul=${istanbul.b} oxc-coverage-instrument=${oxc.b} (should be >= istanbul)`,
       );
     }
     for (const diff of strictDiffs.slice(0, MAX_REPORTED_ENTRY_DIFFS)) {
       console.log(`       strict ${diff.path}:`);
       console.log(`         istanbul=${canonical(diff.expected)}`);
-      console.log(`         oxc=     ${canonical(diff.actual)}`);
+      console.log(`         oxc-coverage-instrument=${canonical(diff.actual)}`);
     }
     if (strictDiffs.length > MAX_REPORTED_ENTRY_DIFFS) {
       console.log(`       ... and ${strictDiffs.length - MAX_REPORTED_ENTRY_DIFFS} more strict entry diffs`);
