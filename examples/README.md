@@ -55,10 +55,19 @@ README lists each difference.
 ## Where it is faster
 
 The oxc instrumenter replaces the step where the Istanbul provider inserts
-coverage counters into each source file. That step runs once per file, when
-Vitest transforms it, and it is the main cost of Istanbul coverage. The
-[`vitest-real-projects`](vitest-real-projects/) results show the time of that
-step on real projects, and the full `vitest run` time around it.
+coverage counters into each source file. On four real projects
+([`vitest-real-projects`](vitest-real-projects/), measured on a GitHub-hosted
+runner) that step is 5.6x to 11.6x faster, the coverage numbers stay the same,
+and the coverage overhead of a Node.js test run drops by 30% to 52%:
+
+| Project | `vitest run`, no coverage | Istanbul, Vitest default | Istanbul + oxc |
+|:--|--:|--:|--:|
+| hono | 21.0 s | 27.3 s | 24.0 s |
+| h3 | 13.2 s | 18.5 s | 16.4 s |
+| es-toolkit | 172.8 s | 185.7 s | 181.7 s |
+
+In browser mode the gain is smaller, because collecting the counters in the
+browser costs more than inserting them.
 
 Vitest 5 caches transformed modules on disk. A rerun with a warm cache does not
 instrument the files again, so the gain is largest on a cold run, which is the

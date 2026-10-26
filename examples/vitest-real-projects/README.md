@@ -59,7 +59,56 @@ once more for a source map without the coverage counters.
 The CI workflow `Vitest real projects` runs this script on a GitHub-hosted
 runner and writes the tables below to its step summary.
 
-<!-- results -->
+Measured in [workflow run 40326434759](https://github.com/fallow-rs/oxc-coverage/actions/runs/40326434759) on a GitHub-hosted runner (Ubuntu 24.04, Intel Xeon Platinum 8370C, 4 cores), Node.js 24.21.0, `oxc-coverage-instrument@0.18.0`, 3 cold runs per mode.
+
+### Instrumentation
+
+Time in the Istanbul provider's transform hook, summed over all files (median):
+
+| Project | Files instrumented | Vitest default | oxc | Speedup |
+|:--|--:|--:|--:|--:|
+| es-toolkit | 802 | 5.5 s | 1.0 s | 5.6x |
+| date-fns | 1061 | 3.9 s | 0.5 s | 7.2x |
+| hono | 636 | 10.7 s | 0.9 s | 11.6x |
+| h3 | 81 | 1.4 s | 0.1 s | 11.6x |
+
+### Whole test run
+
+Wall time of `vitest run` (median). The coverage overhead is the time above the
+run without coverage:
+
+| Project | Test files | No coverage | Istanbul, Vitest default | Istanbul + oxc | V8 | Overhead, default | Overhead, oxc |
+|:--|--:|--:|--:|--:|--:|--:|--:|
+| es-toolkit | 720 | 172.8 s | 185.7 s | 181.7 s | 187.6 s | 12.9 s | 8.9 s |
+| date-fns | 267 | 6.9 s | 34.0 s | 31.9 s | 8.4 s | 27.1 s | 25.0 s |
+| hono | 122 | 21.0 s | 27.3 s | 24.0 s | 24.3 s | 6.3 s | 3.0 s |
+| h3 | 70 | 13.2 s | 18.5 s | 16.4 s | 15.7 s | 5.3 s | 3.2 s |
+
+### Coverage
+
+The Istanbul and oxc runs give the same covered and total counts for lines,
+statements, functions, and branches in all four projects. For example, hono:
+6265/6483 lines, 6495/6720 statements, 1089/1135 functions, and 4112/4408
+branches in both runs. The V8 provider counts a little differently, as usual.
+
+### What this means
+
+- **The instrumentation step is 5.6x to 11.6x faster.** That step is where the
+  oxc instrumenter works, and the coverage numbers stay the same.
+- **In Node.js tests, the coverage overhead drops by 30% to 52%.** hono goes
+  from 6.3 s to 3.0 s of overhead, h3 from 5.3 s to 3.2 s, and es-toolkit from
+  12.9 s to 8.9 s. The rest of the overhead was not measured separately; it
+  includes running the counters in the tests and writing the report.
+- **Istanbul + oxc is about as fast as V8 in Node.js tests**: faster than V8
+  for es-toolkit and hono, slightly slower for h3. Istanbul coverage then no
+  longer costs extra time, and it keeps its exact branch and function counts.
+- **In browser mode the instrumenter is a small part of the overhead.** For
+  date-fns, Istanbul coverage adds 27.1 s, of which 3.9 s is instrumentation;
+  oxc takes 3.4 s off that. Most of the rest goes to running the instrumented
+  code and collecting the counters in the browser. V8 coverage is much
+  faster there, but it works only in Chromium.
+- **A warm rerun gains less.** Vitest 5 caches the instrumented modules on
+  disk, so a local rerun skips the instrumentation step.
 
 ## Run it yourself
 
