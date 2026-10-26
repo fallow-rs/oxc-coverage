@@ -1,10 +1,10 @@
 name: Vitest real projects
 
 # Runs the test suites of pinned open-source projects with Vitest's default
-# Istanbul instrumenter and with the oxc instrumenter, and writes the timing
-# and coverage tables to the step summary. examples/vitest-real-projects
-# describes the method. It uses the published npm package, so it measures what
-# users install.
+# Istanbul instrumenter and with the oxc-coverage-instrument instrumenter, and
+# writes the timing and coverage tables to the step summary.
+# examples/vitest-real-projects describes the method. It uses the published npm
+# package, so it measures what users install.
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ on:
       runs:
         description: Cold runs per mode
         default: '3'
-      oxc:
+      package-version:
         description: oxc-coverage-instrument version from npm
         default: '0.18.0'
 
@@ -51,9 +51,9 @@ jobs:
       - name: Run the projects
         env:
           RUNS: ${{ inputs.runs || '3' }}
-          OXC: ${{ inputs.oxc || '0.18.0' }}
+          PACKAGE_VERSION: ${{ inputs.package-version || '0.18.0' }}
           OXC_BENCH_PLAYWRIGHT_WITH_DEPS: '1'
-        run: node examples/vitest-real-projects/run.mjs --runs="$RUNS" --oxc="$OXC" --markdown=results.md
+        run: node examples/vitest-real-projects/run.mjs --runs="$RUNS" --package-version="$PACKAGE_VERSION" --markdown=results.md
 
       - name: Write the step summary
         if: always()

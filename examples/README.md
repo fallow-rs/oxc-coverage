@@ -1,7 +1,7 @@
 # Examples
 
 Each example is a small, runnable project. The Vitest examples use the
-Istanbul coverage provider with the oxc instrumenter.
+Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 
 | Example | Shows |
 |:--|:--|
@@ -54,13 +54,13 @@ README lists each difference.
 
 ## Where it is faster
 
-The oxc instrumenter replaces the step where the Istanbul provider inserts
+`oxc-coverage-instrument` replaces the step where the Istanbul provider inserts
 coverage counters into each source file. On four real projects
 ([`vitest-real-projects`](vitest-real-projects/), measured on a GitHub-hosted
 runner) that step is 5.6x to 11.6x faster, and the coverage numbers stay the
 same:
 
-| Project | Files instrumented | Vitest's instrumenter | oxc | Speedup |
+| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup |
 |:--|--:|--:|--:|--:|
 | hono | 636 | 10.7 s | 0.9 s | 11.6x |
 | h3 | 81 | 1.4 s | 0.1 s | 11.6x |

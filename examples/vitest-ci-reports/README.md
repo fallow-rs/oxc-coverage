@@ -5,7 +5,7 @@ reports that a CI system reads, and fails the run under a coverage threshold.
 
 ## What this shows
 
-- `vitest.config.ts` uses the oxc instrumenter and only the `json` reporter, so
+- `vitest.config.ts` uses the `oxc-coverage-instrument` instrumenter and only the `json` reporter, so
   Vitest writes `coverage/coverage-final.json` and nothing else.
 - `scripts/report.mjs` reads that file once and writes:
   - `coverage/lcov.info` for Codecov, Coveralls, and SonarQube;

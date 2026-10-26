@@ -38,7 +38,8 @@ const WARMUP_RUNS = 2;
 const DEFAULT_RUNS = 7;
 const TEXT_FORMATS = ['text', 'text-summary', 'json-summary', 'lcov', 'cobertura'];
 // The Istanbul `lcov` report also writes an HTML tree. Its `lcovonly` report
-// writes the same `lcov.info` as the oxc `lcov` format, and nothing else.
+// writes the same `lcov.info` as the oxc-coverage-instrument `lcov` format, and
+// nothing else.
 const ISTANBUL_FORMAT = { lcov: 'lcovonly' };
 
 const PACKAGES = {
@@ -329,11 +330,11 @@ const main = async () => {
   const ms = (value) => (value < 10 ? value.toFixed(2) : value.toFixed(0));
   const speedup = (baseline, value) => `${(baseline / value).toFixed(1)}x`;
   const lines = [];
-  lines.push(`Measured on ${os.cpus()[0].model}, ${os.platform()} ${os.release()}, Node.js ${process.version}, ${runs} runs (median, ms), oxc binding \`${oxc.__napiBindingTarget}\`.`);
+  lines.push(`Measured on ${os.cpus()[0].model}, ${os.platform()} ${os.release()}, Node.js ${process.version}, ${runs} runs (median, ms), oxc-coverage-instrument binding \`${oxc.__napiBindingTarget}\`.`);
   lines.push('');
   lines.push('Instrument (`instrumentSync` vs `instrument`):');
   lines.push('');
-  lines.push('| File | KB | istanbul-lib-instrument | @vitest/istanbul-lib-instrument | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b: istanbul · @vitest · oxc strict |');
+  lines.push('| File | KB | istanbul-lib-instrument | @vitest/istanbul-lib-instrument | oxc-coverage-instrument | speedup vs istanbul | speedup vs @vitest | s/f/b: istanbul · @vitest · oxc-coverage-instrument strict |');
   lines.push('|:--|--:|--:|--:|--:|--:|--:|:--|');
   for (const r of rows.instrument) {
     lines.push(`| ${r.file} | ${r.kb} | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} | ${r.same} |`);
@@ -341,7 +342,7 @@ const main = async () => {
   lines.push('');
   lines.push('V8 to Istanbul (one run of each build, real inspector coverage):');
   lines.push('');
-  lines.push('| File | V8 functions | v8-to-istanbul | ast-v8-to-istanbul + oxc-parser | oxc | oxc vs v8-to-istanbul | oxc vs ast-v8-to-istanbul | s/f/b out: v8-to-istanbul · ast · oxc |');
+  lines.push('| File | V8 functions | v8-to-istanbul | ast-v8-to-istanbul + oxc-parser | oxc-coverage-instrument | speedup vs v8-to-istanbul | speedup vs ast-v8-to-istanbul | s/f/b out: v8-to-istanbul · ast · oxc-coverage-instrument |');
   lines.push('|:--|--:|--:|--:|--:|--:|--:|:--|');
   for (const r of rows.v8) {
     lines.push(`| ${r.file} | ${r.functions} | ${ms(r.v8ToIstanbul)} | ${ms(r.astV8ToIstanbul)} | ${ms(r.oxc)} | ${speedup(r.v8ToIstanbul, r.oxc)} | ${speedup(r.astV8ToIstanbul, r.oxc)} | ${r.output} |`);
@@ -349,7 +350,7 @@ const main = async () => {
   lines.push('');
   lines.push('Source-map remap (coverage of a `@babel/core` build, mapped back to the library source):');
   lines.push('');
-  lines.push('| File | istanbul-lib-source-maps | @vitest/istanbul-lib-source-maps | oxc | oxc vs istanbul | oxc vs @vitest | s/f/b out: istanbul · @vitest · oxc |');
+  lines.push('| File | istanbul-lib-source-maps | @vitest/istanbul-lib-source-maps | oxc-coverage-instrument | speedup vs istanbul | speedup vs @vitest | s/f/b out: istanbul · @vitest · oxc-coverage-instrument |');
   lines.push('|:--|--:|--:|--:|--:|--:|:--|');
   for (const r of rows.remap) {
     lines.push(`| ${r.file} | ${ms(r.istanbul)} | ${ms(r.vitest)} | ${ms(r.oxc)} | ${speedup(r.istanbul, r.oxc)} | ${speedup(r.vitest, r.oxc)} | ${r.same} |`);
@@ -357,7 +358,7 @@ const main = async () => {
   lines.push('');
   lines.push('Summary and reports (coverage map of all five files):');
   lines.push('');
-  lines.push('| Step | istanbul | @vitest | oxc | oxc vs istanbul | oxc vs @vitest |');
+  lines.push('| Step | istanbul | @vitest | oxc-coverage-instrument | speedup vs istanbul | speedup vs @vitest |');
   lines.push('|:--|--:|--:|--:|--:|--:|');
   lines.push(`| summary${sameSummary ? '' : ' (totals differ)'} | ${ms(summary.istanbul)} | ${ms(summary.vitest)} | ${ms(summary.oxc)} | ${speedup(summary.istanbul, summary.oxc)} | ${speedup(summary.vitest, summary.oxc)} |`);
   for (const r of reports) {

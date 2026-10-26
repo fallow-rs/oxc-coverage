@@ -1,6 +1,6 @@
 # Vitest + React example
 
-Coverage for React components written in TSX, with the oxc instrumenter in
+Coverage for React components written in TSX, with the `oxc-coverage-instrument` instrumenter in
 Vitest's Istanbul provider.
 
 ## What this shows

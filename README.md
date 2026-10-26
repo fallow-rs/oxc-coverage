@@ -75,7 +75,7 @@ is the total time that Vitest's Istanbul provider spends inserting counters, for
 all source files of the run
 ([method and full results](examples/vitest-real-projects/)):
 
-| Project | Files instrumented | Vitest's instrumenter | oxc | Speedup |
+| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup |
 |:--|--:|--:|--:|--:|
 | [hono](https://github.com/honojs/hono) (web framework) | 636 | 10.7 s | 0.9 s | **11.6x** |
 | [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.4 s | 0.1 s | **11.6x** |
@@ -175,9 +175,9 @@ one Node.js process, as the median of 7 runs after 2 warm-up runs, from
 `scripts/replacement-benchmarks.mjs`. Measured on 2026-10-24 on an Apple M5
 (macOS, Darwin 25.5), Node.js 24.20.0, with the release build of the native
 binding. The time is the sum over the five files, in milliseconds. A ratio
-above 1 means that oxc is faster.
+above 1 means that `oxc-coverage-instrument` is faster.
 
-| Stage | Package | Package (ms) | oxc (ms) | Ratio |
+| Stage | Package | Package (ms) | `oxc-coverage-instrument` (ms) | Ratio |
 |:--|:--|--:|--:|--:|
 | Instrument | `istanbul-lib-instrument` 6.0.3 | 1898 | 64 | 29.7x |
 | Instrument | `@vitest/istanbul-lib-instrument` 2.0.0 | 411 | 64 | 6.4x |
@@ -197,7 +197,7 @@ How to read the slower rows:
 
 - `v8-to-istanbul` does less work. It gives one statement per source line and
   no branch locations from the AST: 51876 statements and 123 branches for
-  three.js, where oxc and `ast-v8-to-istanbul` give the 20247 statements and
+  three.js, where `oxc-coverage-instrument` and `ast-v8-to-istanbul` give the 20247 statements and
   4018 branches that the instrumenter records.
 - The summary and the `text`, `text-summary`, and `json-summary` reports spend
   most of their time in parsing the coverage JSON, on both sides.
@@ -212,7 +212,7 @@ the reports, within about 3%, so the table leaves it out for these rows.
 and file in its own Node.js process, as the median of 5 runs, and installs the
 current release of each tool. Measured on the same machine and day:
 
-| Package | Package (ms) | oxc (ms) | Ratio |
+| Package | Package (ms) | `oxc-coverage-instrument` (ms) | Ratio |
 |:--|--:|--:|--:|
 | `babel-plugin-istanbul` 8.0.0 | 571 | 67 | 8.6x |
 | `swc-plugin-coverage-instrument` 0.0.33 | 880 | 67 | 13.2x |
@@ -224,10 +224,10 @@ sandbox, so its time includes that overhead.
 <summary>Per-file times</summary>
 
 Instrument (ms). The last column is the statement, function, and branch count of
-Istanbul, of the Vitest fork, and of oxc in the strict profile. They are equal
+Istanbul, of the Vitest fork, and of `oxc-coverage-instrument` in the strict profile. They are equal
 for every file.
 
-| File | KB | `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | oxc | s/f/b |
+| File | KB | `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | `oxc-coverage-instrument` | s/f/b |
 |:--|--:|--:|--:|--:|:--|
 | React 18.2.0 | 107 | 45 | 7.8 | 1.6 | 1194/176/332 |
 | lodash 4.17.21 | 531 | 160 | 35 | 6.5 | 3714/691/1303 |
@@ -237,7 +237,7 @@ for every file.
 
 V8 to Istanbul (ms), on the precise coverage of one run of each build.
 
-| File | V8 functions | `v8-to-istanbul` | `ast-v8-to-istanbul` | oxc |
+| File | V8 functions | `v8-to-istanbul` | `ast-v8-to-istanbul` | `oxc-coverage-instrument` |
 |:--|--:|--:|--:|--:|
 | React 18.2.0 | 133 | 0.8 | 9.3 | 1.3 |
 | lodash 4.17.21 | 611 | 5.1 | 39 | 6.7 |
@@ -248,7 +248,7 @@ V8 to Istanbul (ms), on the precise coverage of one run of each build.
 Source-map remap (ms), on the coverage of a `@babel/core` build of each file,
 mapped back to the file. All three give the same entry counts.
 
-| File | `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | oxc |
+| File | `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | `oxc-coverage-instrument` |
 |:--|--:|--:|--:|
 | React 18.2.0 | 4.0 | 4.2 | 3.1 |
 | lodash 4.17.21 | 17 | 16 | 13 |

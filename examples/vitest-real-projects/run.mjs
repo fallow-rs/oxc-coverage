@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Run the Vitest suites of real open-source projects with and without the
-// oxc instrumenter, and compare time and coverage totals.
+// `oxc-coverage-instrument` instrumenter, and compare time and coverage totals.
 //
 // For each project in projects.json the script clones the pinned commit into
 // .bench-tmp/vitest-projects, installs it with its own package manager, adds
@@ -9,15 +9,15 @@
 //
 //   none      no coverage, the baseline
 //   istanbul  the Istanbul provider with Vitest's default instrumenter
-//   oxc       the Istanbul provider with createOxcInstrumenter({ compat: 'istanbul' })
+//   oxc-coverage-instrument  the Istanbul provider with createOxcInstrumenter({ compat: 'istanbul' })
 //   v8        the V8 provider, for reference
 //
 // Each mode runs --runs times (default 3) in rotating order; the report gives
 // the median wall time and the coverage overhead against `none`. The Istanbul
-// and oxc runs must give the same coverage totals.
+// and oxc-coverage-instrument runs must give the same coverage totals.
 //
 // Usage:
-//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--oxc=0.18.0] [--markdown=<file>]
+//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0] [--markdown=<file>]
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -29,17 +29,18 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const WORK_DIR = join(ROOT, '.bench-tmp', 'vitest-projects');
-const BENCH_CONFIG = 'vitest.oxc-bench.config.mts';
-const MODES = ['none', 'istanbul', 'oxc', 'v8'];
+const BENCH_CONFIG = 'vitest.coverage-bench.config.mts';
+const OXC_MODE = 'oxc-coverage-instrument';
+const MODES = ['none', 'istanbul', OXC_MODE, 'v8'];
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
 const parseArgs = () => {
-  const args = { runs: 3, only: null, oxc: '0.18.0', markdown: null };
+  const args = { runs: 3, only: null, packageVersion: '0.18.0', markdown: null };
   for (const arg of process.argv.slice(2)) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'runs') args.runs = Number(value);
     else if (key === 'only') args.only = value.split(',');
-    else if (key === 'oxc') args.oxc = value;
+    else if (key === 'package-version') args.packageVersion = value;
     else if (key === 'markdown') args.markdown = value;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -47,8 +48,14 @@ const parseArgs = () => {
   return args;
 };
 
+// Command output goes to stderr, so stdout holds only the result tables.
 const run = (cwd, command, args, options = {}) =>
-  execFileSync(command, args, { cwd, stdio: options.quiet ? 'pipe' : 'inherit', encoding: 'utf8', ...options });
+  execFileSync(command, args, {
+    cwd,
+    stdio: options.quiet ? 'pipe' : ['ignore', process.stderr, process.stderr],
+    encoding: 'utf8',
+    ...options,
+  });
 
 // `corepack` runs the package manager version that the project pins.
 const pm = (project) => (project.packageManager === 'yarn' ? ['corepack', ['yarn']] : ['corepack', ['pnpm']]);
@@ -74,7 +81,7 @@ const prepare = (project, oxcVersion) => {
   // check out only when the commit differs.
   const head = run(cwd, 'git', ['rev-parse', 'HEAD'], { quiet: true }).trim();
   if (head !== project.commit) run(cwd, 'git', ['checkout', '--quiet', '--force', project.commit]);
-  const stamp = join(cwd, '.oxc-bench-installed');
+  const stamp = join(cwd, '.coverage-bench-installed');
   const wanted = `${project.commit} ${oxcVersion}`;
   const installed = readFileSync(join(cwd, 'package.json'), 'utf8').includes(`"oxc-coverage-instrument"`);
   if (installed && existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted) return cwd;
@@ -139,7 +146,8 @@ IstanbulCoverageProvider.prototype.onFileTransform = function (...args) {
   return result;
 };
 
-// Count the calls into the oxc instrumenter, so a run that silently fell back
+// Count the calls into the oxc-coverage-instrument instrumenter, so a run that
+// silently fell back
 // to the default instrumenter is visible.
 let oxcCalls = 0;
 const countingOxcInstrumenter = (options) => {
@@ -156,8 +164,8 @@ const countingOxcInstrumenter = (options) => {
 // appends its own line.
 process.on('exit', () => {
   if (transformedFiles === 0 && oxcCalls === 0) return;
-  mkdirSync('./.oxc-bench', { recursive: true });
-  appendFileSync('./.oxc-bench/stats.txt', [process.pid, transformMs, transformedFiles, oxcCalls].join(' ') + '\\n');
+  mkdirSync('./.coverage-bench', { recursive: true });
+  appendFileSync('./.coverage-bench/stats.txt', [process.pid, transformMs, transformedFiles, oxcCalls].join(' ') + '\\n');
 });
 const coverage =
   mode === 'none'
@@ -165,11 +173,11 @@ const coverage =
     : {
         enabled: true,
         provider: mode === 'v8' ? 'v8' : 'istanbul',
-        ...(mode === 'oxc'
+        ...(mode === 'oxc-coverage-instrument'
           ? { instrumenter: countingOxcInstrumenter }
           : {}),
         reporter: ['json-summary'],
-        reportsDirectory: './.oxc-bench/' + mode,
+        reportsDirectory: './.coverage-bench/' + mode,
         reportOnFailure: true,
         clean: true,
       };
@@ -192,9 +200,9 @@ const clearCaches = (cwd) => {
   for (const dir of CACHE_DIRS) rmSync(join(cwd, dir), { recursive: true, force: true });
 };
 
-// Sum the lines that each Vitest process appended to .oxc-bench/stats.txt.
+// Sum the lines that each Vitest process appended to .coverage-bench/stats.txt.
 const readStats = (cwd) => {
-  const path = join(cwd, '.oxc-bench', 'stats.txt');
+  const path = join(cwd, '.coverage-bench', 'stats.txt');
   const stats = { transformMs: 0, transformedFiles: 0, oxcCalls: 0 };
   if (!existsSync(path)) return stats;
   for (const line of readFileSync(path, 'utf8').split('\n').filter(Boolean)) {
@@ -208,7 +216,7 @@ const readStats = (cwd) => {
 
 const runVitest = (project, cwd, mode) => {
   clearCaches(cwd);
-  rmSync(join(cwd, '.oxc-bench', 'stats.txt'), { force: true });
+  rmSync(join(cwd, '.coverage-bench', 'stats.txt'), { force: true });
   const [command, prefix] = pm(project);
   const exec = project.packageManager === 'yarn' ? ['vitest'] : ['exec', 'vitest'];
   const args = [...prefix, ...exec, 'run', '--config', BENCH_CONFIG, ...project.vitestArgs];
@@ -234,7 +242,7 @@ const runVitest = (project, cwd, mode) => {
 };
 
 const readTotals = (cwd, mode) => {
-  const path = join(cwd, '.oxc-bench', mode, 'coverage-summary.json');
+  const path = join(cwd, '.coverage-bench', mode, 'coverage-summary.json');
   if (!existsSync(path)) return null;
   const { total } = JSON.parse(readFileSync(path, 'utf8'));
   return Object.fromEntries(METRICS.map((m) => [m, `${total[m].covered}/${total[m].total}`]));
@@ -254,9 +262,9 @@ const main = () => {
 
   for (const project of projects.filter((p) => !args.only || args.only.includes(p.name))) {
     process.stderr.write(`\n== ${project.name}\n`);
-    const cwd = prepare(project, args.oxc);
+    const cwd = prepare(project, args.packageVersion);
     writeBenchConfig(project, cwd);
-    rmSync(join(cwd, '.oxc-bench'), { recursive: true, force: true });
+    rmSync(join(cwd, '.coverage-bench'), { recursive: true, force: true });
     const version = vitestVersion(project, cwd);
     const samples = Object.fromEntries(MODES.map((mode) => [mode, []]));
     let last = {};
@@ -278,12 +286,12 @@ const main = () => {
       wall: Object.fromEntries(
         MODES.map((mode) => [mode, { median: median(pick(mode, 'wall')), min: Math.min(...pick(mode, 'wall')), max: Math.max(...pick(mode, 'wall')) }]),
       ),
-      transformMs: { istanbul: median(pick('istanbul', 'transformMs')), oxc: median(pick('oxc', 'transformMs')) },
-      transformedFiles: median(pick('oxc', 'transformedFiles')),
-      oxcCalls: Math.min(...pick('oxc', 'oxcCalls')),
+      transformMs: { istanbul: median(pick('istanbul', 'transformMs')), oxc: median(pick(OXC_MODE, 'transformMs')) },
+      transformedFiles: median(pick(OXC_MODE, 'transformedFiles')),
+      oxcCalls: Math.min(...pick(OXC_MODE, 'oxcCalls')),
       testFiles: last.none.testFiles,
       failedFiles: Object.fromEntries(MODES.map((mode) => [mode, Math.max(...pick(mode, 'failedFiles'))])),
-      totals: { istanbul: readTotals(cwd, 'istanbul'), oxc: readTotals(cwd, 'oxc'), v8: readTotals(cwd, 'v8') },
+      totals: { istanbul: readTotals(cwd, 'istanbul'), [OXC_MODE]: readTotals(cwd, OXC_MODE), v8: readTotals(cwd, 'v8') },
     });
   }
 
@@ -291,12 +299,12 @@ const main = () => {
   const range = (w) => `${sec(w.median)} (${w.min.toFixed(1)} to ${w.max.toFixed(1)})`;
   const lines = [];
   lines.push(
-    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.oxc}\`, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
+    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.packageVersion}\`, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
   );
   lines.push('');
   lines.push('Time spent in coverage instrumentation (the Istanbul provider\'s transform hook, summed over all files, median):');
   lines.push('');
-  lines.push('| Project | Vitest | Files instrumented | Istanbul (default) | Istanbul + oxc | Speedup |');
+  lines.push('| Project | Vitest | Files instrumented | Vitest\'s instrumenter | `oxc-coverage-instrument` | Speedup |');
   lines.push('|:--|:--|--:|--:|--:|--:|');
   for (const r of results) {
     lines.push(
@@ -306,21 +314,21 @@ const main = () => {
   lines.push('');
   lines.push('Wall time of `vitest run` (median, with the lowest and highest run):');
   lines.push('');
-  lines.push('| Project | Test files | No coverage | Istanbul (default) | Istanbul + oxc | V8 |');
+  lines.push('| Project | Test files | No coverage | Istanbul, Vitest\'s instrumenter | Istanbul, `oxc-coverage-instrument` | V8 |');
   lines.push('|:--|--:|--:|--:|--:|--:|');
   for (const r of results) {
-    lines.push(`| ${r.project.name} | ${r.testFiles ?? '?'} | ${range(r.wall.none)} | ${range(r.wall.istanbul)} | ${range(r.wall.oxc)} | ${range(r.wall.v8)} |`);
+    lines.push(`| ${r.project.name} | ${r.testFiles ?? '?'} | ${range(r.wall.none)} | ${range(r.wall.istanbul)} | ${range(r.wall[OXC_MODE])} | ${range(r.wall.v8)} |`);
   }
   lines.push('');
-  lines.push('Coverage totals (covered/total). The Istanbul and oxc columns must be equal:');
+  lines.push('Coverage totals (covered/total). The two Istanbul columns must be equal:');
   lines.push('');
-  lines.push('| Project | Metric | Istanbul (default) | Istanbul + oxc | V8 | Equal |');
+  lines.push('| Project | Metric | Istanbul, Vitest\'s instrumenter | Istanbul, `oxc-coverage-instrument` | V8 | Equal |');
   lines.push('|:--|:--|--:|--:|--:|:--|');
   let mismatch = false;
   for (const r of results) {
     for (const metric of METRICS) {
       const a = r.totals.istanbul?.[metric] ?? '?';
-      const b = r.totals.oxc?.[metric] ?? '?';
+      const b = r.totals[OXC_MODE]?.[metric] ?? '?';
       const equal = a === b && a !== '?';
       if (!equal) mismatch = true;
       lines.push(`| ${r.project.name} | ${metric} | ${a} | ${b} | ${r.totals.v8?.[metric] ?? '?'} | ${equal ? 'yes' : 'NO'} |`);
