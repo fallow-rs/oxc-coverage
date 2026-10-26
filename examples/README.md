@@ -66,8 +66,9 @@ and the coverage overhead of a Node.js test run drops by 30% to 52%:
 | h3 | 13.2 s | 18.5 s | 16.4 s |
 | es-toolkit | 172.8 s | 185.7 s | 181.7 s |
 
-In browser mode the gain is smaller, because collecting the counters in the
-browser costs more than inserting them.
+In browser mode the gain is smaller: for date-fns, instrumentation is 3.9 s of
+the 27.1 s that Istanbul coverage adds, and most of the overhead is outside that
+step.
 
 Vitest 5 caches transformed modules on disk. A rerun with a warm cache does not
 instrument the files again, so the gain is largest on a cold run, which is the
