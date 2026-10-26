@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "name": "es-toolkit",
+      "repository": "https://github.com/toss/es-toolkit",
+      "commit": "9c0cac2ee6c0f807099723d7b226f3b65e976d5c",
+      "license": "MIT",
+      "packageManager": "yarn",
+      "vitestConfig": "vitest.config.mts",
+      "vitestArgs": []
+    },
+    {
+      "name": "date-fns",
+      "repository": "https://github.com/date-fns/date-fns",
+      "commit": "a9739fb3e5384a810e90d7376446f6d84ecc5029",
+      "license": "MIT",
+      "packageManager": "pnpm",
+      "vitestConfig": "vitest.config.ts",
+      "vitestArgs": [],
+      "playwrightBrowsers": [
+        "chromium-headless-shell"
+      ],
+      "note": "Most tests run in Vitest browser mode (Chromium through Playwright). The script installs the headless Chromium of the project's Playwright version."
+    },
+    {
+      "name": "hono",
+      "repository": "https://github.com/honojs/hono",
+      "commit": "bac5c4a8bcd76b165428ce757e1185753c7935bd",
+      "license": "MIT",
+      "packageManager": "pnpm",
+      "vitestConfig": "vitest.config.ts",
+      "vitestArgs": [
+        "--project",
+        "main"
+      ],
+      "note": "Only the `main` project runs; the runtime projects need Deno, Bun, workerd, or Fastly. The two test files under `build/` fail in every mode, with and without coverage: they check the published declarations and need a `dist` build first."
+    },
+    {
+      "name": "h3",
+      "repository": "https://github.com/unjs/h3",
+      "commit": "f0e17808ac2439b6434bb10609a961067f4d555b",
+      "license": "MIT",
+      "packageManager": "pnpm",
+      "vitestConfig": "vitest.config.mjs",
+      "vitestArgs": [
+        "--typecheck.enabled=false",
+        "--exclude",
+        "test/body-limit.test.ts"
+      ],
+      "note": "test/body-limit.test.ts is excluded: one of its tests times out after 5 s in some runs, in every mode, which adds noise to the timings."
+    }
+  ]
+}

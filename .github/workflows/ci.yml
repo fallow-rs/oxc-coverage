@@ -554,6 +554,50 @@ jobs:
         working-directory: examples/vitest-typescript
         run: npm run verify
 
+  vitest-examples:
+    # Runs the React, monorepo, and CI-reports Vitest examples against the
+    # binding built from this commit. Each example verifies its own output.
+    name: Vitest example (${{ matrix.example }})
+    needs: vitest-example-binding
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [vitest-react, vitest-monorepo, vitest-ci-reports]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: vitest-example-binding
+          path: crates/oxc_coverage_instrument_napi
+
+      # Same resolver choice as the Vitest TypeScript example job.
+      - name: Install example deps
+        working-directory: examples/${{ matrix.example }}
+        run: npm install --legacy-peer-deps
+
+      - name: Run vitest with coverage
+        working-directory: examples/${{ matrix.example }}
+        run: npm run coverage
+
+      - name: Write reports
+        if: matrix.example == 'vitest-ci-reports'
+        working-directory: examples/${{ matrix.example }}
+        run: npm run report
+
+      - name: Verify coverage
+        working-directory: examples/${{ matrix.example }}
+        run: npm run verify
+
   native-vs-wasm-parity:
     # Byte-for-byte parity between the native binding and each WASM variant
     # napi bindings on every conformance fixture. The existing `istanbul-diff`
@@ -807,6 +851,7 @@ jobs:
       - real-world-parity
       - vitest-example-binding
       - vitest-typescript-example
+      - vitest-examples
       - native-vs-wasm-parity
       - wasm-node-example
       - cloudflare-workers-example
