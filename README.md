@@ -127,6 +127,7 @@ Choose:
 | `istanbul` | Add the `instrumenter` line with `compat: 'istanbul'`. Same numbers, less time. |
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
 | `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
+| Karma with `karma-coverage` | Register `oxc-coverage-instrument/karma` in `coverageReporter.instrumenters`. See [Karma](#karma). |
 | Jest | This package has no Jest transformer. Jest keeps `babel-plugin-istanbul`. |
 
 ## The parts
@@ -201,6 +202,32 @@ const result = instrument(source, 'src/app.ts', { sourceMap: true, stripTypescri
 
 When the code runs, the counters go into `globalThis.__coverage__`, keyed by the
 file path. That object is the coverage map that the other parts read.
+
+#### Karma
+
+`karma-coverage` 2 accepts a custom instrumenter. Register
+`oxc-coverage-instrument/karma` and select it for your files:
+
+```javascript
+// karma.conf.js
+module.exports = (config) => {
+  config.set({
+    preprocessors: { 'src/**/*.js': ['coverage'] },
+    reporters: ['progress', 'coverage'],
+    coverageReporter: {
+      instrumenters: { oxc: require('oxc-coverage-instrument/karma') },
+      instrumenter: { '**/*.js': 'oxc' },
+      instrumenterOptions: { oxc: { compat: 'istanbul' } },
+    },
+  });
+};
+```
+
+`karma-coverage` matches the `instrumenter` patterns against the absolute file
+path, so start each pattern with `**/`. With `compat: 'istanbul'`, the
+statement, function, and branch maps and the hit counts are the same as with
+the default instrumenter of `karma-coverage`. The [Karma example](examples/karma/) runs both on lodash in
+headless Chrome and compares the `coverage-final.json` files.
 
 `stripTypescript: true` removes the TypeScript types. Without it, the output
 keeps the types, and plain Node.js cannot run it. JSX stays JSX either way, so

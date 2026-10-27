@@ -252,6 +252,8 @@ const specs = [
       'package/wasi-worker-browser.mjs',
       'package/vitest.js',
       'package/vitest.d.ts',
+      'package/karma.js',
+      'package/karma.d.ts',
     ],
   },
   ...platformPackSpecs.map((spec) => ({
@@ -271,7 +273,10 @@ for (const spec of specs) {
     throw new Error(`npm pack failed in ${spec.dir}`);
   }
 
-  const pack = JSON.parse(result.stdout)[0];
+  // npm 11 and older print an array of packs. npm 12 prints an object keyed by
+  // the package name.
+  const packs = JSON.parse(result.stdout);
+  const pack = Array.isArray(packs) ? packs[0] : Object.values(packs)[0];
   const actual = new Set(pack.files.map((file) => file.path.replace(/^package\//, '')));
   const missing = spec.files.filter((file) => !actual.has(file.replace(/^package\//, '')));
   if (missing.length > 0) {

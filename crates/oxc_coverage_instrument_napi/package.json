@@ -14,6 +14,10 @@
     "./vitest": {
       "types": "./vitest.d.ts",
       "default": "./vitest.js"
+    },
+    "./karma": {
+      "types": "./karma.d.ts",
+      "default": "./karma.js"
     }
   },
   "files": [
@@ -25,7 +29,9 @@
     "wasi-worker.mjs",
     "wasi-worker-browser.mjs",
     "vitest.js",
-    "vitest.d.ts"
+    "vitest.d.ts",
+    "karma.js",
+    "karma.d.ts"
   ],
   "keywords": [
     "oxc",
