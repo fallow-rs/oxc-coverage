@@ -389,14 +389,30 @@ pub fn remap_coverage_map_with_loader(
 /// source-relative Node inspector coverage.
 ///
 /// Returns a JSON object compatible with Istanbul's `FileCoverage`. Statement,
-/// function and branch counts are populated from the V8 ranges. Branch arm
-/// counts resolve for if-else (arm\[0\] via the collected consequent-body byte
-/// span, arm\[1\] via the alternate-body span) and for switch cases with
-/// `{ ... }` bodies. Branch arms with no matching V8 range (ternary
-/// consequent/alternate, logical-expression right-hand operands and
-/// `default-arg` expressions) report `0`; this under-reports rather than
-/// over-reports, so CI coverage thresholds do not silently pass on
-/// un-instrumented arms.
+/// function and branch counts come from the V8 ranges.
+///
+/// A branch arm with its own V8 range gets the count of that range. V8
+/// removes a range whose count equals the count of its parent range, so an arm
+/// with no range gets a count from its parent:
+///
+/// - A `cond-expr` arm, or the implicit `else` of an `if`, gets the count of the
+///   smallest range that contains the start of the branch, minus the counts of
+///   the other arms.
+/// - An `if` body, a `switch` case, a `binary-expr` operand and a `default-arg`
+///   value get the count of the smallest range that contains the arm.
+///
+/// V8 has no range for a default value, so a `default-arg` arm gets the call
+/// count of its function, not the number of calls that used the default. An
+/// `optional-chain` arm with no range gets 0. V8 has no range for the right
+/// side of a logical assignment (`||=`, `&&=`, `??=`), so that arm gets 0.
+/// When a pragma removes one arm
+/// of a `cond-expr` or an `if`, the count of that arm is unknown: the other
+/// `cond-expr` arm gets the count of the smallest range that contains it, and
+/// an implicit `else` gets 0.
+///
+/// A count comes only from a block-coverage record. When the smallest
+/// container is a function-only range (`isBlockCoverage: false`), the arm
+/// gets 0.
 ///
 /// When the source ends with a base64 or percent-encoded
 /// `//# sourceMappingURL=data:application/json;...` trailer, the embedded map is
