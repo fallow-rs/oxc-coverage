@@ -337,6 +337,12 @@ writeHtmlReport(coverageJson, 'coverage/html', { rootDir: process.cwd() });
 `cobertura`, and `html` after a Vitest run, and fails the run under a
 threshold. The WebAssembly build has no `html` report.
 
+Other reporters read the same `coverage-final.json`. For
+[monocart-coverage-reports](https://github.com/cenfun/monocart-coverage-reports),
+give the parsed file to `add()` and call `generate()`. No adapter is necessary.
+The [`monocart`](examples/monocart/) example does this after a Vitest run and on
+the real lodash build, and checks that the totals are the same.
+
 ### 6. V8 conversion
 
 **What it does.** This is a different way to get coverage. The V8 engine in

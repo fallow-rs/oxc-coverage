@@ -9,6 +9,7 @@ Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 | [`vitest-react`](vitest-react/) | React components in TSX; coverage points at the `.tsx` source. |
 | [`vitest-monorepo`](vitest-monorepo/) | Several Vitest projects with one root coverage config and one report. |
 | [`vitest-ci-reports`](vitest-ci-reports/) | `lcov`, `cobertura`, HTML, and a coverage threshold for CI, from the npm API. |
+| [`monocart`](monocart/) | The coverage data in monocart-coverage-reports, and its V8 converter next to `v8ToIstanbul()`. |
 | [`vitest-real-projects`](vitest-real-projects/) | Measured speed and coverage parity on es-toolkit, date-fns, hono, and h3. |
 | [`karma`](karma/) | `karma-coverage` in headless Chrome, compared with its default instrumenter on lodash. |
 | [`storybook-vite`](storybook-vite/) | Storybook story coverage with `@storybook/addon-coverage` and the Storybook test-runner, compared with `istanbul-lib-instrument`. |
