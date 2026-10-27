@@ -198,6 +198,17 @@ pub struct InstrumentOptions {
     ///
     /// Defaults to `false`.
     pub name_callback_arguments: Option<bool>,
+    /// Record the consequent as the location of arm 0 of an `if` branch.
+    ///
+    /// `istanbul-lib-instrument` records the whole `if` statement for arm 0.
+    /// With this option, arm 0 of `if (a) { b(); } else { c(); }` is
+    /// `{ b(); }`. Arm 1 is the alternate, or a zero-width location at the
+    /// consequent end when there is no `else`, with or without this option.
+    /// The `loc` of the branch stays the whole `if` statement, and no counter
+    /// changes. `compat: 'istanbul'` ignores this option.
+    ///
+    /// Defaults to `false`.
+    pub if_consequent_location: Option<bool>,
 }
 
 /// Options for `remapCoverageMap` and `remapCoverageMapWithLoader`.
@@ -576,6 +587,7 @@ fn core_instrument_options_from(
         strict_null_checks: options.strict_null_checks.unwrap_or(true),
         function_identity_overlay: options.function_identity_overlay.unwrap_or(false),
         name_callback_arguments: options.name_callback_arguments.unwrap_or(false),
+        if_consequent_location: options.if_consequent_location.unwrap_or(false),
     })
 }
 
@@ -629,6 +641,7 @@ mod tests {
             strict_null_checks: None,
             function_identity_overlay: None,
             name_callback_arguments: None,
+            if_consequent_location: None,
         }
     }
 
@@ -761,6 +774,7 @@ mod tests {
         assert_eq!(opts.decorator_mode, DecoratorMode::PassThrough);
         assert!(!opts.function_identity_overlay);
         assert!(!opts.name_callback_arguments);
+        assert!(!opts.if_consequent_location);
     }
 
     #[test]
@@ -779,6 +793,7 @@ mod tests {
         input.emit_decorator_metadata = Some(true);
         input.function_identity_overlay = Some(true);
         input.name_callback_arguments = Some(true);
+        input.if_consequent_location = Some(true);
 
         let opts = core_instrument_options_from(Some(input)).expect("mapped options");
         assert_eq!(opts.compat, Some(CoreCompatProfile::Istanbul));
@@ -793,6 +808,7 @@ mod tests {
         assert_eq!(opts.decorator_mode, DecoratorMode::ExperimentalWithMetadata);
         assert!(opts.function_identity_overlay);
         assert!(opts.name_callback_arguments);
+        assert!(opts.if_consequent_location);
     }
 
     #[test]

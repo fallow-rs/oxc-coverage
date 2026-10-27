@@ -2185,6 +2185,64 @@ globalThis.__result = {
   console.log('  [PASS] createOxcInstrumenter forwards/validates nameCallbackArguments');
 }
 
+// Test: ifConsequentLocation records the consequent for arm 0 of an `if`
+{
+  const source = 'if (a) { b(); } else { c(); }';
+  const span = (loc) => [loc.start.line, loc.start.column, loc.end.line, loc.end.column];
+  const ifBranch = (coverage) =>
+    Object.values(coverage.branchMap).find((branch) => branch.type === 'if');
+
+  const off = ifBranch(JSON.parse(instrument(source, 'if.js').coverageMap));
+  assert.deepEqual(span(off.locations[0]), span(off.loc), 'default arm 0 is the whole if');
+
+  const on = ifBranch(
+    JSON.parse(instrument(source, 'if.js', { ifConsequentLocation: true }).coverageMap),
+  );
+  assert.deepEqual(span(on.loc), [1, 0, 1, 29], 'branch loc stays the whole if');
+  assert.deepEqual(span(on.locations[0]), [1, 7, 1, 15], 'arm 0 is the consequent');
+  assert.deepEqual(span(on.locations[1]), [1, 21, 1, 29], 'arm 1 is the alternate');
+
+  const strict = ifBranch(
+    JSON.parse(
+      instrument(source, 'if.js', { ifConsequentLocation: true, compat: 'istanbul' })
+        .coverageMap,
+    ),
+  );
+  assert.deepEqual(span(strict.locations[0]), span(strict.loc), 'istanbul compat wins');
+
+  console.log('  [PASS] ifConsequentLocation records the consequent for arm 0');
+}
+
+// Test: createOxcInstrumenter forwards ifConsequentLocation and validates it
+{
+  const source = 'export const f = (a) => {\n  if (a) {\n    return 1;\n  }\n  return 2;\n};\n';
+  const ifBranch = (instrumenter) =>
+    Object.values(instrumenter.lastFileCoverage().branchMap).find(
+      (branch) => branch.type === 'if',
+    );
+
+  const off = createOxcInstrumenter();
+  off.instrumentSync(source, 'if.ts');
+  assert.equal(ifBranch(off).locations[0].start.column, 2, 'adapter default is the whole if');
+
+  const on = createOxcInstrumenter({ ifConsequentLocation: true });
+  on.instrumentSync(source, 'if.ts');
+  const arm = ifBranch(on).locations[0];
+  assert.deepEqual(
+    [arm.start.line, arm.start.column, arm.end.line, arm.end.column],
+    [2, 9, 4, 3],
+    'adapter honors ifConsequentLocation: true',
+  );
+
+  assert.throws(
+    () => createOxcInstrumenter({ ifConsequentLocation: 'yes' }),
+    /ifConsequentLocation.*must be a boolean/,
+    'non-boolean ifConsequentLocation throws TypeError',
+  );
+
+  console.log('  [PASS] createOxcInstrumenter forwards/validates ifConsequentLocation');
+}
+
 // Test: istanbul-lib-source-maps getMapping byte-parity (issue #111)
 //
 // The remap path now resolves surviving positions through an istanbul
