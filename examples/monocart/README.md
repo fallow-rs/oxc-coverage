@@ -70,12 +70,11 @@ totals next to the totals of the Istanbul instrumentation, and the median time
 of each converter. The script does not fail on a difference. The two
 converters count V8 data differently:
 
-- MCR finds the branches with an acorn walk. When a branch arm has no V8 block
-  range, MCR gives the arm the parent count minus the counts of the other
-  arms.
-- `v8ToIstanbul()` gives such an arm `0`. This is true for ternary arms,
-  the right side of `&&`, `||`, and `??`, and default arguments. The result
-  is a lower branch percentage than the real one.
+- MCR finds the branches with an acorn walk. `v8ToIstanbul()` takes the
+  statement, function, and branch maps from the instrumenter, which parses
+  with Oxc.
+- When a branch arm has no V8 block range, both converters infer its count
+  from the parent count and the counts of the other arms.
 - MCR counts lines from the V8 byte ranges over all code lines. Istanbul and
   `v8ToIstanbul()` count the start lines of statements.
 
@@ -85,16 +84,15 @@ native binding (median of 9 runs; covered/total):
 | Metric | Istanbul instrumentation | `v8ToIstanbul()` | MCR converter |
 |:--|--:|--:|--:|
 | Statements | 2084/3714 (56.11%) | 2097/3714 (56.46%) | 1970/3734 (52.76%) |
-| Branches | 948/2835 (33.44%) | 260/2835 (9.17%) | 950/2832 (33.55%) |
+| Branches | 948/2835 (33.44%) | 949/2835 (33.47%) | 950/2832 (33.55%) |
 | Functions | 320/691 (46.31%) | 320/691 (46.31%) | 320/691 (46.31%) |
 | Lines | 2083/3706 (56.21%) | 2096/3706 (56.56%) | 3332/6663 (50.01%) |
-| Time | | 9 ms to 10 ms | 39 ms to 45 ms |
+| Time | | 8.7 ms | 37.7 ms |
 
 The MCR time is `add()` plus `generate()` with the `json` report, so it
 contains more work than the conversion. `v8ToIstanbul()` is faster, and its
-statement and function totals are closer to the instrumentation. Its branch
-total is far too low, so it is not a replacement for the MCR converter
-today. MCR also uses its own V8 data (bytes and lines) for its `v8` report,
+statement, branch, and function totals are close to the instrumentation. MCR
+also uses its own V8 data (bytes and lines) for its `v8` report,
 which `v8ToIstanbul()` does not give.
 
 Use a release build for the times. With a debug build of the binding,
