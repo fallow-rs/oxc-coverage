@@ -128,6 +128,8 @@ Choose:
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
 | `babel-plugin-istanbul` (nyc, Babel builds) | Replace it with `oxc-coverage-instrument/babel` in the Babel config. The coverage is the same. Flow and some syntax proposals are not supported. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md#babel-jest-and-nyc). |
 | `vite-plugin-istanbul` | Use the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
+| Karma with `karma-coverage` | Register `oxc-coverage-instrument/karma` in `coverageReporter.instrumenters`. See [Karma](#karma). |
+| `@storybook/addon-coverage` (Vite builder) | Give `istanbul.instrumenter` to the addon and make it use `vite-plugin-istanbul` 9. See [`examples/storybook-vite`](examples/storybook-vite/). The webpack builder does not accept an instrumenter yet. |
 | Jest with `coverageProvider: 'babel'` | Add `['oxc-coverage-instrument/babel', { onlyWithIstanbul: true }]` to the Babel config. `coverage-final.json` stays the same. See [`examples/jest-babel`](examples/jest-babel/). |
 
 ## The parts
@@ -189,7 +191,10 @@ adds one each time its code runs.
 
 **How.** In Vitest, use the setup at the top of this README. In
 `vite-plugin-istanbul` 9 and newer, pass `createOxcInstrumenter()` as its
-`instrumenter` option. In your own build step or plugin, call `instrument()`:
+`instrumenter` option. In Storybook with the Vite builder, give the same
+instrumenter to `@storybook/addon-coverage` (see
+[`examples/storybook-vite`](examples/storybook-vite/)). In your own build
+step or plugin, call `instrument()`:
 
 ```javascript
 import { instrument } from 'oxc-coverage-instrument';
@@ -202,6 +207,32 @@ const result = instrument(source, 'src/app.ts', { sourceMap: true, stripTypescri
 
 When the code runs, the counters go into `globalThis.__coverage__`, keyed by the
 file path. That object is the coverage map that the other parts read.
+
+#### Karma
+
+`karma-coverage` 2 accepts a custom instrumenter. Register
+`oxc-coverage-instrument/karma` and select it for your files:
+
+```javascript
+// karma.conf.js
+module.exports = (config) => {
+  config.set({
+    preprocessors: { 'src/**/*.js': ['coverage'] },
+    reporters: ['progress', 'coverage'],
+    coverageReporter: {
+      instrumenters: { oxc: require('oxc-coverage-instrument/karma') },
+      instrumenter: { '**/*.js': 'oxc' },
+      instrumenterOptions: { oxc: { compat: 'istanbul' } },
+    },
+  });
+};
+```
+
+`karma-coverage` matches the `instrumenter` patterns against the absolute file
+path, so start each pattern with `**/`. With `compat: 'istanbul'`, the
+statement, function, and branch maps and the hit counts are the same as with
+the default instrumenter of `karma-coverage`. The [Karma example](examples/karma/) runs both on lodash in
+headless Chrome and compares the `coverage-final.json` files.
 
 `stripTypescript: true` removes the TypeScript types. Without it, the output
 keeps the types, and plain Node.js cannot run it. JSX stays JSX either way, so
@@ -307,6 +338,12 @@ writeHtmlReport(coverageJson, 'coverage/html', { rootDir: process.cwd() });
 `cobertura`, and `html` after a Vitest run, and fails the run under a
 threshold. The WebAssembly build has no `html` report.
 
+Other reporters read the same `coverage-final.json`. For
+[monocart-coverage-reports](https://github.com/cenfun/monocart-coverage-reports),
+give the parsed file to `add()` and call `generate()`. No adapter is necessary.
+The [`monocart`](examples/monocart/) example does this after a Vitest run and on
+the real lodash build, and checks that the totals are the same.
+
 ### 6. V8 conversion
 
 **What it does.** This is a different way to get coverage. The V8 engine in
@@ -328,9 +365,23 @@ const file = JSON.parse(v8ToIstanbul(source, 'src/app.js', JSON.stringify(script
 const coverageJson = JSON.stringify({ [file.path]: file });
 ```
 
-V8 does not record each branch path. A branch path that V8 has no range for
-gets the count 0, so the result can show less branch coverage than the code
-has, never more.
+V8 does not record each branch path. When a count is the same as the count of
+the code around it, V8 removes that range. A branch path with no range of its
+own therefore gets a count from the code around it:
+
+- A ternary path, or the implicit `else` of an `if`, gets the count of the
+  code where the branch starts, minus the counts of the other paths.
+- An `if` body, a `switch` case, an operand of `&&`, `||` or `??`, and a
+  default value get the count of the code around them.
+
+V8 has no range for a default value, so a default parameter gets the call
+count of its function, not the number of calls that used the default. An
+optional chain (`?.`) path with no range gets 0, and so does the right side
+of `||=`, `&&=` and `??=`. When an `istanbul ignore` comment removes one path
+of a ternary or an `if`, the other path does not take the remainder.
+
+On the lodash 4.17.21 build, this rule gives a branch total within 1% of the
+Istanbul instrumentation of the same workload.
 
 ### Rust and the command line
 

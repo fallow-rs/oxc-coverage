@@ -2,7 +2,7 @@
 //!
 //! Thin orchestrator that combines this crate's AST-traversal pass
 //! ([`crate::instrument::collect_for_v8_to_istanbul`]) with
-//! `oxc_coverage_v8::apply_v8_coverage` for the V8-range intersection and
+//! `oxc_coverage_v8::apply_v8_coverage_with_class_members` for the V8-range intersection and
 //! `oxc_coverage_v8`'s source-map extraction helpers for the inline /
 //! external `//# sourceMappingURL=` trailer.
 //!
@@ -14,7 +14,8 @@ pub use oxc_coverage_v8::{V8CoverageRange, V8FunctionCoverage};
 
 use oxc_coverage_types::FileCoverage;
 use oxc_coverage_v8::{
-    apply_v8_coverage, extract_external_source_mapping_url, extract_inline_source_map,
+    apply_v8_coverage_with_class_members, extract_external_source_mapping_url,
+    extract_inline_source_map,
 };
 
 use crate::instrument::collect_for_v8_to_istanbul;
@@ -42,8 +43,10 @@ impl std::error::Error for V8ToIstanbulError {}
 /// that report wrapper-shifted ranges. Pass 0 for source-relative Node inspector
 /// coverage.
 ///
-/// Statement, function, and branch counts are each populated from the smallest
-/// V8 range containing the corresponding location. When the source carries an
+/// Statement and function counts come from the smallest V8 range that contains
+/// the location. A branch arm gets the count of its own V8 range. An arm with
+/// no range gets a count from its parent range, as `apply_v8_coverage` in
+/// `oxc_coverage_v8` describes. When the source carries an
 /// inline `//# sourceMappingURL=data:application/json;base64,...` comment, the
 /// embedded map is decoded and attached as `inputSourceMap` so the result
 /// chains cleanly into [`crate::remap_coverage`].
@@ -124,12 +127,13 @@ where
     let collected = collect_for_v8_to_istanbul(source, filename)
         .map_err(|e| V8ToIstanbulError::Parse(e.to_string()))?;
     let mut file_coverage = collected.coverage_map;
-    apply_v8_coverage(
+    apply_v8_coverage_with_class_members(
         &mut file_coverage,
         source,
         functions,
         wrapper_length_utf16,
         &collected.arm_body_byte_spans,
+        &collected.class_members,
     );
 
     if file_coverage.input_source_map.is_none() {

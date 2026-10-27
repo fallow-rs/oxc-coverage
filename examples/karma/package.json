@@ -1,0 +1,23 @@
+{
+  "name": "oxc-coverage-instrument-karma-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test:istanbul": "karma start karma.conf.cjs --instrumenter istanbul",
+    "test:oxc": "karma start karma.conf.cjs --instrumenter oxc",
+    "test:oxc-strict": "karma start karma.conf.cjs --instrumenter oxc-strict",
+    "compare": "node scripts/compare-coverage.mjs",
+    "preprocessor": "node scripts/preprocessor-path.mjs",
+    "verify": "npm run test:istanbul && npm run test:oxc && npm run test:oxc-strict && npm run compare && npm run preprocessor"
+  },
+  "devDependencies": {
+    "jasmine-core": "^5.1.2",
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-coverage": "^2.2.1",
+    "karma-jasmine": "^5.1.0",
+    "lodash": "4.17.21",
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi"
+  }
+}

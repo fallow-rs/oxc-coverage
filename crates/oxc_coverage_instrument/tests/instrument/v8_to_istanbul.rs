@@ -1,9 +1,9 @@
 //! Integration tests for the V8-to-Istanbul converter.
 //!
-//! Each test feeds a small JS snippet plus a hand-crafted V8 coverage report
-//! (mirroring what `node --experimental-vm-modules --coverage` or
-//! `@vitest/coverage-v8` would produce) and checks that the resulting Istanbul
-//! `FileCoverage` carries the right per-statement / per-function hit counts.
+//! Each test feeds a small JS snippet plus a V8 coverage report and checks
+//! that the resulting Istanbul `FileCoverage` carries the right statement,
+//! function and branch hit counts. Tests named `real_v8_*` use ranges from a
+//! real `node:inspector` capture; the other reports are written by hand.
 
 use cow_utils::CowUtils;
 
@@ -173,24 +173,301 @@ fn assigns_branch_arm_counts_from_block_coverage() {
 }
 
 #[test]
-fn ternary_arms_report_zero_when_no_block_range_matches() {
-    // Ternary expressions (`cond-expr`) have no `{ ... }` BlockStatement, so
-    // V8 emits no inner range for either arm. Falling back to the enclosing
-    // function count would report both arms as executed N times when only
-    // one arm runs per evaluation; that trips coverage gates silently.
-    // The tolerance-based arm resolver returns 0 instead, which is honest.
+fn ternary_arm_without_a_range_gets_the_parent_count() {
+    // V8 removes an arm range whose count equals the count of its parent
+    // range. The arm with no range therefore gets the parent count minus the
+    // other arms: 1 - 0 for the first arm, and 0 for the second arm.
     let source = "function f(x) { return x ? a() : b(); }\nf(true);\n";
     let end = byte_len(source);
-    // Function has count = 1; no inner block ranges (no `{ ... }` inside
-    // the ternary). istanbul still records both arms in branchMap.
     let functions = vec![function("f", vec![range(0, end, 1)], true)];
 
     let fc = v8_to_istanbul(source, "ternary.js", &functions, 0).unwrap();
-    let arm_counts = arm_counts(&fc, "cond-expr");
-    assert_eq!(arm_counts.len(), 2, "ternary has two arms");
-    assert!(
-        arm_counts.iter().all(|&c| c == 0),
-        "both ternary arms must report 0, not the function count: {arm_counts:?}"
+    assert_eq!(arm_counts(&fc, "cond-expr"), vec![1, 0]);
+}
+
+#[test]
+fn function_only_v8_coverage_does_not_infer_ternary_arm_counts() {
+    let source = "function f(x) { return x ? a() : b(); }\nf(true);\n";
+    let end = byte_len(source);
+    let functions = vec![function("f", vec![range(0, end, 1)], false)];
+
+    let fc = v8_to_istanbul(source, "ternary.js", &functions, 0).unwrap();
+    assert_eq!(arm_counts(&fc, "cond-expr"), vec![0, 0]);
+}
+
+/// Source of the `node:inspector` capture in [`branch_arm_v8_functions`].
+const BRANCH_ARMS_SOURCE: &str = include_str!("../fixtures/v8/branch-arms.js");
+
+/// `Profiler.takePreciseCoverage` output (`callCount: true, detailed: true`)
+/// for [`BRANCH_ARMS_SOURCE`] under Node 24.20, run as a `vm` script.
+fn branch_arm_v8_functions() -> Vec<V8FunctionCoverage> {
+    vec![
+        function(
+            "",
+            vec![
+                range(0, 796, 1),
+                range(601, 795, 4),
+                range(667, 673, 1),
+                range(674, 677, 3),
+                range(697, 708, 1),
+                range(709, 714, 3),
+                range(746, 749, 3),
+                range(750, 753, 1),
+            ],
+            true,
+        ),
+        function("pick", vec![range(0, 50, 4), range(36, 41, 3), range(42, 47, 1)], true),
+        function("always", vec![range(51, 103, 4), range(95, 100, 0)], true),
+        function("either", vec![range(104, 146, 4)], true),
+        function("fallback", vec![range(147, 191, 4), range(184, 188, 1)], true),
+        function("greet", vec![range(192, 241, 4)], true),
+        function("guard", vec![range(242, 305, 4), range(275, 291, 1)], true),
+        function("kind", vec![range(306, 412, 4), range(344, 371, 3), range(376, 406, 1)], true),
+        function("only", vec![range(413, 519, 4), range(483, 513, 0)], true),
+        function("nested", vec![range(520, 572, 4), range(558, 569, 3), range(564, 568, 2)], true),
+    ]
+}
+
+/// The arm counts of every branch in `fc`, in source order.
+fn arm_counts_by_line(fc: &oxc_coverage_instrument::FileCoverage) -> Vec<(u32, &str, Vec<u32>)> {
+    let mut found: Vec<_> = fc
+        .branch_map
+        .iter()
+        .map(|(id, branch)| {
+            let start = &branch.loc.start;
+            ((start.line, start.column), branch.branch_type.as_str(), fc.b[id].clone())
+        })
+        .collect();
+    found.sort_by_key(|(start, _, _)| *start);
+    found.into_iter().map(|((line, _), kind, counts)| (line, kind, counts)).collect()
+}
+
+#[test]
+fn real_v8_branch_arms_without_a_range_get_inferred_counts() {
+    assert_eq!(utf16_len(BRANCH_ARMS_SOURCE), 796, "the fixture matches the capture");
+    let fc = v8_to_istanbul(BRANCH_ARMS_SOURCE, "branch-arms.js", &branch_arm_v8_functions(), 0)
+        .unwrap();
+
+    // Each row is (line, type, arm counts). The counts equal the
+    // istanbul-lib-instrument counts for the same workload, except the
+    // `default-arg` arm: V8 has no range for a default value, so the arm gets
+    // the call count of the function (4) where Istanbul counts the 1 call
+    // that used the default.
+    assert_eq!(
+        arm_counts_by_line(&fc),
+        [
+            // Both arms have a V8 range.
+            (2, "cond-expr", vec![3, 1]),
+            // V8 removed the `?` arm range (count 4 equals the function count).
+            (5, "cond-expr", vec![4, 0]),
+            // The left operand has no range; the right range was removed.
+            (8, "binary-expr", vec![4, 4]),
+            // `??`: the left operand gets the function count.
+            (11, "binary-expr", vec![4, 1]),
+            (13, "default-arg", vec![4]),
+            // The synthetic `else` gets the parent count minus the `then` count.
+            (17, "if", vec![1, 3]),
+            (23, "switch", vec![3, 1]),
+            // V8 removed the `case 1` range (count 4 equals the function count).
+            (31, "switch", vec![4, 0]),
+            // `b` gets the count of the `|| (b && c)` range that contains it.
+            (39, "binary-expr", vec![4, 3, 2]),
+            (45, "cond-expr", vec![1, 3]),
+            (46, "cond-expr", vec![1, 3]),
+            (48, "cond-expr", vec![3, 1]),
+        ]
+    );
+}
+
+#[test]
+fn real_v8_arm_next_to_an_ignored_arm_does_not_take_the_remainder() {
+    // A pragma removes one arm. Its count is unknown, so the other arm cannot
+    // take "parent minus the other arms". `node:inspector` output for the
+    // calls at the end of the source (Node 24.20).
+    let source = "function g(x) {\n  /* istanbul ignore if */\n  if (x) {\n    x = 0;\n  }\n  return x;\n}\nfunction t(x) {\n  return x ? /* istanbul ignore next */ 'a' : 'b';\n}\ng(0); g(0); g(1);\nt(0); t(0);\n";
+    assert_eq!(utf16_len(source), 182, "the source matches the capture");
+    let functions = [
+        function("", vec![range(0, 182, 1)], true),
+        function("g", vec![range(0, 82, 3), range(52, 68, 1)], true),
+        function("t", vec![range(83, 151, 2), range(110, 142, 0)], true),
+    ];
+
+    let fc = v8_to_istanbul(source, "pragma.js", &functions, 0).unwrap();
+    // The synthetic `else` has no source text to inherit from, so it stays 0.
+    // Istanbul counts 2.
+    assert_eq!(arm_counts(&fc, "if"), vec![0]);
+    // V8 removed the `: 'b'` range, so the arm inherits the function count.
+    assert_eq!(arm_counts(&fc, "cond-expr"), vec![2]);
+}
+
+/// Assert the arm counts of every branch, in source order, for a real
+/// `node:inspector` capture (Node 24.20, `callCount: true, detailed: true`,
+/// run as a `vm` script). Unless a test says otherwise, the expected counts
+/// are the istanbul-lib-instrument counts for the same workload.
+fn assert_real_v8_branches(
+    source: &str,
+    functions: &[V8FunctionCoverage],
+    expected: &[(u32, &str, Vec<u32>)],
+) {
+    let fc = v8_to_istanbul(source, "case.js", functions, 0).unwrap();
+    assert_eq!(arm_counts_by_line(&fc), expected);
+}
+
+#[test]
+fn real_v8_ternary_line_break_after_operator() {
+    // A line break after `?` and `:` moves the arm start away from the V8 range start.
+    assert_real_v8_branches(
+        "function f(x) {\n  return x ?\n      'yes' :\n      'no';\n}\nfor (let i=0;i<10;i++) f(i%3);",
+        &[
+            function("", vec![range(0, 87, 1), range(80, 87, 10)], true),
+            function("f", vec![range(0, 56, 10), range(27, 40, 6), range(41, 53, 4)], true),
+        ],
+        &[(2, "cond-expr", vec![6, 4])],
+    );
+}
+
+#[test]
+fn real_v8_ternary_line_break_before_operator() {
+    // A line break before `?` and `:` moves the previous operand end away from the V8 range start.
+    assert_real_v8_branches(
+        "function f(x) {\n  return x\n    ? 'yes'\n    : 'no';\n}\nfor (let i=0;i<10;i++) f(i%3);",
+        &[
+            function("", vec![range(0, 83, 1), range(76, 83, 10)], true),
+            function("f", vec![range(0, 52, 10), range(31, 38, 6), range(43, 49, 4)], true),
+        ],
+        &[(2, "cond-expr", vec![6, 4])],
+    );
+}
+
+#[test]
+fn real_v8_ternary_comment_after_operator() {
+    // V8 removed the `:` range. A comment sits between `?` and the consequent.
+    assert_real_v8_branches(
+        "function f(x) {\n  return x ? /* a */ 'yes' : /* b */ 'no';\n}\nfor (let i=0;i<10;i++) f(0);",
+        &[
+            function("", vec![range(0, 89, 1), range(84, 89, 10)], true),
+            function("f", vec![range(0, 60, 10), range(27, 42, 0)], true),
+        ],
+        &[(2, "cond-expr", vec![0, 10])],
+    );
+}
+
+#[test]
+fn real_v8_short_ternary_consequent_without_range() {
+    // V8 removed the `?` range. The `: 0` range is within the tolerance of the short consequent, but it is the alternate range.
+    assert_real_v8_branches(
+        "const f = (v) => v ? v : 0;\nfor (let i=0;i<10;i++) f(1);",
+        &[
+            function("", vec![range(0, 56, 1), range(51, 56, 10)], true),
+            function("f", vec![range(10, 26, 10), range(23, 26, 0)], true),
+        ],
+        &[(1, "cond-expr", vec![10, 0])],
+    );
+}
+
+#[test]
+fn real_v8_short_ternary_alternate_without_range() {
+    // V8 removed the `:` range. The `? 1` range is within the tolerance of the short alternate, but it is the consequent range.
+    assert_real_v8_branches(
+        "const f = (v) => v ? 1 : 0;\nfor (let i=0;i<10;i++) f(0);",
+        &[
+            function("", vec![range(0, 56, 1), range(51, 56, 10)], true),
+            function("f", vec![range(10, 26, 10), range(19, 22, 0)], true),
+        ],
+        &[(1, "cond-expr", vec![0, 10])],
+    );
+}
+
+#[test]
+fn real_v8_ternary_arm_with_inner_logical_range() {
+    // The `|| c` range inside the consequent is nearer to the arm than the arm range is.
+    assert_real_v8_branches(
+        "function f(a,b,c){ return a ? (b || c) : (c && b); }\nfor (let i=0;i<10;i++) f(i%2, i%3, i%5);",
+        &[
+            function("", vec![range(0, 93, 1), range(76, 93, 10)], true),
+            function(
+                "f",
+                vec![
+                    range(0, 52, 10),
+                    range(28, 38, 5),
+                    range(33, 37, 2),
+                    range(39, 49, 5),
+                    range(44, 48, 4),
+                ],
+                true,
+            ),
+        ],
+        &[
+            (1, "cond-expr", vec![5, 5]),
+            (1, "binary-expr", vec![5, 2]),
+            (1, "binary-expr", vec![5, 4]),
+        ],
+    );
+}
+
+#[test]
+fn real_v8_if_after_early_return() {
+    // After `return`, V8 splits the range around the second `if` at its body.
+    assert_real_v8_branches(
+        "function f(a,b){\n  if (a) return 0;\n  if (b) {\n    return 1;\n  }\n  return 2;\n}\nfor (let i=0;i<10;i++) f(i%2, i%3);",
+        &[
+            function("", vec![range(0, 114, 1), range(102, 114, 10)], true),
+            function(
+                "f",
+                vec![range(0, 78, 10), range(26, 45, 5), range(45, 64, 3), range(64, 77, 2)],
+                true,
+            ),
+        ],
+        &[(2, "if", vec![5, 5]), (3, "if", vec![3, 2])],
+    );
+}
+
+#[test]
+fn real_v8_if_after_continue() {
+    // After `continue`, V8 splits the loop body range at the second `if` body.
+    assert_real_v8_branches(
+        "function f(n){\n  let s=0;\n  for (let i=0;i<n;i++) {\n    if (i%3===0) continue;\n    if (i>100) { s++ }\n  }\n  return s;\n}\nf(10);",
+        &[
+            function("", vec![range(0, 126, 1)], true),
+            function(
+                "f",
+                vec![
+                    range(0, 119, 1),
+                    range(50, 105, 10),
+                    range(69, 78, 4),
+                    range(78, 94, 6),
+                    range(94, 101, 0),
+                ],
+                true,
+            ),
+        ],
+        &[(4, "if", vec![4, 6]), (5, "if", vec![0, 6])],
+    );
+}
+
+#[test]
+fn real_v8_ternary_after_early_return() {
+    // After `return`, the range that is active at the ternary is the continuation range, not the function range.
+    assert_real_v8_branches(
+        "function f(a,b){\n  if (!a) return 0;\n  const r = b ? 'x' : 'y';\n  return r;\n}\nfor (let i=0;i<10;i++) f(i%2, 1);",
+        &[
+            function("", vec![range(0, 111, 1), range(101, 111, 10)], true),
+            function("f", vec![range(0, 77, 10), range(27, 56, 5), range(57, 62, 0)], true),
+        ],
+        &[(2, "if", vec![5, 5]), (3, "cond-expr", vec![5, 0])],
+    );
+}
+
+#[test]
+fn real_v8_logical_assignment() {
+    // V8 has no range for the right side of a logical assignment, so that arm stays 0. Istanbul does not instrument a logical assignment.
+    assert_real_v8_branches(
+        "function f(a){ let x=a; x ||= 5; x &&= x+1; return x }\nfor (let i=0;i<10;i++) f(i%2);",
+        &[
+            function("", vec![range(0, 85, 1), range(78, 85, 10)], true),
+            function("f", vec![range(0, 54, 10)], true),
+        ],
+        &[(1, "binary-expr", vec![10, 0]), (1, "binary-expr", vec![10, 0])],
     );
 }
 
@@ -459,7 +736,8 @@ fn if_arm_zero_reports_then_block_count_with_mixed_arms() {
 fn if_arm_zero_resolves_when_alternate_is_missing() {
     // No `else` clause; istanbul still records two arms with locations[1]
     // pointing at the synthesized empty alternate. arm[0] must still resolve
-    // through the collected then-block span; arm[1] is honestly zero.
+    // through the collected then-block span. arm[1] gets the parent count minus
+    // the then count, 4 - 4 = 0.
     let source = "function f(x) {\n  if (x) {\n    a();\n  }\n}\n";
     let module_end = byte_len(source);
     let then_start = byte_offset_of(source, "if (x) {") + 7;
@@ -472,7 +750,7 @@ fn if_arm_zero_resolves_when_alternate_is_missing() {
     let arm_counts = arm_counts(&fc, "if");
     assert_eq!(arm_counts.len(), 2, "if without else still has two arms");
     assert_eq!(arm_counts[0], 4, "arm[0] reflects then-block count");
-    assert_eq!(arm_counts[1], 0, "synthetic else-arm honestly reports zero");
+    assert_eq!(arm_counts[1], 0, "every call took the then arm");
 }
 
 #[test]
@@ -822,4 +1100,337 @@ fn v8_conversion_records_private_accessors_and_modifiers() {
         ],
         "a quoted public `\"#q\"` and a private `#q` keep distinct decl spans"
     );
+}
+
+const STATIC_FIELDS_SOURCE: &str = "let flag = 0;
+class Box {
+  kind = flag ? 'a' : 'b';
+  static base = flag ? 1 : 2;
+  static {
+    if (flag) flag = 0;
+  }
+}
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  new Box();
+}
+";
+
+/// Statement counts keyed by `line:column-line:column`, sorted by position.
+fn statement_counts(fc: &oxc_coverage_instrument::FileCoverage) -> Vec<(String, u32)> {
+    let mut found: Vec<_> = fc
+        .statement_map
+        .iter()
+        .map(|(id, loc)| {
+            let ((sl, sc), (el, ec)) = span_of(loc);
+            ((sl, sc), format!("{sl}:{sc}-{el}:{ec}"), fc.s[id])
+        })
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, key, count)| (key, count)).collect()
+}
+
+/// Branch counts keyed by `type line:column`, sorted by position.
+fn branch_counts(fc: &oxc_coverage_instrument::FileCoverage) -> Vec<(String, Vec<u32>)> {
+    let mut found: Vec<_> = fc
+        .branch_map
+        .iter()
+        .map(|(id, branch)| {
+            let ((line, column), _) = span_of(&branch.loc);
+            ((line, column), format!("{} {line}:{column}", branch.branch_type), fc.b[id].clone())
+        })
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, key, counts)| (key, counts)).collect()
+}
+
+/// The statement and branch counts of `istanbul-lib-instrument` for
+/// [`STATIC_FIELDS_SOURCE`].
+fn assert_static_fields_match_istanbul(fc: &oxc_coverage_instrument::FileCoverage) {
+    let statements = statement_counts(fc);
+    let expected_statements: Vec<(String, u32)> = [
+        ("1:11-1:12", 1),
+        ("3:9-3:25", 4),
+        ("4:16-4:28", 1),
+        ("6:4-6:23", 1),
+        ("6:14-6:23", 0),
+        ("9:0-12:1", 1),
+        ("10:2-10:11", 4),
+        ("11:2-11:12", 4),
+    ]
+    .into_iter()
+    .map(|(key, count)| (key.to_string(), count))
+    .collect();
+    assert_eq!(statements, expected_statements);
+    assert_eq!(
+        branch_counts(fc),
+        [
+            ("cond-expr 3:9".to_string(), vec![3, 1]),
+            ("cond-expr 4:16".to_string(), vec![0, 1]),
+            ("if 6:4".to_string(), vec![0, 1]),
+        ]
+    );
+}
+
+#[test]
+fn real_v8_node22_static_members_take_the_static_initializer_count() {
+    // Node 22 gives `<instance_members_initializer>` and
+    // `<static_initializer>` the same outer range: the class body.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(24, 123, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(24, 123, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node22_static_initializer_listed_first_keeps_instance_counts() {
+    // The record order must not decide the tie.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<static_initializer>",
+            vec![range(24, 123, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+        function(
+            "<instance_members_initializer>",
+            vec![range(24, 123, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node24_static_members_take_the_static_initializer_count() {
+    // Node 24 gives each initializer the span of its own members.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(28, 51, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(55, 121, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node22_class_in_a_static_field_keeps_its_own_instance_counts() {
+    // The inner class sits in a static field of the outer class. Its
+    // instance field must not take the inner static initializer count.
+    let source = "let flag = 0;
+class Outer {
+  static Inner = class {
+    kind = flag ? 'a' : 'b';
+    static base = flag ? 1 : 2;
+  };
+}
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  new Outer.Inner();
+}
+";
+    let functions = [
+        function("", vec![range(0, 210, 1), range(151, 187, 4)], true),
+        function("<static_initializer>", vec![range(26, 120, 1)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(51, 117, 4), range(69, 74, 3), range(75, 80, 1)],
+            true,
+        ),
+        function("<static_initializer>", vec![range(51, 117, 1), range(105, 108, 0)], true),
+    ];
+    let fc = v8_to_istanbul(source, "nested.js", &functions, 0).unwrap();
+    let statements = statement_counts(&fc);
+    let expected: Vec<(String, u32)> = [
+        ("1:11-1:12", 1),
+        ("3:17-6:3", 1),
+        ("4:11-4:27", 4),
+        ("5:18-5:30", 1),
+        ("8:0-11:1", 1),
+        ("9:2-9:11", 4),
+        ("10:2-10:20", 4),
+    ]
+    .into_iter()
+    .map(|(key, count)| (key.to_string(), count))
+    .collect();
+    assert_eq!(statements, expected);
+    assert_eq!(
+        branch_counts(&fc),
+        [("cond-expr 4:11".to_string(), vec![3, 1]), ("cond-expr 5:18".to_string(), vec![0, 1])]
+    );
+}
+
+#[test]
+fn real_v8_node22_static_members_with_a_wrapper_and_non_ascii_text() {
+    // A non-ASCII line moves the byte offsets away from the UTF-16 offsets,
+    // and the wrapper moves every V8 offset by the same base.
+    let prefix = "// \u{e9}t\u{e9} \u{1f600}\n";
+    let source = format!("{prefix}{STATIC_FIELDS_SOURCE}");
+    let wrapper = 10;
+    let shift = utf16_len(prefix) + wrapper;
+    let at = |start: u32, end: u32, count: u32| range(start + shift, end + shift, count);
+    let functions = [
+        function("", vec![range(0, 205 + shift, 1), at(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![at(24, 123, 4), at(40, 45, 3), at(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![at(24, 123, 1), at(74, 77, 0), at(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(&source, "static.js", &functions, wrapper).unwrap();
+    let static_value = statement_counts(&fc)
+        .into_iter()
+        .find(|(key, _)| key == "5:16-5:28")
+        .map(|(_, count)| count);
+    assert_eq!(static_value, Some(1));
+    assert_eq!(
+        branch_counts(&fc),
+        [
+            ("cond-expr 4:9".to_string(), vec![3, 1]),
+            ("cond-expr 5:16".to_string(), vec![0, 1]),
+            ("if 7:4".to_string(), vec![0, 1]),
+        ]
+    );
+}
+
+const COMPUTED_KEY_SOURCE: &str = "let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  static [flag > 10 ? 'x' : 'y'] = flag ? 1 : 2;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
+}
+";
+
+/// The branch counts of `istanbul-lib-instrument` for
+/// [`COMPUTED_KEY_SOURCE`]. The key runs once per class definition.
+fn computed_key_istanbul_branches() -> Vec<(String, Vec<u32>)> {
+    vec![
+        ("cond-expr 3:9".to_string(), vec![6, 2]),
+        ("cond-expr 4:10".to_string(), vec![0, 4]),
+        ("cond-expr 4:35".to_string(), vec![3, 1]),
+    ]
+}
+
+#[test]
+fn real_v8_node22_computed_key_takes_the_class_definition_count() {
+    let functions = [
+        function("", vec![range(0, 230, 1), range(137, 205, 4)], true),
+        function("make", vec![range(27, 118, 4), range(88, 93, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(39, 118, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(39, 118, 4), range(108, 111, 3), range(112, 115, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(COMPUTED_KEY_SOURCE, "key.js", &functions, 0).unwrap();
+    assert_eq!(branch_counts(&fc), computed_key_istanbul_branches());
+}
+
+#[test]
+fn real_v8_node24_computed_key_takes_the_class_definition_count() {
+    // Node 24 starts the static initializer range at `static`, so the range
+    // includes the computed key.
+    let functions = [
+        function("", vec![range(0, 230, 1), range(137, 205, 4)], true),
+        function("make", vec![range(27, 118, 4), range(88, 93, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(43, 66, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(70, 115, 4), range(108, 111, 3), range(112, 115, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(COMPUTED_KEY_SOURCE, "key.js", &functions, 0).unwrap();
+    assert_eq!(branch_counts(&fc), computed_key_istanbul_branches());
+}
+
+#[test]
+fn real_v8_node24_instance_range_over_a_computed_key_is_skipped() {
+    // Node 24 gives the instance initializer the span from its first member to
+    // its last member, so the range includes the computed key of the second
+    // field.
+    let source = "let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  [flag > 10 ? 'x' : 'y'] = 1;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
+}
+";
+    let functions = [
+        function("", vec![range(0, 212, 1), range(132, 189, 4)], true),
+        function("make", vec![range(27, 100, 4), range(81, 86, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(43, 97, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(source, "key.js", &functions, 0).unwrap();
+    assert_eq!(
+        branch_counts(&fc),
+        [("cond-expr 3:9".to_string(), vec![6, 2]), ("cond-expr 4:3".to_string(), vec![0, 4])]
+    );
+}
+
+#[test]
+fn real_v8_node22_unreported_method_body_takes_the_instance_count() {
+    // Some coverage has no record for a method that never ran. Its body then
+    // falls in the class body range of both initializers, and the static
+    // record comes first. The class has no instances, so the body ran 0 times.
+    let source = "class Box {\n  kind = 1;\n  static base = 2;\n  run() {\n    return 3;\n  }\n}\n";
+    let functions = [
+        function("", vec![range(0, 95, 1)], true),
+        function("<static_initializer>", vec![range(10, 72, 1)], true),
+        function("<instance_members_initializer>", vec![range(10, 72, 0)], true),
+    ];
+    let fc = v8_to_istanbul(source, "method.js", &functions, 0).unwrap();
+    let expected: Vec<(String, u32)> = [("2:9-2:10", 0), ("3:16-3:17", 1), ("5:4-5:13", 0)]
+        .into_iter()
+        .map(|(key, count)| (key.to_string(), count))
+        .collect();
+    assert_eq!(statement_counts(&fc), expected);
 }

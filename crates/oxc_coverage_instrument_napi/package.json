@@ -15,6 +15,10 @@
       "types": "./vitest.d.ts",
       "default": "./vitest.js"
     },
+    "./karma": {
+      "types": "./karma.d.ts",
+      "default": "./karma.js"
+    },
     "./babel": {
       "types": "./babel.d.ts",
       "default": "./babel.js"
@@ -30,6 +34,8 @@
     "wasi-worker-browser.mjs",
     "vitest.js",
     "vitest.d.ts",
+    "karma.js",
+    "karma.d.ts",
     "babel.js",
     "babel.d.ts"
   ],

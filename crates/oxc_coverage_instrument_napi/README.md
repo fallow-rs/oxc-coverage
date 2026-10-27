@@ -10,9 +10,9 @@ the [Oxc](https://oxc.rs) parser and exposed to Node.js through napi-rs.
 
 The `oxc-coverage-instrument` npm package wraps the native instrumenter. It
 exposes instrumentation, coverage remapping, V8-to-Istanbul conversion, coverage
-summaries, and the Istanbul reporters, plus a ready-made adapter for Vitest's
-Istanbul provider and for `vite-plugin-istanbul`, and a Babel plugin that
-replaces `babel-plugin-istanbul`.
+summaries, and the Istanbul reporters, plus ready-made adapters for Vitest's
+Istanbul provider, for `vite-plugin-istanbul`, and for `karma-coverage`, and a
+Babel plugin that replaces `babel-plugin-istanbul`.
 
 ```bash
 npm install oxc-coverage-instrument
@@ -139,6 +139,106 @@ export default defineConfig({
   ],
 })
 ```
+
+### Karma
+
+Requires `karma-coverage` 2. The `oxc-coverage-instrument/karma` subpath
+exports an `Instrumenter` class with the shape that
+`coverageReporter.instrumenters` expects: `instrument(code, filename,
+callback, inputSourceMap)`, `instrumentSync()`, `lastSourceMap()`, and
+`lastFileCoverage()`.
+
+```javascript
+// karma.conf.js
+module.exports = (config) => {
+  config.set({
+    preprocessors: { 'src/**/*.js': ['coverage'] },
+    reporters: ['progress', 'coverage'],
+    coverageReporter: {
+      instrumenters: { oxc: require('oxc-coverage-instrument/karma') },
+      // karma-coverage matches these patterns against the absolute path.
+      instrumenter: { '**/*.js': 'oxc' },
+      instrumenterOptions: { oxc: { compat: 'istanbul' } },
+    },
+  });
+};
+```
+
+`instrumenterOptions.oxc` accepts the options of `createOxcInstrumenter()`,
+for example `compat`, `coverageVariable`, `ignoreClassMethods`, and
+`reportLogic`. Keep the default `coverageVariable` under Karma. The
+`karma-jasmine` adapter sends only `window.__coverage__` to the reporter, so a
+different variable gives an empty report. The istanbul instrumenter has the
+same limit. The adapter does not use the Babel code-generation options that
+`karma-coverage` adds, for example `autoWrap` and `codeGenerationOptions`.
+`lastSourceMap()` returns a map only when `karma-coverage` sets
+`produceSourceMap`, which it does when the input file has a source map. An
+input source map composes into the output map and stays on the file coverage,
+so the reports point at the original source.
+
+With `compat: 'istanbul'`, the statement, function, and branch maps and the
+hit counts are the same as with the default instrumenter of `karma-coverage`. The
+[Karma example](../../examples/karma/) checks this in headless Chrome.
+
+### Storybook
+
+`@storybook/addon-coverage` gives its `istanbul` options to
+`vite-plugin-istanbul` on the Vite builder. Version 3.0.2 of the addon depends
+on `vite-plugin-istanbul` 6, which has no `instrumenter` option. Install
+version 9 and make the addon use it with an override:
+
+```bash
+npm install -D @storybook/addon-coverage vite-plugin-istanbul@^9 oxc-coverage-instrument
+```
+
+```json
+{
+  "overrides": {
+    "vite-plugin-istanbul": "$vite-plugin-istanbul"
+  }
+}
+```
+
+With pnpm, put the same entry in `pnpm.overrides`. Yarn `resolutions` does
+not accept a `$` reference, so give a version range:
+
+```json
+{
+  "resolutions": {
+    "vite-plugin-istanbul": "^9.0.1"
+  }
+}
+```
+
+Then give the instrumenter to the addon:
+
+```typescript
+// .storybook/main.ts
+import type { StorybookConfig } from '@storybook/react-vite'
+import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest'
+
+const config: StorybookConfig = {
+  framework: '@storybook/react-vite',
+  stories: ['../src/**/*.stories.tsx'],
+  addons: [
+    {
+      name: '@storybook/addon-coverage',
+      options: {
+        istanbul: { instrumenter: createOxcInstrumenter({ compat: 'istanbul' }) },
+      },
+    },
+  ],
+}
+
+export default config
+```
+
+`test-storybook --coverage` then collects coverage from the
+`oxc-coverage-instrument` counters. The
+[`examples/storybook-vite`](https://github.com/fallow-rs/oxc-coverage/tree/main/examples/storybook-vite)
+project compares this coverage with the coverage of `istanbul-lib-instrument`.
+The webpack builder does not accept an instrumenter yet: the addon makes its
+own `istanbul-lib-instrument` instance there.
 
 ### Babel, Jest, and nyc
 

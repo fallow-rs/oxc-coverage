@@ -1,0 +1,32 @@
+{
+  "name": "oxc-coverage-instrument-storybook-vite-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "compare": "node scripts/compare-coverage.mjs"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-coverage": "^3.0.2",
+    "@storybook/react-vite": "^10.6.4",
+    "@storybook/test-runner": "^0.26.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "http-server": "^14.1.1",
+    "istanbul-lib-coverage": "^3.2.2",
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
+    "storybook": "^10.6.4",
+    "typescript": ">=5.9.3",
+    "vite": "^7.2.2",
+    "vite-plugin-istanbul": "^9.0.1"
+  },
+  "overrides": {
+    "vite-plugin-istanbul": "$vite-plugin-istanbul"
+  }
+}

@@ -5,14 +5,17 @@ use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
 use oxc_ast::{
+    AstKind,
     ast::{Expression, Program, Statement},
     builder::AstBuilder,
 };
+use oxc_ast_visit::Visit;
 use oxc_codegen::{Codegen, CodegenOptions};
 use oxc_coverage_types::{FileCoverage, UnhandledPragma};
+use oxc_coverage_v8::ClassMemberSpans;
 use oxc_parser::{Parser, ParserReturn};
 use oxc_semantic::{Scoping, SemanticBuilder};
-use oxc_span::{SPAN, SourceType};
+use oxc_span::{GetSpan, SPAN, SourceType, Span};
 use oxc_transformer::{
     DecoratorOptions, JsxOptions, TransformOptions, Transformer, TypeScriptOptions,
 };
@@ -1047,9 +1050,13 @@ pub struct V8CollectResult {
     /// Location maps with all hit counts still zero.
     pub coverage_map: FileCoverage,
     /// `arm_body_byte_spans["<branch_id>"][<arm_idx>]` is the `(start, end)`
-    /// byte range of the arm body when known, or `(0, 0)` when the body span
-    /// is synthetic / unknown (e.g. a synthesized else-arm).
+    /// byte range that V8 matches for the arm. An empty span (`start == end`)
+    /// marks an arm that has no V8 range of its own, such as the implicit
+    /// `else` of an `if` or the right side of a logical assignment.
     pub arm_body_byte_spans: BTreeMap<String, Vec<(u32, u32)>>,
+    /// The byte spans of the class member code that V8 runs in the class
+    /// initializers.
+    pub class_members: ClassMemberSpans,
 }
 
 /// Parse, scan pragmas, traverse the AST, and build the `FileCoverage` map
@@ -1074,11 +1081,13 @@ pub fn collect_for_v8_to_istanbul(
         return Ok(V8CollectResult {
             coverage_map: empty_coverage(filename),
             arm_body_byte_spans: BTreeMap::new(),
+            class_members: ClassMemberSpans::default(),
         });
     }
 
     let scoping = SemanticBuilder::new().build(&parsed.program).semantic.into_scoping();
     let cov_fn_name = generate_cov_fn_name(filename);
+    let class_members = ClassMemberCollector::collect(&parsed.program);
 
     let mut transform = CoverageTransform::new(TransformInit {
         allocator: &allocator,
@@ -1115,7 +1124,61 @@ pub fn collect_for_v8_to_istanbul(
     let arm_body_byte_spans = collect_arm_body_byte_spans(&transform);
 
     let coverage_map = build_coverage_map(filename, transform);
-    Ok(V8CollectResult { coverage_map, arm_body_byte_spans })
+    Ok(V8CollectResult { coverage_map, arm_body_byte_spans, class_members })
+}
+
+/// Collects the byte spans of the class member code that V8 runs in the
+/// class initializers.
+#[derive(Default)]
+struct ClassMemberCollector {
+    static_members: Vec<(u32, u32)>,
+    instance_members: Vec<(u32, u32)>,
+    computed_keys: Vec<(u32, u32)>,
+}
+
+impl ClassMemberCollector {
+    fn collect(program: &Program<'_>) -> ClassMemberSpans {
+        let mut collector = Self::default();
+        collector.visit_program(program);
+        ClassMemberSpans::new(
+            collector.static_members,
+            collector.instance_members,
+            collector.computed_keys,
+        )
+    }
+
+    fn push_member(&mut self, is_static: bool, computed_key: Option<Span>, value: Option<Span>) {
+        if let Some(key) = computed_key {
+            self.computed_keys.push((key.start, key.end));
+        }
+        if let Some(value) = value {
+            let spans =
+                if is_static { &mut self.static_members } else { &mut self.instance_members };
+            spans.push((value.start, value.end));
+        }
+    }
+}
+
+impl<'a> Visit<'a> for ClassMemberCollector {
+    fn enter_node(&mut self, kind: AstKind<'a>) {
+        match kind {
+            AstKind::PropertyDefinition(prop) => self.push_member(
+                prop.r#static,
+                prop.computed.then(|| prop.key.span()),
+                prop.value.as_ref().map(GetSpan::span),
+            ),
+            AstKind::AccessorProperty(prop) => self.push_member(
+                prop.r#static,
+                prop.computed.then(|| prop.key.span()),
+                prop.value.as_ref().map(GetSpan::span),
+            ),
+            AstKind::MethodDefinition(method) => {
+                self.push_member(method.r#static, method.computed.then(|| method.key.span()), None);
+            }
+            AstKind::StaticBlock(block) => self.push_member(true, None, Some(block.span)),
+            _ => {}
+        }
+    }
 }
 
 fn collect_arm_body_byte_spans(

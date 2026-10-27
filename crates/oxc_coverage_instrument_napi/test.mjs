@@ -10,6 +10,8 @@ import {
   writeHtmlReport,
 } from './index.js';
 import { createOxcInstrumenter } from './vitest.js';
+import { Instrumenter as KarmaInstrumenter, createKarmaInstrumenter } from './karma.js';
+import { createRequire } from 'node:module';
 import { strict as assert } from 'node:assert';
 import libCoverage from 'istanbul-lib-coverage';
 import { createInstrumenter } from 'istanbul-lib-instrument';
@@ -1362,6 +1364,85 @@ function runInstrumented(result, filename, callExpression) {
   console.log('  [PASS] vitest adapter does not auto-strip .js files');
 }
 
+// Test: the call sequence of vite-plugin-istanbul 9. @storybook/addon-coverage
+// gives `istanbul.instrumenter` to this plugin on the Vite builder. For each
+// file, the plugin calls instrumentSync() with the combined Vite source map
+// and serves that code. Then it calls instrumentSync() again with an identity
+// map, and reads lastSourceMap() and the `fileCoverage` property.
+{
+  const { GenMapping, addMapping, setSourceContent, toEncodedMap } = await import(
+    '@jridgewell/gen-mapping'
+  );
+  const vm = await import('node:vm');
+  const filename = '/project/src/add.ts';
+  const original = 'export function add(a: number, b: number) {\n  return a > 0 ? a + b : b;\n}\nadd(1, 2);\n';
+  const compiled = 'function add(a, b) {\n  return a > 0 ? a + b : b;\n}\nadd(1, 2);\n';
+  const lineMap = (sourceContent) => {
+    const map = new GenMapping({ file: filename });
+    const lines = compiled.split('\n').length - 1;
+    for (let line = 1; line <= lines; line++) {
+      addMapping(map, {
+        generated: { line, column: 0 },
+        source: filename,
+        original: { line, column: 0 },
+      });
+    }
+    setSourceContent(map, filename, sourceContent);
+    return toEncodedMap(map);
+  };
+  const combinedMap = lineMap(original);
+  const identityMap = lineMap(compiled);
+
+  const runPluginSequence = (instrumenter) => {
+    const code = instrumenter.instrumentSync(compiled, filename, combinedMap);
+    instrumenter.instrumentSync(compiled, filename, identityMap);
+    return { code, map: instrumenter.lastSourceMap(), fileCoverage: instrumenter.fileCoverage };
+  };
+  const shape = (coverage) => ({
+    statementMap: coverage.statementMap,
+    fnMap: coverage.fnMap,
+    branchMap: coverage.branchMap,
+  });
+
+  const oxc = runPluginSequence(createOxcInstrumenter({ compat: 'istanbul' }));
+  const reference = runPluginSequence(
+    createInstrumenter({
+      coverageGlobalScopeFunc: false,
+      coverageGlobalScope: 'globalThis',
+      preserveComments: true,
+      produceSourceMap: true,
+      autoWrap: true,
+      esModules: true,
+      compact: false,
+    }),
+  );
+
+  assert.equal(oxc.map?.version, 3, 'lastSourceMap() must return the map of the second call');
+  assert.equal(oxc.fileCoverage.path, filename, 'fileCoverage must describe the last file');
+  assert.deepEqual(shape(oxc.fileCoverage), shape(reference.fileCoverage), 'fileCoverage maps must match Istanbul');
+
+  const runCounters = (code) => {
+    const context = vm.createContext({});
+    vm.runInContext(code, context);
+    // JSON copy: objects from another vm context fail a strict deepEqual.
+    return JSON.parse(JSON.stringify(context.__coverage__[filename]));
+  };
+  const served = runCounters(oxc.code);
+  const servedReference = runCounters(reference.code);
+  assert.deepEqual(shape(served), shape(servedReference), 'served code must register the Istanbul maps');
+  assert.deepEqual(
+    { s: served.s, f: served.f, b: served.b },
+    { s: servedReference.s, f: servedReference.f, b: servedReference.b },
+    'served code must count the same hits as Istanbul',
+  );
+  assert.deepEqual(
+    served.inputSourceMap?.sources,
+    combinedMap.sources,
+    'served code must keep the combined Vite map for the remap step',
+  );
+  console.log('  [PASS] vitest adapter follows the vite-plugin-istanbul 9 call sequence');
+}
+
 // Test: explicit stripTypescript: false overrides auto-detect on .ts
 {
   const inst = createOxcInstrumenter({ stripTypescript: false });
@@ -2566,6 +2647,150 @@ globalThis.__result = {
     console.log('  [PASS] writeHtmlReport writes the html tree');
   }
   rmSync(root, { recursive: true, force: true });
+}
+
+// Test: karma-coverage adapter (oxc-coverage-instrument/karma)
+{
+  // karma-coverage reads `require(...).Instrumenter` from each entry in
+  // `coverageReporter.instrumenters`, so the subpath must export it.
+  const require = createRequire(import.meta.url);
+  const karmaModule = require('oxc-coverage-instrument/karma');
+  assert.equal(typeof karmaModule.Instrumenter, 'function', 'karma subpath exports Instrumenter');
+  assert.equal(karmaModule.Instrumenter, KarmaInstrumenter, 'subpath and file export the same class');
+  assert(createKarmaInstrumenter() instanceof KarmaInstrumenter, 'factory returns an Instrumenter');
+
+  const source = [
+    'function pick(a, b) {',
+    '  if (a) { return a; }',
+    '  const fn = () => b || 0;',
+    '  return fn();',
+    '}',
+    'pick(0, 2);',
+  ].join('\n');
+
+  // karma-coverage always adds `autoWrap` and `codeGenerationOptions`.
+  const karmaOptions = { autoWrap: true, codeGenerationOptions: null, compat: 'istanbul' };
+  const oxc = new KarmaInstrumenter(karmaOptions);
+  let calls = 0;
+  let instrumented;
+  oxc.instrument(source, '/project/src/pick.js', (error, code) => {
+    calls += 1;
+    assert.equal(error, null, 'instrument() reports no error for valid code');
+    instrumented = code;
+  });
+  assert.equal(calls, 1, 'instrument() calls the callback one time');
+  assert.equal(typeof instrumented, 'string', 'instrument() gives a string to the callback');
+  assert.equal(oxc.lastSourceMap(), null, 'lastSourceMap() is null without produceSourceMap');
+
+  const istanbul = createInstrumenter({ autoWrap: true, codeGenerationOptions: null });
+  istanbul.instrumentSync(source, '/project/src/pick.js');
+  assert.deepEqual(
+    oxc.lastFileCoverage(),
+    // karma sends coverage through JSON, which drops istanbul's undefined
+    // positions in an implicit else location.
+    JSON.parse(JSON.stringify(istanbul.lastFileCoverage())),
+    'compat istanbul coverage equals istanbul-lib-instrument for karma options',
+  );
+
+  const sandbox = {};
+  new Function('globalThis', instrumented)(sandbox);
+  const counts = sandbox.__coverage__['/project/src/pick.js'];
+  assert.deepEqual(counts.f, { 0: 1, 1: 1 }, 'instrumented code counts both functions');
+  console.log('  [PASS] karma adapter matches istanbul-lib-instrument through instrument()');
+}
+
+{
+  const oxc = new KarmaInstrumenter({ coverageVariable: '__karma_cov__', produceSourceMap: true });
+  const code = oxc.instrumentSync('var x = 1;', 'x.js');
+  assert(code.includes('__karma_cov__'), 'coverageVariable is forwarded');
+  const map = oxc.lastSourceMap();
+  assert.equal(map?.version, 3, 'lastSourceMap() returns a v3 map with produceSourceMap');
+  assert.deepEqual(map.sources, ['x.js'], 'the source map points at the input file');
+  console.log('  [PASS] karma adapter forwards coverageVariable and produceSourceMap');
+}
+
+{
+  // A filename-less call puts the callback in the second argument, as in
+  // istanbul-lib-instrument.
+  const oxc = new KarmaInstrumenter();
+  let result;
+  oxc.instrument('var y = 2;', (error, code) => {
+    assert.equal(error, null);
+    result = code;
+  });
+  assert.equal(typeof result, 'string', 'instrument(code, callback) works');
+
+  let parseError;
+  oxc.instrument('var = ;', 'broken.js', (error, code) => {
+    parseError = error;
+    assert.equal(code, undefined, 'no code on error');
+  });
+  assert(parseError instanceof Error, 'a parse error goes to the callback');
+
+  // An error that the callback throws must not reach the callback again.
+  let errorCalls = 0;
+  assert.throws(
+    () =>
+      oxc.instrument('var z = 3;', 'z.js', (error) => {
+        if (error) errorCalls += 1;
+        throw new Error('callback failure');
+      }),
+    /callback failure/,
+  );
+  assert.equal(errorCalls, 0, 'a throwing callback is not called a second time with its error');
+
+  assert.throws(() => oxc.instrument('var a;', 'a.js'), TypeError, 'a missing callback throws');
+  assert.throws(
+    () => new KarmaInstrumenter({ produceSourceMap: 'yes' }),
+    TypeError,
+    'a non-boolean produceSourceMap throws',
+  );
+  console.log('  [PASS] karma adapter callback and error contract');
+}
+
+{
+  // An input source map from an earlier karma preprocessor composes through.
+  const oxc = new KarmaInstrumenter({ produceSourceMap: true });
+  const inputMap = {
+    version: 3,
+    sources: ['original.js'],
+    names: [],
+    mappings: 'AAAA',
+    sourcesContent: ['var q = 1;'],
+  };
+  oxc.instrumentSync('var q = 1;', 'built.js', inputMap);
+  assert.deepEqual(oxc.lastSourceMap().sources, ['original.js'], 'output map composes the input map');
+  assert.deepEqual(
+    oxc.lastFileCoverage().inputSourceMap,
+    inputMap,
+    'file coverage keeps the input source map for the karma reporter',
+  );
+  console.log('  [PASS] karma adapter composes an input source map');
+}
+
+{
+  // karma-coverage matches `coverageReporter.instrumenter` patterns against
+  // the absolute path of each file. A relative pattern such as 'src/**/*.js'
+  // never matches, and karma-coverage then uses istanbul without a warning.
+  // Every documented example must therefore start its pattern with `**/`.
+  const documents = [
+    'karma.js',
+    'karma.d.ts',
+    'README.md',
+    '../../README.md',
+    '../../examples/karma/README.md',
+  ];
+  for (const document of documents) {
+    const text = readFileSync(join(__dirname, document), 'utf8').replaceAll('\\/', '/');
+    const patterns = [...text.matchAll(/\binstrumenter: \{([^}]*)\}/g)].flatMap(([, body]) =>
+      [...body.matchAll(/'([^']+)'\s*:/g)].map(([, pattern]) => pattern),
+    );
+    assert(patterns.length > 0, `${document} has an instrumenter example`);
+    for (const pattern of patterns) {
+      assert(pattern.startsWith('**/'), `${document}: instrumenter pattern '${pattern}' must start with **/`);
+    }
+  }
+  console.log('  [PASS] karma instrumenter examples match absolute paths');
 }
 
 // The Babel plugin has its own file; it runs here so that every runner of

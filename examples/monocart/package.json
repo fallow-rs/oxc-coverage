@@ -1,0 +1,22 @@
+{
+  "name": "oxc-coverage-instrument-monocart-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "coverage": "vitest run --coverage",
+    "report": "node scripts/report.mjs",
+    "lodash": "node scripts/lodash-istanbul.mjs",
+    "v8-compare": "node scripts/v8-compare.mjs",
+    "verify": "npm run report && npm run lodash"
+  },
+  "devDependencies": {
+    "@vitest/coverage-istanbul": "^5.0.0",
+    "lodash": "4.17.21",
+    "monocart-coverage-reports": "3.1.0",
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
+    "typescript": ">=6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.0.0"
+  }
+}

@@ -435,6 +435,10 @@ if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" inspector-smoke >"$TMP/old-no
   fail "inspector profile accepted an unsupported Node.js major"
 fi
 assert_contains "$TMP/old-node.log" "Node.js 22 is required for inspector-smoke."
+if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" v8-branch-parity >"$TMP/old-node-parity.log" 2>&1; then
+  fail "v8-branch-parity profile accepted an unsupported Node.js major"
+fi
+assert_contains "$TMP/old-node-parity.log" "Node.js 22 is required for v8-branch-parity."
 
 mkdir -p "$TMP/old-python-bin"
 printf '%s\n' '#!/bin/sh' 'echo 3.10' 'exit 1' >"$TMP/old-python-bin/python3"
@@ -471,6 +475,57 @@ $ROOT||test -p oxc_coverage_instrument --features ast-api --doc
 $ROOT||clippy -p oxc_coverage_instrument --features ast-api --all-targets -- -D warnings
 $ROOT|-D warnings|doc -p oxc_coverage_instrument --features ast-api --no-deps --document-private-items" \
   "ast-api cargo commands"
+
+stale_root="$TMP/stale-napi-root"
+stale_napi="$stale_root/crates/oxc_coverage_instrument_napi"
+mkdir -p "$stale_root/scripts" "$stale_napi/src" "$stale_root/crates/oxc_coverage_v8/src" \
+  "$stale_root/crates/oxc_coverage_reports/src/html" \
+  "$stale_root/crates/oxc_coverage_instrument_cli/src" "$TMP/stale-napi-bin"
+cp "$CHECK" "$stale_root/scripts/check.sh"
+: >"$stale_root/Cargo.toml"
+: >"$stale_root/Cargo.lock"
+: >"$stale_napi/Cargo.toml"
+: >"$stale_napi/build.rs"
+: >"$stale_napi/src/lib.rs"
+: >"$stale_napi/index.js"
+: >"$stale_root/crates/oxc_coverage_v8/src/lib.rs"
+: >"$stale_root/crates/oxc_coverage_reports/src/html/base.css"
+: >"$stale_root/crates/oxc_coverage_v8/src/.DS_Store"
+: >"$stale_root/crates/oxc_coverage_instrument_cli/src/main.rs"
+stale_artifact="$stale_napi/coverage-instrument.self-test.node"
+: >"$stale_artifact"
+find "$stale_root" -type f -exec touch -t 202601010000 {} +
+touch -t 202601020000 "$stale_artifact"
+# shellcheck disable=SC2016
+printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" > "$FAKE_NODE_LOG"' >"$TMP/stale-napi-bin/node"
+chmod +x "$TMP/stale-napi-bin/node"
+run_stale_napi_test() {
+  FAKE_NODE_LOG="$TMP/stale-napi-node.log" PATH="$TMP/stale-napi-bin:/usr/bin:/bin" \
+    "$stale_root/scripts/check.sh" napi-test >"$1" 2>&1
+}
+run_stale_napi_test "$TMP/stale-napi-fresh.log"
+assert_equal "$(<"$TMP/stale-napi-node.log")" "crates/oxc_coverage_instrument_napi/test.mjs" \
+  "napi-test node invocation with a current artifact"
+touch -t 202601030000 "$stale_root/crates/oxc_coverage_instrument_cli/src/main.rs" \
+  "$stale_root/crates/oxc_coverage_v8/src/.DS_Store"
+run_stale_napi_test "$TMP/stale-napi-ignored.log"
+for stale_input in crates/oxc_coverage_v8/src/lib.rs crates/oxc_coverage_reports/src/html/base.css \
+  crates/oxc_coverage_instrument_napi/build.rs Cargo.lock; do
+  touch -t 202601030000 "$stale_root/$stale_input"
+  if run_stale_napi_test "$TMP/stale-napi.log"; then
+    fail "napi-test accepted an artifact older than $stale_input"
+  fi
+  assert_contains "$TMP/stale-napi.log" \
+    "The native N-API artifact 'crates/oxc_coverage_instrument_napi/coverage-instrument.self-test.node' is older than '$stale_input'."
+  assert_contains "$TMP/stale-napi.log" \
+    "Run 'npm --prefix crates/oxc_coverage_instrument_napi run build:debug'. If no build writes this artifact, delete it."
+  touch -t 202601010000 "$stale_root/$stale_input"
+done
+rm "$stale_artifact"
+if run_stale_napi_test "$TMP/missing-napi.log"; then
+  fail "napi-test accepted a missing artifact"
+fi
+assert_contains "$TMP/missing-napi.log" "A native N-API artifact is missing."
 
 bash "$ROOT/scripts/benchmark-comparison.sh" --self-test
 node --test "$ROOT/scripts/tests/real-world-corpus.test.mjs"
@@ -572,6 +627,7 @@ expected_profiles=(
   audit
   shear
   inspector-smoke
+  v8-branch-parity
   real-world-output
   real-world-parity
   compose-real-map-parity

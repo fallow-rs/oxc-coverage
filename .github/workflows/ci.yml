@@ -228,6 +228,12 @@ jobs:
       - name: Validate V8 inspector coverage
         run: ./scripts/check.sh inspector-smoke
 
+      - name: Install conformance dependencies
+        run: npm ci
+
+      - name: Compare V8 branch arm counts with Istanbul
+        run: ./scripts/check.sh v8-branch-parity
+
       - name: Run napi tests
         working-directory: crates/oxc_coverage_instrument_napi
         run: node test.mjs
@@ -566,7 +572,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [vitest-react, vitest-monorepo, vitest-ci-reports]
+        example: [vitest-react, vitest-monorepo, vitest-ci-reports, monocart]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -596,6 +602,40 @@ jobs:
 
       - name: Verify coverage
         working-directory: examples/${{ matrix.example }}
+        run: npm run verify
+
+  karma-example:
+    # Runs examples/karma in headless Chrome three times: with karma-coverage's
+    # default instrumenter, with the oxc-coverage-instrument adapter, and with
+    # the adapter in the strict Istanbul profile. Then it compares the
+    # coverage-final.json files and runs karma-coverage's preprocessor in Node.
+    name: Karma example
+    needs: vitest-example-binding
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: vitest-example-binding
+          path: crates/oxc_coverage_instrument_napi
+
+      # Same as the Workers example: npm install keeps the committed lockfile
+      # and still follows a version change of the file: binding.
+      - name: Install example deps
+        working-directory: examples/karma
+        run: npm install
+
+      - name: Run karma and compare coverage
+        working-directory: examples/karma
         run: npm run verify
 
   jest-babel-example:
@@ -902,6 +942,7 @@ jobs:
       - vitest-example-binding
       - vitest-typescript-example
       - vitest-examples
+      - karma-example
       - jest-babel-example
       - native-vs-wasm-parity
       - wasm-node-example
