@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793096314280,
+  "lastUpdate": 1793098800609,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "2cf6f2c0f34e8bd0455aa8be3854152e5bfb0ff6",
-          "message": "fix(napi): make remapCoverageMap hint detection wasi-safe (#94)\n\n* fix(napi): make remapCoverageMap hint detection wasi-safe\n\nThe hint that nudges callers from `remapCoverageMap(fileCoverage)` to\n`remapCoverageMap({ [fc.path]: fc })` (added in #67 / v0.7.2) was gated\non `serde_json::from_str::<FileCoverage>(coverage_json).is_ok()`. That\npredicate returned Err under the wasm32-wasi napi binding even when\nthe same JSON deserialized fine on the native binding, so the hint\nsilently disappeared on wasi. The Napi Test (wasm32-wasi) CI job has\nbeen red on main since v0.7.2 because of this.\n\nSwitch to a shape check on the parsed `serde_json::Value`: top-level\nobject with a string `path` plus the canonical Istanbul map keys\n(`statementMap`, `fnMap`, `branchMap`). This is platform-agnostic, much\ncheaper than a full struct parse, and the false-positive rate is\neffectively zero for realistic CoverageMap inputs since every\nCoverageMap key is a path string whose value is an object (the outer\ncontainer itself never has a `path: string` field at the top level).\n\nAlso drop `[lib].test = false` and add `rlib` to crate-type so the new\npure helper can be unit-tested in-process (5 tests covering single\nFileCoverage detection, CoverageMap rejection, non-object roots,\nmalformed JSON, and partial-shape rejection).\n\nRefs #67\n\n* fix(napi): drop unused oxc_coverage_types dep\n\nThe refactor to use a serde_json::Value-based heuristic in\nlooks_like_single_file_coverage removed the only consumer of\noxc_coverage_types in this crate. Drop the dep so the\nUnused Dependencies CI job stays green.\n\n* fix: regenerate Cargo.lock after dropping oxc_coverage_types from napi crate\n\n* debug(napi): instrument hint detection to surface wasi divergence\n\nTemporarily prepend [shape_check=true|false] to invalid-coverage-JSON\nerrors so CI logs reveal whether looks_like_single_file_coverage is\nreturning false on wasi (suggesting the Value-based check itself\nfails) or returning true (suggesting napi/wasi truncates the hint\nstring in the rendered error message). Will be reverted once the\nroot cause is identified.\n\n* test(napi): log presence of local napi binaries to diagnose wasi loader fallback\n\nSurface which local artifacts exist at test time so CI logs reveal\nwhen the loader silently falls back to a published optionalDependency\nbecause the freshly-built wasm wasn't placed at the expected path.\n\n* ci: nudge GitHub Actions\n\n* fix(ci): force wasi job to load freshly-built local wasm\n\nThe wasm32-wasi CI job has been loading the previously published\n@oxc-coverage-instrument/binding-wasm32-wasi (the pinned\noptionalDependency) instead of the freshly-built local artifact. The\nloader in coverage-instrument.wasi.cjs falls back to the published\npackage's wasm whenever it cannot find the local file at the expected\npath, so PR changes to the napi crate never reached the wasi test.\nThis is why Napi Test (wasm32-wasi) reported red on the original v0.7.2\nhint regression even after the Rust-side fix landed in this PR's\nearlier commits.\n\nRemove the published wasm from node_modules between the build and\ntest steps so the loader can only use the freshly-built local\nartifact. If napi build failed to produce it, the loader fails loudly\ninstead of silently exercising the previous release.\n\nAlso revert the diagnostic [shape_check=<bool>] prefix on the error\nmessage; with the loader fix in place it is no longer needed to tell\nwhich binary is in use.\n\n* ci: re-trigger workflows after GitHub Actions delay",
-          "timestamp": "2026-05-26T14:15:50+01:00",
-          "tree_id": "792de65693455ff3127c9f82c828441404e562e0",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/2cf6f2c0f34e8bd0455aa8be3854152e5bfb0ff6"
-        },
-        "date": 1779801460331,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85427152,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103225192,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "89f3bac71240fcfc13cf147a510ae5842e0542b6",
+          "message": "fix(v8): give class member code the count of its own initializer (#322)\n\n* fix(v8): give static class members the static initializer count\n\nNode 22 gives `<instance_members_initializer>` and `<static_initializer>`\nthe same outer range, the class body. The converter took the first range,\nso a statement or a branch arm in a static field or a static block got the\ncount of the instance initializer.\n\nThe AST pass now collects the spans of static field values, static\naccessor values and static blocks. The new public function\n`apply_v8_coverage_with_static_members` uses these spans to break a tie\nbetween ranges with the same span. Only a member of the class that owns the\nrange counts, so a class in a static field keeps its own instance counts.\n`apply_v8_coverage` keeps its signature and passes no spans.\n\nThe parity gate case for static fields is now a plain case, with new cases\nfor a class in a static field and for a computed static key.\n\n* fix(v8): give computed class keys the class definition count\n\nThe first fix only told static member code apart from all other code.\nA computed key runs with the class definition, but on Node 22 it fell in\nthe class body range of both initializers. On Node 24 the instance\ninitializer range can also include the computed key of a later field.\nA key arm with no range of its own then got the instance count.\n\n`apply_v8_coverage_with_static_members` becomes\n`apply_v8_coverage_with_class_members`. It takes a `ClassMemberSpans`\nvalue with the static member code, the instance member code and the\ncomputed keys. An initializer range counts only for the code of its own\nclass members that runs in it. A computed key skips both ranges. Code in\nno member is the body of a method that V8 did not report, and it keeps the\ninstance range, so a class with no instances gives 0.\n\n* docs(v8): describe the method body fallback as a guard\n\nV8 normally reports a record for a method that never ran. The fallback is for coverage with no record for such a method.",
+          "timestamp": "2026-10-27T11:58:28+01:00",
+          "tree_id": "af6e626ce58796c33f0fcfcb8eddb3fd883f7cb4",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/89f3bac71240fcfc13cf147a510ae5842e0542b6"
+        },
+        "date": 1793098799838,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103225224,
             "unit": "bytes"
           }
         ]
