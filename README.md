@@ -128,6 +128,7 @@ Choose:
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
 | `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
 | Karma with `karma-coverage` | Register `oxc-coverage-instrument/karma` in `coverageReporter.instrumenters`. See [Karma](#karma). |
+| `@storybook/addon-coverage` (Vite builder) | Give `istanbul.instrumenter` to the addon and make it use `vite-plugin-istanbul` 9. See [`examples/storybook-vite`](examples/storybook-vite/). The webpack builder does not accept an instrumenter yet. |
 | Jest | This package has no Jest transformer. Jest keeps `babel-plugin-istanbul`. |
 
 ## The parts
@@ -189,7 +190,10 @@ adds one each time its code runs.
 
 **How.** In Vitest, use the setup at the top of this README. In
 `vite-plugin-istanbul` 9 and newer, pass `createOxcInstrumenter()` as its
-`instrumenter` option. In your own build step or plugin, call `instrument()`:
+`instrumenter` option. In Storybook with the Vite builder, give the same
+instrumenter to `@storybook/addon-coverage` (see
+[`examples/storybook-vite`](examples/storybook-vite/)). In your own build
+step or plugin, call `instrument()`:
 
 ```javascript
 import { instrument } from 'oxc-coverage-instrument';

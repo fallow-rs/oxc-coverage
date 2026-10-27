@@ -179,6 +179,56 @@ With `compat: 'istanbul'`, the statement, function, and branch maps and the
 hit counts are the same as with the default instrumenter of `karma-coverage`. The
 [Karma example](../../examples/karma/) checks this in headless Chrome.
 
+### Storybook
+
+`@storybook/addon-coverage` gives its `istanbul` options to
+`vite-plugin-istanbul` on the Vite builder. Version 3.0.2 of the addon depends
+on `vite-plugin-istanbul` 6, which has no `instrumenter` option. Install
+version 9 and make the addon use it with an override:
+
+```bash
+npm install -D @storybook/addon-coverage vite-plugin-istanbul@^9 oxc-coverage-instrument
+```
+
+```json
+{
+  "overrides": {
+    "vite-plugin-istanbul": "$vite-plugin-istanbul"
+  }
+}
+```
+
+With pnpm, use `pnpm.overrides`. With Yarn, use `resolutions`. Then give the
+instrumenter to the addon:
+
+```typescript
+// .storybook/main.ts
+import type { StorybookConfig } from '@storybook/react-vite'
+import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest'
+
+const config: StorybookConfig = {
+  framework: '@storybook/react-vite',
+  stories: ['../src/**/*.stories.tsx'],
+  addons: [
+    {
+      name: '@storybook/addon-coverage',
+      options: {
+        istanbul: { instrumenter: createOxcInstrumenter({ compat: 'istanbul' }) },
+      },
+    },
+  ],
+}
+
+export default config
+```
+
+`test-storybook --coverage` then collects coverage from the
+`oxc-coverage-instrument` counters. The
+[`examples/storybook-vite`](https://github.com/fallow-rs/oxc-coverage/tree/main/examples/storybook-vite)
+project compares this coverage with the coverage of `istanbul-lib-instrument`.
+The webpack builder does not accept an instrumenter yet: the addon makes its
+own `istanbul-lib-instrument` instance there.
+
 ### Custom Vite or Rollup plugin
 
 ```javascript

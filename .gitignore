@@ -17,6 +17,7 @@ examples/*/node_modules/
 examples/*/package-lock.json
 !examples/cloudflare-workers/package-lock.json
 !examples/karma/package-lock.json
+!examples/storybook-vite/package-lock.json
 
 # napi build artifacts
 *.node

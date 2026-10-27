@@ -11,6 +11,7 @@ Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 | [`vitest-ci-reports`](vitest-ci-reports/) | `lcov`, `cobertura`, HTML, and a coverage threshold for CI, from the npm API. |
 | [`vitest-real-projects`](vitest-real-projects/) | Measured speed and coverage parity on es-toolkit, date-fns, hono, and h3. |
 | [`karma`](karma/) | `karma-coverage` in headless Chrome, compared with its default instrumenter on lodash. |
+| [`storybook-vite`](storybook-vite/) | Storybook story coverage with `@storybook/addon-coverage` and the Storybook test-runner, compared with `istanbul-lib-instrument`. |
 | [`wasm-node`](wasm-node/) | The WebAssembly binding in Node.js. |
 | [`cloudflare-workers`](cloudflare-workers/) | The instrumenter inside a Cloudflare Worker. |
 
