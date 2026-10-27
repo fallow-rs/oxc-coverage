@@ -252,6 +252,8 @@ const specs = [
       'package/wasi-worker-browser.mjs',
       'package/vitest.js',
       'package/vitest.d.ts',
+      'package/babel.js',
+      'package/babel.d.ts',
     ],
   },
   ...platformPackSpecs.map((spec) => ({

@@ -2568,4 +2568,9 @@ globalThis.__result = {
   rmSync(root, { recursive: true, force: true });
 }
 
+// The Babel plugin has its own file; it runs here so that every runner of
+// test.mjs also runs it.
+console.log('');
+await import('./babel.test.mjs');
+
 console.log('\nAll tests passed!');

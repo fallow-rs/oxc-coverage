@@ -14,6 +14,10 @@
     "./vitest": {
       "types": "./vitest.d.ts",
       "default": "./vitest.js"
+    },
+    "./babel": {
+      "types": "./babel.d.ts",
+      "default": "./babel.js"
     }
   },
   "files": [
@@ -25,7 +29,9 @@
     "wasi-worker.mjs",
     "wasi-worker-browser.mjs",
     "vitest.js",
-    "vitest.d.ts"
+    "vitest.d.ts",
+    "babel.js",
+    "babel.d.ts"
   ],
   "keywords": [
     "oxc",
@@ -66,10 +72,25 @@
     "@emnapi/runtime": "2.0.0-beta.2",
     "@napi-rs/wasm-runtime": "^1.2.4"
   },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0 || ^8.0.0",
+    "test-exclude": "^6.0.0 || ^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@babel/core": {
+      "optional": true
+    },
+    "test-exclude": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@babel/core": "^7.29.0 || ^8.0.0",
+    "@babel/preset-typescript": "^7.28.0 || ^8.0.0",
     "@jridgewell/gen-mapping": "^0.3.13",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@napi-rs/cli": "3.10.8",
+    "babel-plugin-istanbul": "^8.0.0",
     "emnapi": "2.0.0-beta.2",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.3",
@@ -95,9 +116,9 @@
     "@oxc-coverage-instrument/binding-linux-arm64-gnu": "0.18.0",
     "@oxc-coverage-instrument/binding-linux-x64-gnu": "0.18.0",
     "@oxc-coverage-instrument/binding-linux-x64-musl": "0.18.0",
-    "@oxc-coverage-instrument/binding-win32-arm64-msvc": "0.18.0",
-    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.18.0",
     "@oxc-coverage-instrument/binding-wasm32-wasi": "0.18.0",
-    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.18.0"
+    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.18.0",
+    "@oxc-coverage-instrument/binding-win32-arm64-msvc": "0.18.0",
+    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.18.0"
   }
 }
