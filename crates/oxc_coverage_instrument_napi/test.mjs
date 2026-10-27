@@ -10,6 +10,8 @@ import {
   writeHtmlReport,
 } from './index.js';
 import { createOxcInstrumenter } from './vitest.js';
+import { Instrumenter as KarmaInstrumenter, createKarmaInstrumenter } from './karma.js';
+import { createRequire } from 'node:module';
 import { strict as assert } from 'node:assert';
 import libCoverage from 'istanbul-lib-coverage';
 import { createInstrumenter } from 'istanbul-lib-instrument';
@@ -2566,6 +2568,125 @@ globalThis.__result = {
     console.log('  [PASS] writeHtmlReport writes the html tree');
   }
   rmSync(root, { recursive: true, force: true });
+}
+
+// Test: karma-coverage adapter (oxc-coverage-instrument/karma)
+{
+  // karma-coverage reads `require(...).Instrumenter` from each entry in
+  // `coverageReporter.instrumenters`, so the subpath must export it.
+  const require = createRequire(import.meta.url);
+  const karmaModule = require('oxc-coverage-instrument/karma');
+  assert.equal(typeof karmaModule.Instrumenter, 'function', 'karma subpath exports Instrumenter');
+  assert.equal(karmaModule.Instrumenter, KarmaInstrumenter, 'subpath and file export the same class');
+  assert(createKarmaInstrumenter() instanceof KarmaInstrumenter, 'factory returns an Instrumenter');
+
+  const source = [
+    'function pick(a, b) {',
+    '  if (a) { return a; }',
+    '  const fn = () => b || 0;',
+    '  return fn();',
+    '}',
+    'pick(0, 2);',
+  ].join('\n');
+
+  // karma-coverage always adds `autoWrap` and `codeGenerationOptions`.
+  const karmaOptions = { autoWrap: true, codeGenerationOptions: null, compat: 'istanbul' };
+  const oxc = new KarmaInstrumenter(karmaOptions);
+  let calls = 0;
+  let instrumented;
+  oxc.instrument(source, '/project/src/pick.js', (error, code) => {
+    calls += 1;
+    assert.equal(error, null, 'instrument() reports no error for valid code');
+    instrumented = code;
+  });
+  assert.equal(calls, 1, 'instrument() calls the callback one time');
+  assert.equal(typeof instrumented, 'string', 'instrument() gives a string to the callback');
+  assert.equal(oxc.lastSourceMap(), null, 'lastSourceMap() is null without produceSourceMap');
+
+  const istanbul = createInstrumenter({ autoWrap: true, codeGenerationOptions: null });
+  istanbul.instrumentSync(source, '/project/src/pick.js');
+  assert.deepEqual(
+    oxc.lastFileCoverage(),
+    // karma sends coverage through JSON, which drops istanbul's undefined
+    // positions in an implicit else location.
+    JSON.parse(JSON.stringify(istanbul.lastFileCoverage())),
+    'compat istanbul coverage equals istanbul-lib-instrument for karma options',
+  );
+
+  const sandbox = {};
+  new Function('globalThis', instrumented)(sandbox);
+  const counts = sandbox.__coverage__['/project/src/pick.js'];
+  assert.deepEqual(counts.f, { 0: 1, 1: 1 }, 'instrumented code counts both functions');
+  console.log('  [PASS] karma adapter matches istanbul-lib-instrument through instrument()');
+}
+
+{
+  const oxc = new KarmaInstrumenter({ coverageVariable: '__karma_cov__', produceSourceMap: true });
+  const code = oxc.instrumentSync('var x = 1;', 'x.js');
+  assert(code.includes('__karma_cov__'), 'coverageVariable is forwarded');
+  const map = oxc.lastSourceMap();
+  assert.equal(map?.version, 3, 'lastSourceMap() returns a v3 map with produceSourceMap');
+  assert.deepEqual(map.sources, ['x.js'], 'the source map points at the input file');
+  console.log('  [PASS] karma adapter forwards coverageVariable and produceSourceMap');
+}
+
+{
+  // A filename-less call puts the callback in the second argument, as in
+  // istanbul-lib-instrument.
+  const oxc = new KarmaInstrumenter();
+  let result;
+  oxc.instrument('var y = 2;', (error, code) => {
+    assert.equal(error, null);
+    result = code;
+  });
+  assert.equal(typeof result, 'string', 'instrument(code, callback) works');
+
+  let parseError;
+  oxc.instrument('var = ;', 'broken.js', (error, code) => {
+    parseError = error;
+    assert.equal(code, undefined, 'no code on error');
+  });
+  assert(parseError instanceof Error, 'a parse error goes to the callback');
+
+  // An error that the callback throws must not reach the callback again.
+  let errorCalls = 0;
+  assert.throws(
+    () =>
+      oxc.instrument('var z = 3;', 'z.js', (error) => {
+        if (error) errorCalls += 1;
+        throw new Error('callback failure');
+      }),
+    /callback failure/,
+  );
+  assert.equal(errorCalls, 0, 'a throwing callback is not called a second time with its error');
+
+  assert.throws(() => oxc.instrument('var a;', 'a.js'), TypeError, 'a missing callback throws');
+  assert.throws(
+    () => new KarmaInstrumenter({ produceSourceMap: 'yes' }),
+    TypeError,
+    'a non-boolean produceSourceMap throws',
+  );
+  console.log('  [PASS] karma adapter callback and error contract');
+}
+
+{
+  // An input source map from an earlier karma preprocessor composes through.
+  const oxc = new KarmaInstrumenter({ produceSourceMap: true });
+  const inputMap = {
+    version: 3,
+    sources: ['original.js'],
+    names: [],
+    mappings: 'AAAA',
+    sourcesContent: ['var q = 1;'],
+  };
+  oxc.instrumentSync('var q = 1;', 'built.js', inputMap);
+  assert.deepEqual(oxc.lastSourceMap().sources, ['original.js'], 'output map composes the input map');
+  assert.deepEqual(
+    oxc.lastFileCoverage().inputSourceMap,
+    inputMap,
+    'file coverage keeps the input source map for the karma reporter',
+  );
+  console.log('  [PASS] karma adapter composes an input source map');
 }
 
 console.log('\nAll tests passed!');

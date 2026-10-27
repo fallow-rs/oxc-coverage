@@ -10,8 +10,8 @@ the [Oxc](https://oxc.rs) parser and exposed to Node.js through napi-rs.
 
 The `oxc-coverage-instrument` npm package wraps the native instrumenter. It
 exposes instrumentation, coverage remapping, V8-to-Istanbul conversion, coverage
-summaries, and the Istanbul reporters, plus a ready-made adapter for Vitest's
-Istanbul provider and for `vite-plugin-istanbul`.
+summaries, and the Istanbul reporters, plus ready-made adapters for Vitest's
+Istanbul provider, for `vite-plugin-istanbul`, and for `karma-coverage`.
 
 ```bash
 npm install oxc-coverage-instrument
@@ -138,6 +138,43 @@ export default defineConfig({
   ],
 })
 ```
+
+### Karma
+
+Requires `karma-coverage` 2. The `oxc-coverage-instrument/karma` subpath
+exports an `Instrumenter` class with the shape that
+`coverageReporter.instrumenters` expects: `instrument(code, filename,
+callback, inputSourceMap)`, `instrumentSync()`, `lastSourceMap()`, and
+`lastFileCoverage()`.
+
+```javascript
+// karma.conf.js
+module.exports = (config) => {
+  config.set({
+    preprocessors: { 'src/**/*.js': ['coverage'] },
+    reporters: ['progress', 'coverage'],
+    coverageReporter: {
+      instrumenters: { oxc: require('oxc-coverage-instrument/karma') },
+      // karma-coverage matches these patterns against the absolute path.
+      instrumenter: { '**/*.js': 'oxc' },
+      instrumenterOptions: { oxc: { compat: 'istanbul' } },
+    },
+  });
+};
+```
+
+`instrumenterOptions.oxc` accepts the options of `createOxcInstrumenter()`,
+for example `compat`, `coverageVariable`, `ignoreClassMethods`, and
+`reportLogic`. The adapter does not use the Babel code-generation options that
+`karma-coverage` adds, for example `autoWrap` and `codeGenerationOptions`.
+`lastSourceMap()` returns a map only when `karma-coverage` sets
+`produceSourceMap`, which it does when the input file has a source map. An
+input source map composes into the output map and stays on the file coverage,
+so the reports point at the original source.
+
+With `compat: 'istanbul'`, the coverage data is the same as with the default
+instrumenter of `karma-coverage`. The
+[Karma example](../../examples/karma/) checks this in headless Chrome.
 
 ### Custom Vite or Rollup plugin
 
