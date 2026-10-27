@@ -1,0 +1,2 @@
+# V8 offsets in the real capture tests count LF line endings.
+crates/oxc_coverage_instrument/tests/fixtures/v8/** text eol=lf

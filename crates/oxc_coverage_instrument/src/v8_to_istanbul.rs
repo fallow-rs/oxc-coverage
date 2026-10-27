@@ -42,8 +42,10 @@ impl std::error::Error for V8ToIstanbulError {}
 /// that report wrapper-shifted ranges. Pass 0 for source-relative Node inspector
 /// coverage.
 ///
-/// Statement, function, and branch counts are each populated from the smallest
-/// V8 range containing the corresponding location. When the source carries an
+/// Statement and function counts come from the smallest V8 range that contains
+/// the location. A branch arm gets the count of its own V8 range. An arm with
+/// no range gets a count from its parent range, as `apply_v8_coverage` in
+/// `oxc_coverage_v8` describes. When the source carries an
 /// inline `//# sourceMappingURL=data:application/json;base64,...` comment, the
 /// embedded map is decoded and attached as `inputSourceMap` so the result
 /// chains cleanly into [`crate::remap_coverage`].

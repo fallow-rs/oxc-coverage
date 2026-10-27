@@ -136,18 +136,31 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             return;
         }
 
+        // V8 starts an arm range at the `?` or `:` token, not at the arm
+        // expression. A comment or a line break between the token and the arm
+        // moves the arm start out of the match tolerance, so the V8 body span
+        // of each arm starts where the previous operand ends.
+        let consequent_body = Span::new(expr.test.span().end, expr.consequent.span().end);
+        let alternate_body = Span::new(expr.consequent.span().end, expr.alternate.span().end);
+
         // istanbul drops only the pragma'd arm's location from the branch map,
         // so the entry survives with the one remaining arm still counted.
         let mut arms = Vec::new();
         let mut consequent_arm = None;
         if !ignore_consequent {
             consequent_arm = Some(arms.len());
-            arms.push(PendingArm::new(expr.consequent.without_parentheses().span()));
+            arms.push(PendingArm::with_body(
+                expr.consequent.without_parentheses().span(),
+                consequent_body,
+            ));
         }
         let mut alternate_arm = None;
         if !ignore_alternate {
             alternate_arm = Some(arms.len());
-            arms.push(PendingArm::new(expr.alternate.without_parentheses().span()));
+            arms.push(PendingArm::with_body(
+                expr.alternate.without_parentheses().span(),
+                alternate_body,
+            ));
         }
 
         let Some(reg) = self.register_branch(PendingBranch {
@@ -374,7 +387,12 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             branch_type: "binary-expr",
             umbrella_span: expr.span,
             gate_arms: false,
-            arms: vec![PendingArm::new(left_span), PendingArm::new(right_span)],
+            // V8 gives no range for the right side of a logical assignment.
+            // An empty V8 body span keeps that arm from inheriting a count.
+            arms: vec![
+                PendingArm::new(left_span),
+                PendingArm::with_body(right_span, Span::new(right_span.start, right_span.start)),
+            ],
         }) else {
             return;
         };
