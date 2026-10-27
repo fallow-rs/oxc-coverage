@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793098800609,
+  "lastUpdate": 1793100229754,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "df0eb0c85c719dfc7dc379af289955e685ca2bec",
-          "message": "chore(napi): rebrand startup binary-presence log from [diag] to [napi-artifact]\n\nThe temporary [diag] tag added during PR #94's wasi-loader debugging\nread as debug output, but the underlying check (logging which local\nnapi artifacts exist before the binding loader runs) is load-bearing:\nit surfaces silent fallbacks to the published optionalDependency\nbinary on the first failing CI run instead of after hours of remote\ndiagnosis. Keep the log, drop the debug-flavoured tag, and document\nthe safeguard in a comment so future readers don't strip it.",
-          "timestamp": "2026-05-26T15:25:43+02:00",
-          "tree_id": "66728a10048caac10a891e20548f66b236deb121",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/df0eb0c85c719dfc7dc379af289955e685ca2bec"
-        },
-        "date": 1779802058175,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85427152,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/89f3bac71240fcfc13cf147a510ae5842e0542b6"
         },
         "date": 1793098799838,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103225224,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e342291985fd2e43da211d524317f9ac7ae13743",
+          "message": "feat: add the oxc-coverage-instrument/karma subpath for karma-coverage (#315)\n\n* fix: read the npm 12 pack output in the package surface check\n\nnpm 12 prints the output of npm pack --json as an object keyed by the package name. Older npm versions print an array. The check now reads both shapes.\n\n* feat: add the oxc-coverage-instrument/karma subpath for karma-coverage\n\nkarma-coverage accepts a custom instrumenter in coverageReporter.instrumenters. The new subpath exports an Instrumenter class with the shape that karma-coverage reads: instrument() with a callback, instrumentSync(), lastSourceMap(), and lastFileCoverage().\n\nThe adapter forwards the createOxcInstrumenter() options and ignores the Babel code-generation options that karma-coverage adds. lastSourceMap() returns a map only when produceSourceMap is true, as in istanbul-lib-instrument.\n\nRefs #40\n\n* test: add a Karma example that compares coverage with istanbul-lib-instrument\n\nexamples/karma runs karma-coverage in headless Chrome on lodash 4.17.21 and a small ES module. It runs three times: with the default instrumenter of karma-coverage, with the oxc-coverage-instrument adapter, and with the adapter in the strict Istanbul profile.\n\nThe compare script requires the strict profile to equal istanbul-lib-instrument exactly. The default profile can differ only by the extensions that the crate README documents. A second script runs the karma-coverage preprocessor in Node with an input source map and includeAllSources. A new CI job runs the example.\n\nRefs #40\n\n* fix: use absolute-path instrumenter patterns in the Karma examples\n\nkarma-coverage matches coverageReporter.instrumenter patterns against the\nabsolute path of each file. The examples in karma.js and karma.d.ts used\n'src/**/*.js'. That pattern never matches, so karma-coverage used istanbul\nwithout a warning. The examples now use '**/*.js' and explain the rule.\n\n- test.mjs checks that every documented instrumenter pattern starts with **/.\n- The Karma example checks that a relative pattern does not select the\n  adapter in the real karma-coverage preprocessor.\n- The npm README says to keep the default coverageVariable under Karma,\n  because karma-jasmine sends only window.__coverage__.\n- The strict comparison now checks all top-level keys except hash and\n  _coverageSchema, and the docs say that only these two differ.",
+          "timestamp": "2026-10-27T12:21:52+01:00",
+          "tree_id": "9b97a5ded535af2616f1bcf8d9b621edb9e59392",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/e342291985fd2e43da211d524317f9ac7ae13743"
+        },
+        "date": 1793100229025,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
