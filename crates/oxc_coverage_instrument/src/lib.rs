@@ -115,6 +115,26 @@
 //! path or a test description: the traversal ancestor for an argument position
 //! exposes the callee but not the other arguments.
 //!
+//! ### The `if` consequent location
+//!
+//! An `if` branch has two arms in `branchMap`. `istanbul-lib-instrument`
+//! records the whole `IfStatement` as the location of arm 0, so arm 0 does not
+//! tell which lines run only when the condition is true. With
+//! [`InstrumentOptions::if_consequent_location`], arm 0 records the consequent:
+//! the block, or the single statement, after the condition.
+//!
+//! | Arm | Default | With the option |
+//! |---|---|---|
+//! | `loc` of the branch | the whole `if` | the whole `if` |
+//! | arm 0 | the whole `if` | the consequent |
+//! | arm 1, with `else` | the alternate | the alternate |
+//! | arm 1, no `else` | zero width at the consequent end | the same |
+//!
+//! For `if (a) { b(); } else if (c) { d(); }`, arm 1 of the outer branch is the
+//! inner `if`, and arm 0 of the inner branch is `{ d(); }`. The option changes
+//! no counter and no other entry of the coverage map. The strict Istanbul
+//! profile ignores it.
+//!
 //! ## References
 //!
 //! - <https://github.com/istanbuljs/istanbuljs/tree/istanbul-lib-instrument-v6.0.3/packages/istanbul-lib-instrument>

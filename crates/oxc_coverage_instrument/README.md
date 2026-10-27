@@ -360,5 +360,30 @@ arrow body, the pragma ignores that expression but not the statement counter of
 the body: `() => /* istanbul ignore next */ a || b` keeps its statement and
 loses its branch.
 
+### 9. Consequent location for arm 0 of an `if` (off by default)
+
+`istanbul-lib-instrument` records the whole `IfStatement` as the location of
+arm 0 of an `if` branch. Arm 0 then covers the condition and the `else` too, so
+a consumer cannot read from `branchMap` which lines run only when the
+condition is true. Set `if_consequent_location: true` (npm:
+`ifConsequentLocation`) to record the consequent instead:
+
+| Location | default | with the option |
+|---|---|---|
+| branch `loc` | the whole `if` | the whole `if` |
+| arm 0 | the whole `if` | the consequent block or statement |
+| arm 1, with `else` | the alternate | the alternate |
+| arm 1, no `else` | zero width at the consequent end | the same |
+
+For `if (a) return;` arm 0 is `return;`. In an `else if` chain, arm 1 of the
+outer branch is the inner `if`, and arm 0 of the inner branch is its own
+consequent. The option changes no counter, no statement or function entry, and
+no other branch type. V8 conversion already resolves arm 0 against the
+consequent body, so its counts do not change. Defaults to `false`, because
+reporters that highlight arm 0 expect the Istanbul range. The strict Istanbul
+profile ignores the option.
+
+Pinned by `if_consequent_location.rs`.
+
 This crate is the entry point of the oxc-coverage suite; the source-map,
 V8, and reporting layers live in sibling crates.

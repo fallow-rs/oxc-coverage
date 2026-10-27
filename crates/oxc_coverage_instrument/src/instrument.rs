@@ -172,6 +172,16 @@ pub struct InstrumentOptions {
     ///
     /// Defaults to `false`.
     pub name_callback_arguments: bool,
+    /// When true, arm 0 of an `if` branch in `branchMap` records the span of
+    /// the consequent (the block or the single statement after the
+    /// condition) instead of the whole `IfStatement`.
+    ///
+    /// See [The `if` consequent location](crate#the-if-consequent-location)
+    /// for the arm locations with and without this option.
+    ///
+    /// The strict Istanbul profile ignores this option. Defaults to `false`,
+    /// which keeps the `istanbul-lib-instrument` shape.
+    pub if_consequent_location: bool,
 }
 
 /// How `strip_typescript` handles decorator syntax.
@@ -249,6 +259,7 @@ impl Default for InstrumentOptions {
             strict_null_checks: true,
             function_identity_overlay: false,
             name_callback_arguments: false,
+            if_consequent_location: false,
         }
     }
 }
@@ -364,6 +375,13 @@ impl InstrumentOptions {
     #[must_use]
     pub fn with_name_callback_arguments(mut self, name_callback_arguments: bool) -> Self {
         self.name_callback_arguments = name_callback_arguments;
+        self
+    }
+
+    /// Set [`InstrumentOptions::if_consequent_location`].
+    #[must_use]
+    pub fn with_if_consequent_location(mut self, if_consequent_location: bool) -> Self {
+        self.if_consequent_location = if_consequent_location;
         self
     }
 }
@@ -861,6 +879,8 @@ fn run_coverage_transform<'src, 'arena>(
         istanbul_compat: options.compat == Some(CompatProfile::Istanbul),
         ignore_class_methods: options.ignore_class_methods.clone(),
         name_callback_arguments: options.name_callback_arguments,
+        if_consequent_location: options.if_consequent_location
+            && options.compat != Some(CompatProfile::Istanbul),
         // Istanbul gives a private method no fnMap entry.
         record_private_methods: false,
         pre_expanded_arrows,
@@ -1104,6 +1124,10 @@ pub fn collect_for_v8_to_istanbul(
         // callback arguments. The fnMap names do reach consumers: a caller can
         // match a function entry on its name, line, decl, and loc.
         name_callback_arguments: false,
+        // V8-collect has no options to wire. `v8_to_istanbul` resolves arm 0
+        // through the body side-table, so the location shape does not change
+        // the counts.
+        if_consequent_location: false,
         // V8 reports a function range for a private method, so the method
         // needs its own fnMap entry. Without it, a consumer cannot match that
         // range to the method.

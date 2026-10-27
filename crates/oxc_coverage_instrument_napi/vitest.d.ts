@@ -33,6 +33,13 @@ export interface OxcInstrumenterOptions {
    */
   nameCallbackArguments?: boolean;
   /**
+   * Record the consequent (`{ b(); }` in `if (a) { b(); } else { c(); }`) as
+   * the location of arm 0 of an `if` branch, instead of the whole `if`
+   * statement. Arm 1, the branch `loc`, and the counters do not change.
+   * `compat: 'istanbul'` ignores it. Defaults to false (the Istanbul shape).
+   */
+  ifConsequentLocation?: boolean;
+  /**
    * Run the TypeScript-strip pass before instrumentation. When omitted
    * (default), the adapter auto-detects: it strips when the filename matches
    * `/\.([mc]ts|tsx?)$/i` AND no `inputSourceMap` was supplied (i.e., the

@@ -206,6 +206,9 @@ pub struct CoverageTransform<'src, 'arena> {
     /// When true, an anonymous function/arrow that is a direct call/`new`
     /// argument is named from the callee instead of `(anonymous_N)`.
     name_callback_arguments: bool,
+    /// When true, arm 0 of an `if` branch records the consequent span instead
+    /// of the whole `IfStatement`.
+    if_consequent_location: bool,
     /// When true, a private class method (`#name() {}`) gets its own `fnMap`
     /// entry. Only the V8 collect path sets it.
     record_private_methods: bool,
@@ -267,6 +270,10 @@ pub struct TransformInit<'src, 'arena> {
     /// call/`new` argument from the callee (`arr.map(cb)` -> `"map"`). Opt-in;
     /// Istanbul leaves these `(anonymous_N)`.
     pub name_callback_arguments: bool,
+    /// When true, arm 0 of an `if` branch records the consequent span instead
+    /// of the whole `IfStatement`. Opt-in; Istanbul records the whole
+    /// statement. The caller clears it under the strict Istanbul profile.
+    pub if_consequent_location: bool,
     /// When true, a private class method (`#name() {}`) gets a `fnMap` entry
     /// named `#name`. Istanbul gives a private method no `fnMap` entry, so
     /// instrumentation keeps this false. The V8 collect path sets it, because
@@ -295,6 +302,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             track_optional_chain,
             ignore_class_methods,
             name_callback_arguments,
+            if_consequent_location,
             record_private_methods,
             istanbul_compat,
             pre_expanded_arrows,
@@ -333,6 +341,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             track_optional_chain,
             ignore_class_methods,
             name_callback_arguments,
+            if_consequent_location,
             record_private_methods,
             istanbul_compat,
             logical_branch_ids: Vec::new(),

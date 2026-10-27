@@ -74,6 +74,12 @@ function createOxcInstrumenter(options) {
       `oxc-coverage-instrument: createOxcInstrumenter({ nameCallbackArguments }) must be a boolean or undefined, got ${typeof options.nameCallbackArguments}`,
     );
   }
+  const ifConsequentLocation = options.ifConsequentLocation || false;
+  if (typeof ifConsequentLocation !== 'boolean') {
+    throw new TypeError(
+      `oxc-coverage-instrument: createOxcInstrumenter({ ifConsequentLocation }) must be a boolean or undefined, got ${typeof options.ifConsequentLocation}`,
+    );
+  }
   // Strictly boolean: a caller passing a string like 'auto' would otherwise be
   // coerced to Boolean('auto') === true, force-stripping every file.
   const stripTypescriptOverride = options.stripTypescript;
@@ -153,6 +159,7 @@ function createOxcInstrumenter(options) {
         strictNullChecks,
         functionIdentityOverlay,
         nameCallbackArguments,
+        ifConsequentLocation,
       });
 
       _lastCoverageMapJson = result.coverageMap;

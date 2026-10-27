@@ -15,6 +15,7 @@ mod error_display;
 mod fixture_validation;
 mod function_identity_overlay;
 mod function_names;
+mod if_consequent_location;
 mod integration;
 mod pragma;
 mod real_world;

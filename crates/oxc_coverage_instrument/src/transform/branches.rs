@@ -43,7 +43,12 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         // the side-table instead, because `v8_to_istanbul` has to resolve
         // arm[0] against V8's `BlockStatement` range and V8 emits no range
         // matching the whole-IfStatement convention.
+        // `if_consequent_location` opts out of that convention and reports the
+        // consequent itself, so a consumer can tell which source lines arm 0
+        // covers without walking the statement map.
         let consequent_body_span = stmt.consequent.span();
+        let consequent_location_span =
+            if self.if_consequent_location { consequent_body_span } else { stmt.span };
         let synthetic_anchor = consequent_body_span.end;
 
         // Every arm span is a pure pre-mutation read, so the whole arm vector
@@ -55,7 +60,7 @@ impl<'arena> CoverageTransform<'_, 'arena> {
         let mut consequent_arm = None;
         if pragma != Some(IgnoreType::If) {
             consequent_arm = Some(arms.len());
-            arms.push(PendingArm::with_body(stmt.span, consequent_body_span));
+            arms.push(PendingArm::with_body(consequent_location_span, consequent_body_span));
         }
         let mut else_arm = None;
         if pragma != Some(IgnoreType::Else) {
