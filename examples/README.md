@@ -31,7 +31,7 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'istanbul',
-      instrumenter: (options) => createOxcInstrumenter(options),
+      instrumenter: (options) => createOxcInstrumenter({ ...options, compat: 'istanbul' }),
     },
   },
 });
@@ -41,31 +41,26 @@ Everything else stays as it is: `include`, `exclude`, `reporter`,
 `thresholds`, Vitest projects, and browser mode. Only the step that inserts
 the coverage counters changes.
 
-To keep the exact numbers of Vitest's default instrumenter, pass the strict
-Istanbul profile:
-
-```ts
-instrumenter: (options) => createOxcInstrumenter({ ...options, compat: 'istanbul' }),
-```
-
-Without `compat`, the instrumenter adds a few extra branch entries (for
-`??=`, `||=`, `&&=`, and optional chains) and names more functions. The crate
-README lists each difference.
+`compat: 'istanbul'` keeps the exact numbers of Vitest's default
+instrumenter. Without `compat`, the instrumenter adds branch entries for
+`??=`, `||=`, `&&=`, and optional chains, and names more functions. That shows
+more untested cases, but your branch percentage can change. The crate README
+lists each difference.
 
 ## Where it is faster
 
 `oxc-coverage-instrument` replaces the step where the Istanbul provider inserts
 coverage counters into each source file. On four real projects
 ([`vitest-real-projects`](vitest-real-projects/), measured on a GitHub-hosted
-runner) that step is 5.6x to 11.6x faster, and the coverage numbers stay the
+runner) that step is 5.7x to 13.4x faster, and the coverage numbers stay the
 same:
 
 | Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup |
 |:--|--:|--:|--:|--:|
-| hono | 636 | 10.7 s | 0.9 s | 11.6x |
-| h3 | 81 | 1.4 s | 0.1 s | 11.6x |
-| date-fns | 1061 | 3.9 s | 0.5 s | 7.2x |
-| es-toolkit | 802 | 5.5 s | 1.0 s | 5.6x |
+| h3 | 81 | 1.5 s | 0.1 s | 13.4x |
+| hono | 636 | 11.8 s | 0.9 s | 13.3x |
+| date-fns | 1061 | 4.0 s | 0.5 s | 7.5x |
+| es-toolkit | 802 | 5.7 s | 1.0 s | 5.7x |
 
 The times are rounded; the speedup comes from the unrounded times. The rest of
 a test run (running the tests and writing the report) takes the same time as

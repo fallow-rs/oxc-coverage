@@ -10,11 +10,13 @@
 //   none      no coverage, the baseline
 //   istanbul  the Istanbul provider with Vitest's default instrumenter
 //   oxc-coverage-instrument  the Istanbul provider with createOxcInstrumenter({ compat: 'istanbul' })
+//   oxc-coverage-instrument-default  the same with the default profile
 //   v8        the V8 provider, for reference
 //
 // Each mode runs --runs times (default 3) in rotating order; the report gives
-// the median wall time and the coverage overhead against `none`. The Istanbul
-// and oxc-coverage-instrument runs must give the same coverage totals.
+// the median wall time, the time of each coverage step, and what the default
+// profile adds to the coverage data. The Istanbul and
+// oxc-coverage-instrument runs must give the same coverage totals.
 //
 // Usage:
 //   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0] [--markdown=<file>]
@@ -31,7 +33,9 @@ const ROOT = join(HERE, '..', '..');
 const WORK_DIR = join(ROOT, '.bench-tmp', 'vitest-projects');
 const BENCH_CONFIG = 'vitest.coverage-bench.config.mts';
 const OXC_MODE = 'oxc-coverage-instrument';
-const MODES = ['none', 'istanbul', OXC_MODE, 'v8'];
+const OXC_DEFAULT_MODE = 'oxc-coverage-instrument-default';
+const MODES = ['none', 'istanbul', OXC_MODE, OXC_DEFAULT_MODE, 'v8'];
+const STEP_MODES = ['istanbul', OXC_MODE, 'v8'];
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
 const parseArgs = () => {
@@ -126,11 +130,45 @@ const writeBenchConfig = (project, cwd) => {
     `import { appendFileSync, mkdirSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { IstanbulCoverageProvider } from '@vitest/coverage-istanbul/dist/provider.js';
-import { defineConfig, mergeConfig } from 'vitest/config';
+import { V8CoverageProvider } from '@vitest/coverage-v8/dist/provider.js';
+import { coverageConfigDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';
 import base from './${project.vitestConfig}';
 
 const mode = process.env.OXC_BENCH_MODE ?? 'none';
+
+// Time the steps after the test run in the main process. readCoverageFiles
+// reads and merges the coverage that each test file wrote, and calls
+// onFinished once per environment: the Istanbul provider remaps there, the V8
+// provider converts and remaps there. getCoverageMapForUncoveredFiles
+// instruments the included files that no test loaded. generateReports runs
+// the reporters.
+const steps = { readMs: 0, finishMs: 0, untestedMs: 0, generateMs: 0, reportMs: 0 };
+const timed = async (key, fn) => {
+  const start = performance.now();
+  try {
+    return await fn();
+  } finally {
+    steps[key] += performance.now() - start;
+  }
+};
+for (const Provider of [IstanbulCoverageProvider, V8CoverageProvider]) {
+  const proto = Provider.prototype;
+  const { generateCoverage, readCoverageFiles, getCoverageMapForUncoveredFiles, generateReports } = proto;
+  proto.generateCoverage = function (...args) {
+    return timed('generateMs', () => generateCoverage.apply(this, args));
+  };
+  proto.readCoverageFiles = function (options) {
+    const onFinished = (...args) => timed('finishMs', () => options.onFinished(...args));
+    return timed('readMs', () => readCoverageFiles.call(this, { ...options, onFinished }));
+  };
+  proto.getCoverageMapForUncoveredFiles = function (...args) {
+    return timed('untestedMs', () => getCoverageMapForUncoveredFiles.apply(this, args));
+  };
+  proto.generateReports = function (...args) {
+    return timed('reportMs', () => generateReports.apply(this, args));
+  };
+}
 
 // Time the provider's transform hook, which runs the instrumenter for every
 // file, in both Istanbul modes. Vitest imports this same module, so the
@@ -150,8 +188,8 @@ IstanbulCoverageProvider.prototype.onFileTransform = function (...args) {
 // silently fell back
 // to the default instrumenter is visible.
 let oxcCalls = 0;
-const countingOxcInstrumenter = (options) => {
-  const instrumenter = createOxcInstrumenter({ ...options, compat: 'istanbul' });
+const countingOxcInstrumenter = (profile) => (options) => {
+  const instrumenter = createOxcInstrumenter({ ...options, ...profile });
   const instrumentSync = instrumenter.instrumentSync.bind(instrumenter);
   instrumenter.instrumentSync = (...args) => {
     oxcCalls += 1;
@@ -163,28 +201,32 @@ const countingOxcInstrumenter = (options) => {
 // Vitest can load this config in more than one process, so each process
 // appends its own line.
 process.on('exit', () => {
-  if (transformedFiles === 0 && oxcCalls === 0) return;
+  if (transformedFiles === 0 && oxcCalls === 0 && steps.generateMs === 0) return;
   mkdirSync('./.coverage-bench', { recursive: true });
-  appendFileSync('./.coverage-bench/stats.txt', [process.pid, transformMs, transformedFiles, oxcCalls].join(' ') + '\\n');
+  appendFileSync('./.coverage-bench/stats.jsonl', JSON.stringify({ transformMs, transformedFiles, oxcCalls, ...steps }) + '\\n');
 });
+const PROFILES = { 'oxc-coverage-instrument': { compat: 'istanbul' }, 'oxc-coverage-instrument-default': {} };
 const coverage =
   mode === 'none'
     ? { enabled: false }
     : {
         enabled: true,
         provider: mode === 'v8' ? 'v8' : 'istanbul',
-        ...(mode === 'oxc-coverage-instrument'
-          ? { instrumenter: countingOxcInstrumenter }
-          : {}),
-        reporter: ['json-summary'],
+        ...(mode in PROFILES ? { instrumenter: countingOxcInstrumenter(PROFILES[mode]) } : {}),
         reportsDirectory: './.coverage-bench/' + mode,
         reportOnFailure: true,
         clean: true,
       };
+// Vitest's default reporters, so the report step costs what it costs in a
+// project without a reporter setting, plus json-summary for the totals.
+const REPORTERS = [...coverageConfigDefaults.reporter, 'json-summary'];
 
 export default defineConfig(async (env) => {
   const resolved = typeof base === 'function' ? await base(env) : await base;
-  return mergeConfig(resolved, { test: { coverage, watch: false } });
+  const merged = mergeConfig(resolved, { test: { coverage, watch: false } });
+  // mergeConfig concatenates arrays, so set the reporters after the merge.
+  if (mode !== 'none') merged.test.coverage.reporter = REPORTERS;
+  return merged;
 });
 `,
   );
@@ -200,23 +242,35 @@ const clearCaches = (cwd) => {
   for (const dir of CACHE_DIRS) rmSync(join(cwd, dir), { recursive: true, force: true });
 };
 
-// Sum the lines that each Vitest process appended to .coverage-bench/stats.txt.
+const STATS_FILE = 'stats.jsonl';
+const STAT_KEYS = ['transformMs', 'transformedFiles', 'oxcCalls', 'readMs', 'finishMs', 'untestedMs', 'generateMs', 'reportMs'];
+
+// Sum the lines that each Vitest process appended to .coverage-bench/stats.jsonl.
 const readStats = (cwd) => {
-  const path = join(cwd, '.coverage-bench', 'stats.txt');
-  const stats = { transformMs: 0, transformedFiles: 0, oxcCalls: 0 };
+  const path = join(cwd, '.coverage-bench', STATS_FILE);
+  const stats = Object.fromEntries(STAT_KEYS.map((key) => [key, 0]));
   if (!existsSync(path)) return stats;
   for (const line of readFileSync(path, 'utf8').split('\n').filter(Boolean)) {
-    const [, ms, files, calls] = line.split(' ').map(Number);
-    stats.transformMs += ms;
-    stats.transformedFiles += files;
-    stats.oxcCalls += calls;
+    const entry = JSON.parse(line);
+    for (const key of STAT_KEYS) stats[key] += entry[key];
   }
   return stats;
 };
 
+// Split the timed methods into steps that do not overlap. readCoverageFiles
+// contains onFinished, and generateCoverage contains both readCoverageFiles
+// and the untested files; the remainder of generateCoverage is the remap of
+// the untested files and a filter that checks that each file exists.
+const steps = (stats) => {
+  const readAndMerge = stats.readMs - stats.finishMs;
+  const untested = stats.untestedMs;
+  const remap = stats.generateMs - readAndMerge - untested;
+  return { readAndMerge, remap, untested, reports: stats.reportMs, total: stats.generateMs + stats.reportMs };
+};
+
 const runVitest = (project, cwd, mode) => {
   clearCaches(cwd);
-  rmSync(join(cwd, '.coverage-bench', 'stats.txt'), { force: true });
+  rmSync(join(cwd, '.coverage-bench', STATS_FILE), { force: true });
   const [command, prefix] = pm(project);
   const exec = project.packageManager === 'yarn' ? ['vitest'] : ['exec', 'vitest'];
   const args = [...prefix, ...exec, 'run', '--config', BENCH_CONFIG, ...project.vitestArgs];
@@ -246,6 +300,27 @@ const readTotals = (cwd, mode) => {
   if (!existsSync(path)) return null;
   const { total } = JSON.parse(readFileSync(path, 'utf8'));
   return Object.fromEntries(METRICS.map((m) => [m, `${total[m].covered}/${total[m].total}`]));
+};
+
+// What the coverage data holds beyond the totals: branch entries and their
+// paths that no test ran, optional-chain entries, and functions without a name.
+const ANONYMOUS = /^\(anonymous_\d+\)$/;
+const readDetail = (cwd, mode) => {
+  const path = join(cwd, '.coverage-bench', mode, 'coverage-final.json');
+  if (!existsSync(path)) return null;
+  const detail = { branches: 0, missedPaths: 0, optionalChains: 0, functions: 0, anonymous: 0 };
+  for (const file of Object.values(JSON.parse(readFileSync(path, 'utf8')))) {
+    for (const [id, branch] of Object.entries(file.branchMap)) {
+      detail.branches += 1;
+      if (branch.type === 'optional-chain') detail.optionalChains += 1;
+      detail.missedPaths += file.b[id].filter((count) => count === 0).length;
+    }
+    for (const fn of Object.values(file.fnMap)) {
+      detail.functions += 1;
+      if (ANONYMOUS.test(fn.name)) detail.anonymous += 1;
+    }
+  }
+  return detail;
 };
 
 const median = (values) => {
@@ -288,10 +363,17 @@ const main = () => {
       ),
       transformMs: { istanbul: median(pick('istanbul', 'transformMs')), oxc: median(pick(OXC_MODE, 'transformMs')) },
       transformedFiles: median(pick(OXC_MODE, 'transformedFiles')),
-      oxcCalls: Math.min(...pick(OXC_MODE, 'oxcCalls')),
+      oxcCalls: Math.min(...pick(OXC_MODE, 'oxcCalls'), ...pick(OXC_DEFAULT_MODE, 'oxcCalls')),
       testFiles: last.none.testFiles,
       failedFiles: Object.fromEntries(MODES.map((mode) => [mode, Math.max(...pick(mode, 'failedFiles'))])),
-      totals: { istanbul: readTotals(cwd, 'istanbul'), [OXC_MODE]: readTotals(cwd, OXC_MODE), v8: readTotals(cwd, 'v8') },
+      steps: Object.fromEntries(
+        STEP_MODES.map((mode) => {
+          const split = samples[mode].map((sample) => steps(sample));
+          return [mode, Object.fromEntries(Object.keys(split[0]).map((key) => [key, median(split.map((s) => s[key]))]))];
+        }),
+      ),
+      totals: Object.fromEntries(['istanbul', OXC_MODE, OXC_DEFAULT_MODE, 'v8'].map((mode) => [mode, readTotals(cwd, mode)])),
+      detail: { istanbul: readDetail(cwd, 'istanbul'), [OXC_DEFAULT_MODE]: readDetail(cwd, OXC_DEFAULT_MODE) },
     });
   }
 
@@ -318,6 +400,37 @@ const main = () => {
   lines.push('|:--|--:|--:|--:|--:|--:|');
   for (const r of results) {
     lines.push(`| ${r.project.name} | ${r.testFiles ?? '?'} | ${range(r.wall.none)} | ${range(r.wall.istanbul)} | ${range(r.wall[OXC_MODE])} | ${range(r.wall.v8)} |`);
+  }
+  lines.push('');
+  lines.push('Steps after the test run, in the main process (median). "Remap" is the source-map remap; for V8 it is the conversion to Istanbul data plus the remap. "Untested files" instruments the included files that no test loaded. "Reports" runs Vitest\'s default reporters (`text`, `html`, `clover`, `json`) and `json-summary`:');
+  lines.push('');
+  lines.push('| Project | Provider | Read and merge | Remap | Untested files | Reports | Total |');
+  lines.push('|:--|:--|--:|--:|--:|--:|--:|');
+  const STEP_LABELS = { istanbul: 'Istanbul, Vitest\'s instrumenter', [OXC_MODE]: 'Istanbul, `oxc-coverage-instrument`', v8: 'V8' };
+  for (const r of results) {
+    for (const mode of STEP_MODES) {
+      const s = r.steps[mode];
+      const step = (ms) => `${(ms / 1000).toFixed(2)} s`;
+      lines.push(`| ${r.project.name} | ${STEP_LABELS[mode]} | ${step(s.readAndMerge)} | ${step(s.remap)} | ${step(s.untested)} | ${step(s.reports)} | ${step(s.total)} |`);
+    }
+  }
+  lines.push('');
+  lines.push('What the default profile of `oxc-coverage-instrument` adds to the coverage data, against Vitest\'s instrumenter. "Untested paths" are branch paths that no test ran:');
+  lines.push('');
+  lines.push('| Project | Branch entries | Untested paths | Optional-chain entries | Functions | Functions without a name | Branches covered |');
+  lines.push('|:--|--:|--:|--:|--:|--:|--:|');
+  const change = (from, to) => (from === to ? `${to}` : `${from} → ${to}`);
+  for (const r of results) {
+    const a = r.detail.istanbul;
+    const b = r.detail[OXC_DEFAULT_MODE];
+    if (!a || !b) continue;
+    const pct = (totals) => {
+      const [covered, total] = totals.branches.split('/').map(Number);
+      return `${((covered / total) * 100).toFixed(1)}%`;
+    };
+    lines.push(
+      `| ${r.project.name} | ${change(a.branches, b.branches)} | ${change(a.missedPaths, b.missedPaths)} | ${change(a.optionalChains, b.optionalChains)} | ${change(a.functions, b.functions)} | ${change(a.anonymous, b.anonymous)} | ${change(pct(r.totals.istanbul), pct(r.totals[OXC_DEFAULT_MODE]))} |`,
+    );
   }
   lines.push('');
   lines.push('Coverage totals (covered/total). The two Istanbul columns must be equal:');

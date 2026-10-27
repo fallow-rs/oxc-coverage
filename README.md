@@ -26,7 +26,8 @@ npm install -D @vitest/coverage-istanbul oxc-coverage-instrument
 ```
 
 **2. Add the instrumenter** to the coverage config in `vitest.config.ts`. This
-is the only change:
+is the only change. `compat: 'istanbul'` keeps the coverage numbers equal to
+those of Vitest's own instrumenter:
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -36,7 +37,7 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'istanbul',
-      instrumenter: (options) => createOxcInstrumenter(options),
+      instrumenter: (options) => createOxcInstrumenter({ ...options, compat: 'istanbul' }),
     },
   },
 });
@@ -53,10 +54,11 @@ and the coverage points at your `.ts` and `.tsx` lines. Your other coverage
 settings (`include`, `exclude`, `reporter`, `thresholds`, Vitest projects,
 browser mode) stay as they are.
 
-To get exactly the numbers of Vitest's own Istanbul instrumenter, use the strict
-profile: `createOxcInstrumenter({ ...options, compat: 'istanbul' })`. Without
-it, the instrumenter also counts the branches of `??=`, `||=`, `&&=`, and
-optional chains, and gives anonymous functions the name they get at runtime.
+**4. Optional: see more untested cases.** Remove `compat: 'istanbul'` to use
+the default profile. It also counts the branches of optional chains, `??=`,
+`||=`, and `&&=`, and gives anonymous functions the name that they get at
+runtime. Your branch percentage can then change, so check your branch
+thresholds (see [More detail with the default profile](#more-detail-with-the-default-profile)).
 
 The [examples](examples/) show React, a monorepo with Vitest projects, and CI
 reports (`lcov`, `cobertura`, coverage thresholds).
@@ -70,54 +72,269 @@ exact statement, branch, and function counts. This package replaces the step
 that inserts the counters.
 
 The table shows that step on the test suites of four open-source projects,
-measured on a GitHub-hosted runner with a cold Vitest cache, as in CI. Each time
-is the total time that Vitest's Istanbul provider spends inserting counters, for
-all source files of the run
-([method and full results](examples/vitest-real-projects/)):
+with the setup above (`compat: 'istanbul'`). It was measured on a GitHub-hosted
+runner with a cold Vitest cache, as in CI
+([method and full results](examples/vitest-real-projects/)). The instrumenter
+columns give the time of all Vitest workers together, for all source files of
+the run. The last column gives the time of the whole `vitest run`:
 
-| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup |
-|:--|--:|--:|--:|--:|
-| [hono](https://github.com/honojs/hono) (web framework) | 636 | 10.7 s | 0.9 s | **11.6x** |
-| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.4 s | 0.1 s | **11.6x** |
-| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 3.9 s | 0.5 s | **7.2x** |
-| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 5.5 s | 1.0 s | **5.6x** |
+| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup | Whole run |
+|:--|--:|--:|--:|--:|--:|
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.5 s | 0.1 s | **13.4x** | 19.4 s → 17.3 s |
+| [hono](https://github.com/honojs/hono) (web framework) | 636 | 11.8 s | 0.9 s | **13.3x** | 29.4 s → 26.3 s |
+| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 4.0 s | 0.5 s | **7.5x** | 37.4 s → 35.1 s |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 5.7 s | 1.0 s | **5.7x** | 197.6 s → 194.3 s |
 
 The times are rounded; the speedup comes from the unrounded times.
 
 - **The coverage numbers stay the same.** The covered and total counts of
   lines, statements, functions, and branches are equal to those of Vitest's own
   instrumenter in all four projects.
-- **The whole test run gains less.** Running the tests and writing the report
-  take the same time as before. The [full results](examples/vitest-real-projects/)
-  give the wall time of each run.
-- **Local reruns gain less.** Vitest caches the instrumented files on disk, so a
-  rerun with a warm cache skips this step.
+- **The whole test run gains 2.1 s to 3.3 s.** That is 11% of the run for h3
+  and hono, 6% for date-fns, and 2% for es-toolkit. The workers instrument
+  files at the same time, so the time that you save is less than the sum in
+  the table. The rest of the run (the tests themselves, the coverage
+  collection, and the reports) does not change.
+- **Local reruns gain less.** Vitest 5 caches the instrumented files on disk,
+  so a rerun with a warm cache skips this step.
+
+### More detail with the default profile
+
+The numbers above use the strict profile (`compat: 'istanbul'`), which gives
+the same coverage data as Vitest's instrumenter. The default profile, without
+`compat`, records more. It adds a branch entry for each optional chain
+(`a?.b`) and each `??=`, `||=`, and `&&=`. It also gives anonymous functions the
+name that they get at runtime: the report shows `const onRequest = () => {}`
+as `onRequest`, not as `(anonymous_12)`. A branch entry has two or more
+paths, for example the two sides of `a ?? b`. On the same four projects:
+
+| Project | Branch entries | Branch paths that no test ran | Functions without a name | Branch coverage |
+|:--|--:|--:|--:|--:|
+| hono | 2143 → 2375 | 296 → 385 | 1055 → 414 | 93.3% → 92.1% |
+| h3 | 1302 → 1491 | 195 → 276 | 268 → 157 | 92.7% → 91.0% |
+| date-fns | 776 → 1064 | 211 → 254 | 252 → 45 | 88.4% → 89.4% |
+| es-toolkit | 1609 → 1668 | 54 → 68 | 332 → 274 | 98.4% → 98.0% |
+
+Each extra untested path is a case that your tests do not check, for example
+`user?.name` when `user` is `null`. The default profile shows you where these
+cases are. Your branch percentage changes by up to 1.7 points, up or
+down, so check your branch thresholds when you switch.
 
 Choose:
 
 | You use now | Then |
 |:--|:--|
-| `istanbul` | Add the `instrumenter` line. Same numbers, less time. |
+| `istanbul` | Add the `instrumenter` line with `compat: 'istanbul'`. Same numbers, less time. |
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
 | `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
+| Jest | This package has no Jest transformer. Jest keeps `babel-plugin-istanbul`. |
 
-## Other ways to use it
+## The parts
 
-The npm package also works without Vitest:
+Istanbul coverage has four steps and one data format. This project has one
+part for each, and a sixth part for coverage from the V8 engine:
+
+```
+your code ─► 1 Instrument ─► tests run ─► 2 Coverage data ─► 3 Remap ─► 4 Summary ─► 5 Reports
+                        V8 engine coverage ─► 6 V8 conversion ─┘
+```
+
+With the Vitest setup above, Vitest uses part 1 only. Vitest does steps 2 to 5
+with its own Istanbul packages. Those steps are fast: on the four projects
+above they take 0.9 s to 3.7 s per run, and the remap and the reports take
+0.1 s to 1.1 s of that
+([steps per project](examples/vitest-real-projects/#steps-after-the-test-run)).
+With `oxc-coverage-instrument` they take about the same time, a little more
+in three of the four projects. Vitest can also load a custom coverage provider
+or a custom reporter, but this package does not ship one. Parts 2 to 6 are for
+your own scripts, for example a CI step that writes the reports, and for tools
+that you build.
+
+| Part | What it does | npm function | Rust crate | Replaces |
+|:--|:--|:--|:--|:--|
+| 1. Instrument | Adds a counter to each statement, function, and branch. | `instrument()`, `createOxcInstrumenter()` | [`oxc_coverage_instrument`](crates/oxc_coverage_instrument/README.md) | `istanbul-lib-instrument`, `babel-plugin-istanbul`, `swc-plugin-coverage-instrument` |
+| 2. Coverage data | Sets the format of the counts: `coverage-final.json`. | plain JSON | [`oxc_coverage_types`](crates/oxc_coverage_types/README.md) | the data model of `istanbul-lib-coverage`, without its merge |
+| 3. Remap | Moves the positions from the built JavaScript back to your source files. | `remapCoverageMap()` | [`oxc_coverage_source_maps`](crates/oxc_coverage_source_maps/README.md) | `istanbul-lib-source-maps` |
+| 4. Summary | Calculates the totals and the percentages, per file and for the project. | `summarizeCoverage()` | [`oxc_coverage_report`](crates/oxc_coverage_report/README.md) | the summaries of `istanbul-lib-coverage` and `istanbul-lib-report` |
+| 5. Reports | Writes `text`, `lcov`, `cobertura`, `html`, and other formats. | `createReport()`, `writeHtmlReport()` | [`oxc_coverage_reports`](crates/oxc_coverage_reports/README.md) | a part of `istanbul-reports` |
+| 6. V8 conversion | Turns the coverage that V8 records into the format of part 2. | `v8ToIstanbul()` | [`oxc_coverage_v8`](crates/oxc_coverage_v8/README.md) | `ast-v8-to-istanbul`; more detail than `v8-to-istanbul` |
+
+All npm functions are in the `oxc-coverage-instrument` package. They take and
+return the coverage data as a JSON string.
+
+In the snippets below, `coverageJson` is a coverage map: one entry per file,
+keyed by the file path. Vitest writes it to `coverage/coverage-final.json` when
+the `json` reporter is on (it is on by default):
+
+```javascript
+import { readFileSync } from 'node:fs';
+
+const coverageJson = readFileSync('coverage/coverage-final.json', 'utf8');
+```
+
+`instrument()` and `v8ToIstanbul()` return the data of one file, not a map.
+Put it in a map before you pass it on:
+`JSON.stringify({ [file.path]: file })`, where `file` is the parsed result.
+
+### 1. Instrument
+
+**What it does.** It reads a source file and writes a copy with a counter on
+each statement, function, and branch. When the tests run the copy, each counter
+adds one each time its code runs.
+
+**Why use it.** This is the slowest step of Istanbul coverage. In Vitest it is
+5.7x to 13.4x faster than Vitest's own instrumenter (see
+[Is it worth it?](#is-it-worth-it)).
+
+**How.** In Vitest, use the setup at the top of this README. In
+`vite-plugin-istanbul` 9 and newer, pass `createOxcInstrumenter()` as its
+`instrumenter` option. In your own build step or plugin, call `instrument()`:
 
 ```javascript
 import { instrument } from 'oxc-coverage-instrument';
 
-const result = instrument(source, 'file.js', { sourceMap: true });
-const coverageMap = JSON.parse(result.coverageMap);
+const result = instrument(source, 'src/app.ts', { sourceMap: true, stripTypescript: true });
+// result.code: the JavaScript code with the counters
+// result.coverageMap: the coverage data of this file, as JSON, with all counts at 0
+// result.sourceMap: the source map of result.code
 ```
 
-It also converts V8 coverage (`v8ToIstanbul`), remaps coverage through source
-maps (`remapCoverageMap`), and writes reports (`createReport`,
-`writeHtmlReport`). The [npm package README](crates/oxc_coverage_instrument_napi/README.md)
-covers `vite-plugin-istanbul` and custom Vite or Rollup plugins.
+When the code runs, the counters go into `globalThis.__coverage__`, keyed by the
+file path. That object is the coverage map that the other parts read.
 
-From Rust:
+`stripTypescript: true` removes the TypeScript types. Without it, the output
+keeps the types, and plain Node.js cannot run it. JSX stays JSX either way, so
+compile it after this step. The Vitest adapter strips the types for you. The
+[npm package README](crates/oxc_coverage_instrument_napi/README.md) lists all
+options.
+
+### 2. Coverage data
+
+**What it does.** It is the format of the result. For each file it records each
+statement, function, and branch, its position, and how many times it ran. This
+is the `coverage-final.json` that Vitest's `json` reporter writes.
+
+**Why use it.** Every part reads and writes this format, and it is the same as
+Istanbul's. nyc and the other Istanbul tools read the output of this project,
+and this project reads their output.
+
+**How.** In JavaScript it is plain JSON: `JSON.parse()` it. In Rust, use the
+types of `oxc_coverage_types` (`FileCoverage`, `CoverageMap`). The npm package
+has no function to merge two coverage files.
+
+### 3. Remap
+
+**What it does.** Your tests often run built JavaScript, not your TypeScript
+source. The counts then point at lines of the built file. A source map tells
+which built line comes from which source line. This part uses the source map
+to move each position back to your `.ts` or `.tsx` file.
+
+**Why use it.** You need it when you instrument built output, for example a
+bundle, and want the coverage on your source files. Vitest remaps on its own.
+
+**How.** Each file entry of the coverage data can hold its source map in
+`inputSourceMap`. `remapCoverageMap()` uses it:
+
+```javascript
+import { remapCoverageMap } from 'oxc-coverage-instrument';
+
+const remapped = remapCoverageMap(coverageJson);
+```
+
+The file path in the result comes from `sources` in the source map, so set
+`sources` (or `sourceRoot`) to the path that you want in the report. When the
+maps are separate files, read them first and pass them to
+`remapCoverageMapWithLoader(coverageJson, { [filePath]: mapJson })`. To skip
+this step, pass the source map to `instrument()` as `inputSourceMap` and set
+`composeInputSourceMap: true`. The coverage data then points at the source from
+the start.
+
+### 4. Summary
+
+**What it does.** It counts the covered and total lines, statements, functions,
+and branches, and calculates the percentages. It does this per file and for the
+whole project.
+
+**Why use it.** Use it for a coverage threshold in CI, a badge, or a comment on
+a pull request. It is about as fast as `istanbul-lib-coverage`; the gain is
+that the same package also writes the reports. The command line does the same
+check with `report --fail-under 80`, which exits with code 2 under the
+threshold.
+
+**How.**
+
+```javascript
+import { summarizeCoverage } from 'oxc-coverage-instrument';
+
+const { total, files } = summarizeCoverage(coverageJson);
+if (total.lines.pct < 80) process.exitCode = 1;
+```
+
+### 5. Reports
+
+**What it does.** It writes the coverage in the formats that people and tools
+read:
+
+| Format | For |
+|:--|:--|
+| `text`, `text-summary` | The table in your terminal. |
+| `json-summary` | Scripts and badges. |
+| `lcov` | Codecov, Coveralls, SonarQube, and editor plugins. Writes `lcov.info`. |
+| `cobertura` | GitLab, Azure DevOps, and Jenkins. |
+| `html` | People: a page per file that marks the lines that did not run. |
+
+It does not write `clover`, `json`, `teamcity`, `text-lcov`, or `html-spa`.
+
+**Why use it.** One script writes all the formats from one
+`coverage-final.json`. The `lcov` and `cobertura` reports are 2.6x to 2.9x
+faster than `istanbul-reports`. The `text` reports take about the same time.
+The `html` report is about 32 times slower, because it highlights the source
+code when it writes the pages (see the [benchmarks](#benchmarks-per-component)).
+
+**How.**
+
+```javascript
+import { writeFileSync } from 'node:fs';
+import { createReport, writeHtmlReport } from 'oxc-coverage-instrument';
+
+writeFileSync('coverage/lcov.info', createReport(coverageJson, 'lcov', { rootDir: process.cwd() }));
+writeHtmlReport(coverageJson, 'coverage/html', { rootDir: process.cwd() });
+```
+
+`rootDir` makes the paths in the reports relative to your project. The
+[`vitest-ci-reports`](examples/vitest-ci-reports/) example writes `lcov`,
+`cobertura`, and `html` after a Vitest run, and fails the run under a
+threshold. The WebAssembly build has no `html` report.
+
+### 6. V8 conversion
+
+**What it does.** This is a different way to get coverage. The V8 engine in
+Node.js and Chrome can record which byte ranges of a script ran, with no
+counters in the code. This part turns that record into the coverage data of
+part 2, with statements, functions, and branches from the source code.
+
+**Why use it.** Use it when you collect V8 coverage yourself, for example with
+`node:inspector` or with Playwright's `page.coverage`, and want Istanbul data and
+reports. Vitest's `v8` provider does this step on its own.
+
+**How.** Pass the script source and the `functions` array that V8 gives for
+that script:
+
+```javascript
+import { v8ToIstanbul } from 'oxc-coverage-instrument';
+
+const file = JSON.parse(v8ToIstanbul(source, 'src/app.js', JSON.stringify(script.functions)));
+const coverageJson = JSON.stringify({ [file.path]: file });
+```
+
+V8 does not record each branch path. A branch path that V8 has no range for
+gets the count 0, so the result can show less branch coverage than the code
+has, never more.
+
+### Rust and the command line
+
+Each part is a separate Rust crate, so a Rust tool takes only the parts it
+needs:
 
 ```toml
 [dependencies]
@@ -134,7 +351,9 @@ assert_eq!(result.coverage_map.fn_map["0"].name, "add");
 println!("{}", result.code);
 ```
 
-As a command-line tool:
+The `oxc-coverage-instrument` command instruments files and writes reports. It
+is not on crates.io, so install it from Git. It keeps TypeScript types in its
+output:
 
 ```bash
 cargo install --git https://github.com/fallow-rs/oxc-coverage oxc_coverage_instrument_cli
@@ -142,36 +361,25 @@ oxc-coverage-instrument src/app.js -o dist/app.js --source-map
 oxc-coverage-instrument report --format text coverage-final.json
 ```
 
+### How this compares with Vitest's Istanbul packages
+
+Vitest maintains forks of the Istanbul packages in
+[`vitest-dev/istanbuljs`](https://github.com/vitest-dev/istanbuljs).
+`@vitest/istanbul-lib-instrument` keeps the Istanbul API and replaces Babel
+with the Oxc parser of `rolldown` and with `magic-string`. The forks of the
+other packages are JavaScript ports of the Istanbul packages. This project
+replaces all of them with Rust code behind a native or WebAssembly binding.
+
 The instrumenter is checked against `istanbul-lib-instrument` on a shared
-fixture corpus, by count and byte for byte. This repository was previously named
-`oxc-coverage-instrument`; that name now belongs to the npm package, the
+fixture corpus, by count and byte for byte. This repository was previously
+named `oxc-coverage-instrument`; that name now belongs to the npm package, the
 instrumenter crate, and the CLI binary.
-
-## What it replaces
-
-Each row names an Istanbul package, its Vitest fork from
-[`vitest-dev/istanbuljs`](https://github.com/vitest-dev/istanbuljs) where one
-exists, and the replacement in the `oxc-coverage-instrument` npm package and in
-the Rust crates.
-
-| Package | Vitest fork | npm replacement | Rust crate | Scope |
-|:--|:--|:--|:--|:--|
-| `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | `instrument()`, `createOxcInstrumenter()` from `oxc-coverage-instrument/vitest` | `oxc_coverage_instrument` | Full. The strict profile matches Istanbul byte for byte. |
-| `babel-plugin-istanbul`, `swc-plugin-coverage-instrument` | | `instrument()` in a Vite or Rollup plugin | `oxc_coverage_instrument` | Same output shape as `istanbul-lib-instrument`. |
-| `v8-to-istanbul`, `ast-v8-to-istanbul` | | `v8ToIstanbul()` | `oxc_coverage_v8` | Statement, function, and branch entries from the AST, as `ast-v8-to-istanbul` gives. `v8-to-istanbul` gives one statement per line. |
-| `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | `remapCoverageMap()` | `oxc_coverage_source_maps` | Full `transformCoverage`, plus the optional `dropUnmapped`. `instrument()` can also compose the input source map at instrument time (`composeInputSourceMap`). |
-| `istanbul-lib-coverage` | `@vitest/istanbul-lib-coverage` | `summarizeCoverage()` | `oxc_coverage_types`, `oxc_coverage_report` | The data model (`oxc_coverage_types`) and the summaries (`oxc_coverage_report`). No public merge API. |
-| `istanbul-lib-report`, `istanbul-reports` | `@vitest/istanbul-lib-report` | `createReport()`, `writeHtmlReport()` | `oxc_coverage_report`, `oxc_coverage_reports` | The `text`, `text-summary`, `json-summary`, `cobertura`, and `html` reports, and `lcov`, which writes the `lcov.info` of Istanbul's `lcovonly`. Istanbul's `lcov` also writes an HTML tree. Not `clover`, `json`, `teamcity`, `text-lcov`, or `html-spa`. |
-
-The Vitest instrumenter fork keeps the Istanbul API and replaces Babel with the
-Oxc parser of `rolldown` and with `magic-string`. The other Vitest forks are
-JavaScript ports of the Istanbul packages. This project replaces all of them
-with Rust code behind a native or WebAssembly binding.
 
 ## Benchmarks per component
 
-Each part measured on its own, against the package it replaces. Times on the five pinned library builds of `scripts/real-world-corpus.json`, in
-one Node.js process, as the median of 7 runs after 2 warm-up runs, from
+Each part measured on its own, against the package it replaces. Times on the
+five pinned library builds of `scripts/real-world-corpus.json`, in one Node.js
+process, as the median of 7 runs after 2 warm-up runs, from
 `scripts/replacement-benchmarks.mjs`. Measured on 2026-10-24 on an Apple M5
 (macOS, Darwin 25.5), Node.js 24.20.0, with the release build of the native
 binding. The time is the sum over the five files, in milliseconds. A ratio
