@@ -218,9 +218,10 @@ impl CoverageContext<'_> {
     ///
     /// The member is the widest member span in `range` that contains the
     /// code. That is a member of the class that owns `range`, not of a class
-    /// inside it. Code in no member is the body of a method that V8 did not
-    /// report. It keeps the instance initializer range, because the count of
-    /// that range is 0 when the class has no instances.
+    /// inside it. Code in no member is a method body. V8 normally reports a
+    /// record for each method, but some coverage has no record for a method
+    /// that never ran. That body keeps the instance initializer range,
+    /// because the count of that range is 0 when the class has no instances.
     fn initializer_runs(
         &self,
         initializer: Initializer,

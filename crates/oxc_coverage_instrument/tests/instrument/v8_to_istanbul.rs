@@ -1418,9 +1418,9 @@ for (const n of [0, 1, 2, 3]) {
 
 #[test]
 fn real_v8_node22_unreported_method_body_takes_the_instance_count() {
-    // V8 reports no record for a method that never ran. Its body then falls
-    // in the class body range of both initializers, and the static record
-    // comes first. The class has no instances, so the body ran 0 times.
+    // Some coverage has no record for a method that never ran. Its body then
+    // falls in the class body range of both initializers, and the static
+    // record comes first. The class has no instances, so the body ran 0 times.
     let source = "class Box {\n  kind = 1;\n  static base = 2;\n  run() {\n    return 3;\n  }\n}\n";
     let functions = [
         function("", vec![range(0, 95, 1)], true),
