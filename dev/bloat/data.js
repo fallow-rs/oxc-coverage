@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793102326548,
+  "lastUpdate": 1793136779343,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "eca4b5a388fb6270dce1ca08da92fd623ed339bf",
-          "message": "feat: compose inputSourceMap eagerly during instrument() (#101)\n\nAdd an opt-in composeInputSourceMap flag to InstrumentOptions (napi:\ncomposeInputSourceMap). When true and inputSourceMap is set, instrument()\nfolds the input source map into the coverage map during instrumentation\nvia remap_coverage, so the returned coverageMap and the runtime\n__coverage__ baked into the preamble carry original-source positions,\nare keyed by the original source path, and embed no inputSourceMap.\nremapCoverageMap on the result is then a no-op.\n\nThis removes the per-collection remap round-trip for E2E collectors\n(Playwright et al.) that dump window.__coverage__ directly. Composition\nruns after the function-identity overlay attaches and before the coverage\nmap is serialized into the preamble, so the overlay keeps its pre-remap\nids and the eager path is bit-for-bit equal to instrument-then-remap.\nWhen the input map is unusable the embedded map is retained so the lazy\npath still works. The output source map is unaffected (still composed\nonce by finalize_source_map). Core + napi only; CLI and the Vitest\nadapter are out of scope.",
-          "timestamp": "2026-05-28T19:18:42+01:00",
-          "tree_id": "8a5f6b98f96bd7274f241ed029a55aa9e32bbbdb",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/eca4b5a388fb6270dce1ca08da92fd623ed339bf"
-        },
-        "date": 1779992452078,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85519856,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103215504,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a61216bb1c6e76cd2a16ba260e065d52ed42720b",
+          "message": "feat(instrument): record the if consequent as arm 0 location (opt-in) (#325)\n\n* feat(instrument): record the if consequent as arm 0 location (opt-in)\n\nistanbul-lib-instrument records the whole IfStatement as the location of\narm 0 of an if branch. Arm 0 then also covers the condition and the else,\nso a consumer cannot read from branchMap which lines run only when the\ncondition is true.\n\nAdd the opt-in if_consequent_location option (npm and the Vitest adapter:\nifConsequentLocation). With it, arm 0 records the consequent block or\nstatement. Arm 1 keeps the alternate, or the zero-width location at the\nconsequent end when there is no else. The branch loc, the counters, and\nevery other map entry do not change. V8 conversion already resolves arm 0\nagainst the consequent body, so its counts do not change either.\n\nThe option is off by default, because reporters that highlight arm 0\nexpect the Istanbul range. The strict Istanbul profile ignores it.\nDocumented as difference 9 in the instrumenter README.\n\n* feat(karma): forward ifConsequentLocation to the instrumenter\n\nThe karma adapter forwards a fixed list of options to createOxcInstrumenter. Add ifConsequentLocation to that list, so instrumenterOptions in a Karma config can set it like the other instrumenter options.",
+          "timestamp": "2026-10-27T22:31:02+01:00",
+          "tree_id": "f18eb4773eb228b1fadd8a34d03656e4395e797a",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/a61216bb1c6e76cd2a16ba260e065d52ed42720b"
+        },
+        "date": 1793136778878,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103217352,
             "unit": "bytes"
           }
         ]
