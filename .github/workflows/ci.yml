@@ -228,6 +228,12 @@ jobs:
       - name: Validate V8 inspector coverage
         run: ./scripts/check.sh inspector-smoke
 
+      - name: Install conformance dependencies
+        run: npm ci
+
+      - name: Compare V8 branch arm counts with Istanbul
+        run: ./scripts/check.sh v8-branch-parity
+
       - name: Run napi tests
         working-directory: crates/oxc_coverage_instrument_napi
         run: node test.mjs

@@ -122,6 +122,7 @@ may differ only through extensions documented in the README.
 | `scripts/real-world-parity.mjs` | Strict-profile entry parity and default-profile count parity over the benchmark corpus. |
 | `scripts/prepare-real-world-corpus.mjs` | Explicit download and SHA-256 verification of the pinned real-project corpus. |
 | `scripts/v8-inspector-smoke.mjs` | Conversion of real Node inspector coverage. |
+| `scripts/v8-branch-parity.mjs` | V8 branch arm counts against istanbul-lib-instrument, case by case. |
 | `scripts/native-vs-wasm-parity.mjs` | Native binding output against the WASM binding, fixture by fixture. |
 | `scripts/compose-eager-smoke.mjs` | Eager compose parity with the deferred remap, plus the mapping-boundary sweep. |
 | `scripts/compose-real-map-parity.mjs` | The same parity over real babel-emitted maps for the benchmark corpus. |

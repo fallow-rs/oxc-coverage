@@ -435,6 +435,10 @@ if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" inspector-smoke >"$TMP/old-no
   fail "inspector profile accepted an unsupported Node.js major"
 fi
 assert_contains "$TMP/old-node.log" "Node.js 22 is required for inspector-smoke."
+if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" v8-branch-parity >"$TMP/old-node-parity.log" 2>&1; then
+  fail "v8-branch-parity profile accepted an unsupported Node.js major"
+fi
+assert_contains "$TMP/old-node-parity.log" "Node.js 22 is required for v8-branch-parity."
 
 mkdir -p "$TMP/old-python-bin"
 printf '%s\n' '#!/bin/sh' 'echo 3.10' 'exit 1' >"$TMP/old-python-bin/python3"
@@ -572,6 +576,7 @@ expected_profiles=(
   audit
   shear
   inspector-smoke
+  v8-branch-parity
   real-world-output
   real-world-parity
   compose-real-map-parity
