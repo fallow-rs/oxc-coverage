@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793100531026,
+  "lastUpdate": 1793100893407,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "fe1c0cd7f1a60af2201305c16e56e180c4c3fab9",
-          "message": "feat: add single-threaded WASI binding for Workers\n\nCloses #87.",
-          "timestamp": "2026-05-26T22:30:20+01:00",
-          "tree_id": "fcc0acea8da9f0ec7fb7755b943af17ca42ccee5",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/fe1c0cd7f1a60af2201305c16e56e180c4c3fab9"
-        },
-        "date": 1779831321746,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85427152,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/c896ef94356bc9cf8cd484d24adec1fdc6bd12bb"
         },
         "date": 1793100530570,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103225224,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a03d2bed89c2ebb63fc881dc8fbcac45e52c3d47",
+          "message": "feat: add a Babel plugin that replaces babel-plugin-istanbul (#318)\n\n* fix: read the npm 12 pack output in the package surface check\n\nnpm 12 prints the result of 'npm pack --json' as an object keyed by package name, not as an array. The check read element 0 and failed with a TypeError before it compared any file. It now accepts both forms.\n\n* feat: add a Babel plugin that replaces babel-plugin-istanbul\n\nShip oxc-coverage-instrument/babel as a subpath export of the npm package.\n@babel/core and test-exclude are optional peer dependencies, so the package\ngets no new runtime dependency.\n\nThe plugin instruments the source text in parserOverride, before Babel\nparses it, with the synchronous native instrument(). It then parses the\ninstrumented text with the parser options of the run and moves every node\nlocation back to the source text through the native source map. Babel then\ncomposes its output source map as usual. The coverage object stays out of\nthe AST until post(), so that other plugins do not visit it.\n\nThe coverage object matches babel-plugin-istanbul: the same entries, the\nsame key order, the same hash, the inputSourceMap from an inline or given\nmap, and the schema key that readInitialCoverage() reads. The coverage\nfunction has the Istanbul name, so babel-plugin-istanbul skips a file that\nthis plugin instrumented in the same run.\n\nOptions follow babel-plugin-istanbul: cwd, include, exclude, extension,\nexcludeNodeModules, useInlineSourceMaps, inputSourceMap, ignoreClassMethods,\ncoverageVariable, reportLogic, onCover and NYC_CONFIG. Two options are new:\ncompat (default 'istanbul') and onlyWithIstanbul, which instruments in\nProgram.enter only when babel-plugin-istanbul is in the run, for babel-jest.\n\nThe tests compare the coverage object with babel-plugin-istanbul on every\nconformance fixture and pin each option, the source map positions, and both\nplugin orders.\n\nRefs #39\n\n* docs: add a Jest and nyc example for the Babel plugin\n\nexamples/jest-babel runs Jest with coverageProvider 'babel' and nyc with\nmocha, once with oxc-coverage-instrument/babel and once with\nbabel-plugin-istanbul. scripts/verify-coverage.mjs compares the\ncoverage-final.json files: byte for byte for Jest, and without the nyc\ncontentHash field (a hash of the instrumented code) for nyc. One source file\nhas no test, so the untested-file path of both runners is also compared.\nThe example keeps its lockfile.\n\nThe root README no longer says that Jest keeps babel-plugin-istanbul. It\nnow points Jest and nyc users to the plugin and states the measured speed in\na Babel run. The npm package README documents the options, the Jest and nyc\nsetup, and the limits.\n\nRefs #39\n\n* fix: parse with the language of the Babel parser plugins\n\nThe native parser selects the language from the file extension. Babel\nselects it from its parser plugins. JSX in a .js file with the jsx parser\nplugin (preset-react) stopped the transform with a parse error, and\nbabel-plugin-istanbul instruments that file.\n\nThe plugin now gives the native parser the language of the Babel parser:\njsx, ts or tsx from the jsx and typescript parser plugins, and commonjs for\nallowReturnOutsideFunction. A parse error now names the file and the\nsyntax that the plugin does not support.\n\nOther changes:\n- An onCover option on babel-plugin-istanbul in the same run now gives a\n  clear error. babel-plugin-istanbul cannot read the coverage of a file that\n  this plugin instrumented.\n- babel.d.ts uses export =, as babel.js is CommonJS. A default import from\n  an ES module under nodenext is now callable.\n- The test-exclude peer range accepts version 8.\n- The optionalDependencies keep the order of main.\n- The READMEs list the syntax limits.\n\n* test: run the Jest and nyc Babel example in CI, with JSX in a .js file\n\nexamples/jest-babel now has src/badge.js, a JSX view in a .js file that\n@babel/preset-react parses. The coverage of Jest and of nyc with mocha is\nequal for both plugins.\n\nThe example also type-checks the plugin types with module nodenext, for an\nES module consumer and a CommonJS consumer.\n\nA new CI job runs the four coverage commands, the comparison and the type\ncheck against the binding of the commit.",
+          "timestamp": "2026-10-27T11:31:56Z",
+          "tree_id": "82fbb45b4ed032617a409238f0a61af132742646",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/a03d2bed89c2ebb63fc881dc8fbcac45e52c3d47"
+        },
+        "date": 1793100892941,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
