@@ -271,7 +271,9 @@ for (const spec of specs) {
     throw new Error(`npm pack failed in ${spec.dir}`);
   }
 
-  const pack = JSON.parse(result.stdout)[0];
+  // npm 10 prints an array. npm 12 prints an object keyed by package name.
+  const packed = JSON.parse(result.stdout);
+  const pack = Array.isArray(packed) ? packed[0] : Object.values(packed)[0];
   const actual = new Set(pack.files.map((file) => file.path.replace(/^package\//, '')));
   const missing = spec.files.filter((file) => !actual.has(file.replace(/^package\//, '')));
   if (missing.length > 0) {
