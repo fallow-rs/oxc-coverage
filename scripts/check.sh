@@ -112,14 +112,15 @@ raise SystemExit(sys.version_info < (3, 11))
 
 NAPI_BUILD_HINT="Run 'npm --prefix crates/oxc_coverage_instrument_napi run build:debug'."
 
-# Print the first Rust input of the binding that is newer than the artifact.
+# Print the first build input of the binding that is newer than the artifact.
+# Every file under src counts, because include_str! embeds non-Rust assets.
 # The CLI crate is not a dependency of the binding, so its sources are excluded.
 newer_napi_input() {
   local artifact="$1"
   find "$ROOT/Cargo.toml" "$ROOT/Cargo.lock" "$ROOT/crates" \
     \( -path "$ROOT/crates/oxc_coverage_instrument_cli" -o -name node_modules -o -name target \) \
     -prune -o \
-    \( -path "$ROOT/crates/*/src/*" -name '*.rs' \
+    \( -path "$ROOT/crates/*/src/*" -type f ! -name '.*' \
     -o -path "$ROOT/crates/*/build.rs" \
     -o -path "$ROOT/crates/*/Cargo.toml" \
     -o -path "$ROOT/Cargo.toml" \
@@ -138,7 +139,7 @@ require_napi_artifact() {
     found=1
     newer="$(newer_napi_input "$artifact")"
     if [ -n "$newer" ]; then
-      die "The native N-API artifact '${artifact#"$ROOT"/}' is older than '${newer#"$ROOT"/}'. $NAPI_BUILD_HINT"
+      die "The native N-API artifact '${artifact#"$ROOT"/}' is older than '${newer#"$ROOT"/}'. $NAPI_BUILD_HINT If no build writes this artifact, delete it."
     fi
   done
   if [ "$found" -eq 0 ]; then

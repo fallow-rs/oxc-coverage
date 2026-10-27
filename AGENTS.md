@@ -63,8 +63,8 @@ used most often:
 Each profile fails with the exact prerequisite command when a tool or artifact
 is missing. It never installs a Rust target or an npm dependency on your behalf.
 A profile that loads the native N-API artifact also fails when the artifact is
-older than a Rust source, `Cargo.toml`, or `Cargo.lock` of the binding. Rebuild
-the artifact after a revert or a branch switch.
+older than a source file, `build.rs`, `Cargo.toml`, or `Cargo.lock` of the
+binding. Rebuild the artifact after a revert or a branch switch.
 
 `all-local` needs Node.js 22, npm dependencies installed at the repository root,
 in the N-API crate, and in the Vitest example, plus `typos`, `cargo-audit`,

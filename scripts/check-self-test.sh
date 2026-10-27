@@ -479,6 +479,7 @@ $ROOT|-D warnings|doc -p oxc_coverage_instrument --features ast-api --no-deps --
 stale_root="$TMP/stale-napi-root"
 stale_napi="$stale_root/crates/oxc_coverage_instrument_napi"
 mkdir -p "$stale_root/scripts" "$stale_napi/src" "$stale_root/crates/oxc_coverage_v8/src" \
+  "$stale_root/crates/oxc_coverage_reports/src/html" \
   "$stale_root/crates/oxc_coverage_instrument_cli/src" "$TMP/stale-napi-bin"
 cp "$CHECK" "$stale_root/scripts/check.sh"
 : >"$stale_root/Cargo.toml"
@@ -488,6 +489,8 @@ cp "$CHECK" "$stale_root/scripts/check.sh"
 : >"$stale_napi/src/lib.rs"
 : >"$stale_napi/index.js"
 : >"$stale_root/crates/oxc_coverage_v8/src/lib.rs"
+: >"$stale_root/crates/oxc_coverage_reports/src/html/base.css"
+: >"$stale_root/crates/oxc_coverage_v8/src/.DS_Store"
 : >"$stale_root/crates/oxc_coverage_instrument_cli/src/main.rs"
 stale_artifact="$stale_napi/coverage-instrument.self-test.node"
 : >"$stale_artifact"
@@ -503,10 +506,11 @@ run_stale_napi_test() {
 run_stale_napi_test "$TMP/stale-napi-fresh.log"
 assert_equal "$(<"$TMP/stale-napi-node.log")" "crates/oxc_coverage_instrument_napi/test.mjs" \
   "napi-test node invocation with a current artifact"
-touch -t 202601030000 "$stale_root/crates/oxc_coverage_instrument_cli/src/main.rs"
-run_stale_napi_test "$TMP/stale-napi-cli.log"
-for stale_input in crates/oxc_coverage_v8/src/lib.rs crates/oxc_coverage_instrument_napi/build.rs \
-  Cargo.lock; do
+touch -t 202601030000 "$stale_root/crates/oxc_coverage_instrument_cli/src/main.rs" \
+  "$stale_root/crates/oxc_coverage_v8/src/.DS_Store"
+run_stale_napi_test "$TMP/stale-napi-ignored.log"
+for stale_input in crates/oxc_coverage_v8/src/lib.rs crates/oxc_coverage_reports/src/html/base.css \
+  crates/oxc_coverage_instrument_napi/build.rs Cargo.lock; do
   touch -t 202601030000 "$stale_root/$stale_input"
   if run_stale_napi_test "$TMP/stale-napi.log"; then
     fail "napi-test accepted an artifact older than $stale_input"
@@ -514,7 +518,7 @@ for stale_input in crates/oxc_coverage_v8/src/lib.rs crates/oxc_coverage_instrum
   assert_contains "$TMP/stale-napi.log" \
     "The native N-API artifact 'crates/oxc_coverage_instrument_napi/coverage-instrument.self-test.node' is older than '$stale_input'."
   assert_contains "$TMP/stale-napi.log" \
-    "Run 'npm --prefix crates/oxc_coverage_instrument_napi run build:debug'."
+    "Run 'npm --prefix crates/oxc_coverage_instrument_napi run build:debug'. If no build writes this artifact, delete it."
   touch -t 202601010000 "$stale_root/$stale_input"
 done
 rm "$stale_artifact"
