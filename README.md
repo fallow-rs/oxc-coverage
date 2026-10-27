@@ -126,8 +126,9 @@ Choose:
 |:--|:--|
 | `istanbul` | Add the `instrumenter` line with `compat: 'istanbul'`. Same numbers, less time. |
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
-| `babel-plugin-istanbul` or `vite-plugin-istanbul` | Use `instrument()` from the npm package, or the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
-| Jest | This package has no Jest transformer. Jest keeps `babel-plugin-istanbul`. |
+| `babel-plugin-istanbul` (nyc, Babel builds) | Replace it with `oxc-coverage-instrument/babel` in the Babel config. The coverage is the same. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md#babel-jest-and-nyc). |
+| `vite-plugin-istanbul` | Use the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
+| Jest with `coverageProvider: 'babel'` | Add `['oxc-coverage-instrument/babel', { onlyWithIstanbul: true }]` to the Babel config. `coverage-final.json` stays the same. See [`examples/jest-babel`](examples/jest-babel/). |
 
 ## The parts
 
@@ -152,7 +153,7 @@ that you build.
 
 | Part | What it does | npm function | Rust crate | Replaces |
 |:--|:--|:--|:--|:--|
-| 1. Instrument | Adds a counter to each statement, function, and branch. | `instrument()`, `createOxcInstrumenter()` | [`oxc_coverage_instrument`](crates/oxc_coverage_instrument/README.md) | `istanbul-lib-instrument`, `babel-plugin-istanbul`, `swc-plugin-coverage-instrument` |
+| 1. Instrument | Adds a counter to each statement, function, and branch. | `instrument()`, `createOxcInstrumenter()`, `oxc-coverage-instrument/babel` | [`oxc_coverage_instrument`](crates/oxc_coverage_instrument/README.md) | `istanbul-lib-instrument`, `babel-plugin-istanbul`, `swc-plugin-coverage-instrument` |
 | 2. Coverage data | Sets the format of the counts: `coverage-final.json`. | plain JSON | [`oxc_coverage_types`](crates/oxc_coverage_types/README.md) | the data model of `istanbul-lib-coverage`, without its merge |
 | 3. Remap | Moves the positions from the built JavaScript back to your source files. | `remapCoverageMap()` | [`oxc_coverage_source_maps`](crates/oxc_coverage_source_maps/README.md) | `istanbul-lib-source-maps` |
 | 4. Summary | Calculates the totals and the percentages, per file and for the project. | `summarizeCoverage()` | [`oxc_coverage_report`](crates/oxc_coverage_report/README.md) | the summaries of `istanbul-lib-coverage` and `istanbul-lib-report` |
@@ -427,6 +428,14 @@ current release of each tool. Measured on the same machine and day:
 
 `swc-plugin-coverage-instrument` runs as WebAssembly inside SWC's plugin
 sandbox, so its time includes that overhead.
+
+These numbers are for the instrumenter alone. The Babel plugin
+`oxc-coverage-instrument/babel` does not make a Babel run much faster. Babel
+must still parse the instrumented code and print it with its source map, and
+that work is most of the time. On the 191 source files of a real Jest project,
+with `@babel/preset-env`, the plugin added 308 ms to the Babel run and
+`babel-plugin-istanbul` added 470 ms. Without a preset, and on two large files
+(1.2 MB and 0.8 MB), the two plugins took the same time within 10%.
 
 <details>
 <summary>Per-file times</summary>

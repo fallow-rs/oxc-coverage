@@ -2,6 +2,7 @@
 
 Each example is a small, runnable project. The Vitest examples use the
 Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
+The Jest example uses the Babel plugin.
 
 | Example | Shows |
 |:--|:--|
@@ -10,6 +11,7 @@ Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 | [`vitest-monorepo`](vitest-monorepo/) | Several Vitest projects with one root coverage config and one report. |
 | [`vitest-ci-reports`](vitest-ci-reports/) | `lcov`, `cobertura`, HTML, and a coverage threshold for CI, from the npm API. |
 | [`vitest-real-projects`](vitest-real-projects/) | Measured speed and coverage parity on es-toolkit, date-fns, hono, and h3. |
+| [`jest-babel`](jest-babel/) | Jest and nyc with `oxc-coverage-instrument/babel` in place of `babel-plugin-istanbul`. |
 | [`wasm-node`](wasm-node/) | The WebAssembly binding in Node.js. |
 | [`cloudflare-workers`](cloudflare-workers/) | The instrumenter inside a Cloudflare Worker. |
 
