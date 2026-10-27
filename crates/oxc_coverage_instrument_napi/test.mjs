@@ -1364,6 +1364,85 @@ function runInstrumented(result, filename, callExpression) {
   console.log('  [PASS] vitest adapter does not auto-strip .js files');
 }
 
+// Test: the call sequence of vite-plugin-istanbul 9. @storybook/addon-coverage
+// gives `istanbul.instrumenter` to this plugin on the Vite builder. For each
+// file, the plugin calls instrumentSync() with the combined Vite source map
+// and serves that code. Then it calls instrumentSync() again with an identity
+// map, and reads lastSourceMap() and the `fileCoverage` property.
+{
+  const { GenMapping, addMapping, setSourceContent, toEncodedMap } = await import(
+    '@jridgewell/gen-mapping'
+  );
+  const vm = await import('node:vm');
+  const filename = '/project/src/add.ts';
+  const original = 'export function add(a: number, b: number) {\n  return a > 0 ? a + b : b;\n}\nadd(1, 2);\n';
+  const compiled = 'function add(a, b) {\n  return a > 0 ? a + b : b;\n}\nadd(1, 2);\n';
+  const lineMap = (sourceContent) => {
+    const map = new GenMapping({ file: filename });
+    const lines = compiled.split('\n').length - 1;
+    for (let line = 1; line <= lines; line++) {
+      addMapping(map, {
+        generated: { line, column: 0 },
+        source: filename,
+        original: { line, column: 0 },
+      });
+    }
+    setSourceContent(map, filename, sourceContent);
+    return toEncodedMap(map);
+  };
+  const combinedMap = lineMap(original);
+  const identityMap = lineMap(compiled);
+
+  const runPluginSequence = (instrumenter) => {
+    const code = instrumenter.instrumentSync(compiled, filename, combinedMap);
+    instrumenter.instrumentSync(compiled, filename, identityMap);
+    return { code, map: instrumenter.lastSourceMap(), fileCoverage: instrumenter.fileCoverage };
+  };
+  const shape = (coverage) => ({
+    statementMap: coverage.statementMap,
+    fnMap: coverage.fnMap,
+    branchMap: coverage.branchMap,
+  });
+
+  const oxc = runPluginSequence(createOxcInstrumenter({ compat: 'istanbul' }));
+  const reference = runPluginSequence(
+    createInstrumenter({
+      coverageGlobalScopeFunc: false,
+      coverageGlobalScope: 'globalThis',
+      preserveComments: true,
+      produceSourceMap: true,
+      autoWrap: true,
+      esModules: true,
+      compact: false,
+    }),
+  );
+
+  assert.equal(oxc.map?.version, 3, 'lastSourceMap() must return the map of the second call');
+  assert.equal(oxc.fileCoverage.path, filename, 'fileCoverage must describe the last file');
+  assert.deepEqual(shape(oxc.fileCoverage), shape(reference.fileCoverage), 'fileCoverage maps must match Istanbul');
+
+  const runCounters = (code) => {
+    const context = vm.createContext({});
+    vm.runInContext(code, context);
+    // JSON copy: objects from another vm context fail a strict deepEqual.
+    return JSON.parse(JSON.stringify(context.__coverage__[filename]));
+  };
+  const served = runCounters(oxc.code);
+  const servedReference = runCounters(reference.code);
+  assert.deepEqual(shape(served), shape(servedReference), 'served code must register the Istanbul maps');
+  assert.deepEqual(
+    { s: served.s, f: served.f, b: served.b },
+    { s: servedReference.s, f: servedReference.f, b: servedReference.b },
+    'served code must count the same hits as Istanbul',
+  );
+  assert.deepEqual(
+    served.inputSourceMap?.sources,
+    combinedMap.sources,
+    'served code must keep the combined Vite map for the remap step',
+  );
+  console.log('  [PASS] vitest adapter follows the vite-plugin-istanbul 9 call sequence');
+}
+
 // Test: explicit stripTypescript: false overrides auto-detect on .ts
 {
   const inst = createOxcInstrumenter({ stripTypescript: false });
