@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use oxc_coverage_types::{BranchEntry, FileCoverage, Location, Position};
 use oxc_coverage_v8::{
-    V8CoverageRange, V8FunctionCoverage, apply_v8_coverage, extract_external_source_mapping_url,
-    extract_inline_source_map,
+    V8CoverageRange, V8FunctionCoverage, apply_v8_coverage, apply_v8_coverage_with_static_members,
+    extract_external_source_mapping_url, extract_inline_source_map,
 };
 
 // The `~~~~~~` payload packs into sextets that include slot 62, which the
@@ -370,4 +370,71 @@ fn oversized_column_cannot_cross_into_a_later_line() {
     apply_v8_coverage(&mut fc, source, &functions, 0, &BTreeMap::new());
 
     assert_eq!(fc.s["0"], 1, "invalid line-one column must clamp before line two");
+}
+
+/// The V8 records of Node.js 22 for a class with one instance field and one
+/// static field. Both initializers have the class body as outer range.
+fn same_span_initializers(source: &str) -> Vec<V8FunctionCoverage> {
+    let body = V8CoverageRange { start_offset: 8, end_offset: 37, count: 0 };
+    vec![
+        V8FunctionCoverage {
+            function_name: String::new(),
+            ranges: vec![V8CoverageRange {
+                start_offset: 0,
+                end_offset: byte_len(source),
+                count: 1,
+            }],
+            is_block_coverage: true,
+        },
+        V8FunctionCoverage {
+            function_name: "<static_initializer>".to_string(),
+            ranges: vec![V8CoverageRange { count: 1, ..body }],
+            is_block_coverage: true,
+        },
+        V8FunctionCoverage {
+            function_name: "<instance_members_initializer>".to_string(),
+            ranges: vec![V8CoverageRange { count: 4, ..body }],
+            is_block_coverage: true,
+        },
+    ]
+}
+
+#[test]
+fn static_member_spans_select_the_static_initializer_range() {
+    let source = "class A {\n  a = 1;\n  static b = 2;\n}\n";
+    let functions = same_span_initializers(source);
+    let static_field =
+        (byte_len("class A {\n  a = 1;\n  "), byte_len("class A {\n  a = 1;\n  static b = 2;"));
+    let at_line = |line: u32| {
+        single_statement_coverage(Location {
+            start: Position { line, column: 2 },
+            end: Position { line, column: 8 },
+        })
+    };
+
+    let mut instance = at_line(2);
+    apply_v8_coverage_with_static_members(
+        &mut instance,
+        source,
+        &functions,
+        0,
+        &BTreeMap::new(),
+        &[static_field],
+    );
+    assert_eq!(instance.s["0"], 4, "an instance field takes the instance initializer count");
+
+    let mut static_member = at_line(3);
+    apply_v8_coverage_with_static_members(
+        &mut static_member,
+        source,
+        &functions,
+        0,
+        &BTreeMap::new(),
+        &[static_field],
+    );
+    assert_eq!(static_member.s["0"], 1, "a static field takes the static initializer count");
+
+    let mut no_spans = at_line(3);
+    apply_v8_coverage(&mut no_spans, source, &functions, 0, &BTreeMap::new());
+    assert_eq!(no_spans.s["0"], 4, "with no static spans, the other range wins the tie");
 }

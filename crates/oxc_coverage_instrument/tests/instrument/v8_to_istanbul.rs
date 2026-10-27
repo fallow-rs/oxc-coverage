@@ -1101,3 +1101,219 @@ fn v8_conversion_records_private_accessors_and_modifiers() {
         "a quoted public `\"#q\"` and a private `#q` keep distinct decl spans"
     );
 }
+
+const STATIC_FIELDS_SOURCE: &str = "let flag = 0;
+class Box {
+  kind = flag ? 'a' : 'b';
+  static base = flag ? 1 : 2;
+  static {
+    if (flag) flag = 0;
+  }
+}
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  new Box();
+}
+";
+
+/// Statement counts keyed by `line:column-line:column`, sorted by position.
+fn statement_counts(fc: &oxc_coverage_instrument::FileCoverage) -> Vec<(String, u32)> {
+    let mut found: Vec<_> = fc
+        .statement_map
+        .iter()
+        .map(|(id, loc)| {
+            let ((sl, sc), (el, ec)) = span_of(loc);
+            ((sl, sc), format!("{sl}:{sc}-{el}:{ec}"), fc.s[id])
+        })
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, key, count)| (key, count)).collect()
+}
+
+/// Branch counts keyed by `type line:column`, sorted by position.
+fn branch_counts(fc: &oxc_coverage_instrument::FileCoverage) -> Vec<(String, Vec<u32>)> {
+    let mut found: Vec<_> = fc
+        .branch_map
+        .iter()
+        .map(|(id, branch)| {
+            let ((line, column), _) = span_of(&branch.loc);
+            ((line, column), format!("{} {line}:{column}", branch.branch_type), fc.b[id].clone())
+        })
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, key, counts)| (key, counts)).collect()
+}
+
+/// The statement and branch counts of `istanbul-lib-instrument` for
+/// [`STATIC_FIELDS_SOURCE`].
+fn assert_static_fields_match_istanbul(fc: &oxc_coverage_instrument::FileCoverage) {
+    let statements = statement_counts(fc);
+    let expected_statements: Vec<(String, u32)> = [
+        ("1:11-1:12", 1),
+        ("3:9-3:25", 4),
+        ("4:16-4:28", 1),
+        ("6:4-6:23", 1),
+        ("6:14-6:23", 0),
+        ("9:0-12:1", 1),
+        ("10:2-10:11", 4),
+        ("11:2-11:12", 4),
+    ]
+    .into_iter()
+    .map(|(key, count)| (key.to_string(), count))
+    .collect();
+    assert_eq!(statements, expected_statements);
+    assert_eq!(
+        branch_counts(fc),
+        [
+            ("cond-expr 3:9".to_string(), vec![3, 1]),
+            ("cond-expr 4:16".to_string(), vec![0, 1]),
+            ("if 6:4".to_string(), vec![0, 1]),
+        ]
+    );
+}
+
+#[test]
+fn real_v8_node22_static_members_take_the_static_initializer_count() {
+    // Node 22 gives `<instance_members_initializer>` and
+    // `<static_initializer>` the same outer range: the class body.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(24, 123, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(24, 123, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node22_static_initializer_listed_first_keeps_instance_counts() {
+    // The record order must not decide the tie.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<static_initializer>",
+            vec![range(24, 123, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+        function(
+            "<instance_members_initializer>",
+            vec![range(24, 123, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node24_static_members_take_the_static_initializer_count() {
+    // Node 24 gives each initializer the span of its own members.
+    let functions = [
+        function("", vec![range(0, 205, 1), range(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(28, 51, 4), range(40, 45, 3), range(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(55, 121, 1), range(74, 77, 0), range(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(STATIC_FIELDS_SOURCE, "static.js", &functions, 0).unwrap();
+    assert_static_fields_match_istanbul(&fc);
+}
+
+#[test]
+fn real_v8_node22_class_in_a_static_field_keeps_its_own_instance_counts() {
+    // The inner class sits in a static field of the outer class. Its
+    // instance field must not take the inner static initializer count.
+    let source = "let flag = 0;
+class Outer {
+  static Inner = class {
+    kind = flag ? 'a' : 'b';
+    static base = flag ? 1 : 2;
+  };
+}
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  new Outer.Inner();
+}
+";
+    let functions = [
+        function("", vec![range(0, 210, 1), range(151, 187, 4)], true),
+        function("<static_initializer>", vec![range(26, 120, 1)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(51, 117, 4), range(69, 74, 3), range(75, 80, 1)],
+            true,
+        ),
+        function("<static_initializer>", vec![range(51, 117, 1), range(105, 108, 0)], true),
+    ];
+    let fc = v8_to_istanbul(source, "nested.js", &functions, 0).unwrap();
+    let statements = statement_counts(&fc);
+    let expected: Vec<(String, u32)> = [
+        ("1:11-1:12", 1),
+        ("3:17-6:3", 1),
+        ("4:11-4:27", 4),
+        ("5:18-5:30", 1),
+        ("8:0-11:1", 1),
+        ("9:2-9:11", 4),
+        ("10:2-10:20", 4),
+    ]
+    .into_iter()
+    .map(|(key, count)| (key.to_string(), count))
+    .collect();
+    assert_eq!(statements, expected);
+    assert_eq!(
+        branch_counts(&fc),
+        [("cond-expr 4:11".to_string(), vec![3, 1]), ("cond-expr 5:18".to_string(), vec![0, 1])]
+    );
+}
+
+#[test]
+fn real_v8_node22_static_members_with_a_wrapper_and_non_ascii_text() {
+    // A non-ASCII line moves the byte offsets away from the UTF-16 offsets,
+    // and the wrapper moves every V8 offset by the same base.
+    let prefix = "// \u{e9}t\u{e9} \u{1f600}\n";
+    let source = format!("{prefix}{STATIC_FIELDS_SOURCE}");
+    let wrapper = 10;
+    let shift = utf16_len(prefix) + wrapper;
+    let at = |start: u32, end: u32, count: u32| range(start + shift, end + shift, count);
+    let functions = [
+        function("", vec![range(0, 205 + shift, 1), at(154, 182, 4)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![at(24, 123, 4), at(40, 45, 3), at(46, 51, 1)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![at(24, 123, 1), at(74, 77, 0), at(108, 117, 0)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(&source, "static.js", &functions, wrapper).unwrap();
+    let static_value = statement_counts(&fc)
+        .into_iter()
+        .find(|(key, _)| key == "5:16-5:28")
+        .map(|(_, count)| count);
+    assert_eq!(static_value, Some(1));
+    assert_eq!(
+        branch_counts(&fc),
+        [
+            ("cond-expr 4:9".to_string(), vec![3, 1]),
+            ("cond-expr 5:16".to_string(), vec![0, 1]),
+            ("if 7:4".to_string(), vec![0, 1]),
+        ]
+    );
+}

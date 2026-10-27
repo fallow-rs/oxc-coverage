@@ -205,21 +205,47 @@ for (const n of [0, 1, 2, 3, 4]) {
   },
   {
     name: 'static class fields',
-    // V8 reports the instance and the static initializer with the same range
-    // (the class body), so an arm in a static field takes its count from the
-    // instance initializer. The fix needs the static member spans from the
-    // parser.
-    knownDifference: [
-      'cond-expr 4:16-4:28 arm 1 at 4:27-4:28: v8ToIstanbul 4, Istanbul 1',
-    ],
+    // Node 22 gives the instance and the static initializer the same range
+    // (the class body). A static member must take the static count.
     code: `let flag = 0;
 class Box {
-  kind = 1;
+  kind = flag ? 'a' : 'b';
   static base = flag ? 1 : 2;
+  static {
+    if (flag) flag = 0;
+  }
 }
 for (const n of [0, 1, 2, 3]) {
   flag = n;
   new Box();
+}`,
+  },
+  {
+    name: 'class in a static field',
+    code: `let flag = 0;
+class Outer {
+  static Inner = class {
+    kind = flag ? 'a' : 'b';
+    static base = flag ? 1 : 2;
+  };
+}
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  new Outer.Inner();
+}`,
+  },
+  {
+    name: 'computed static key',
+    code: `let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  static [flag ? 'x' : 'y'] = flag ? 1 : 2;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
 }`,
   },
   {
@@ -574,6 +600,7 @@ if (failed > 0) {
   process.exit(1);
 }
 const gaps = cases.filter((testCase) => testCase.knownDifference).length;
+const gapNote = gaps === 0 ? '' : `, ${gaps} known ${gaps === 1 ? 'gap' : 'gaps'}`;
 console.log(
-  `PASS: V8 branch arm counts match Istanbul in ${cases.length - gaps} cases (${arms} arms), ${gaps} known gap.`,
+  `PASS: V8 branch arm counts match Istanbul in ${cases.length - gaps} cases (${arms} arms)${gapNote}.`,
 );

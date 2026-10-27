@@ -49,6 +49,10 @@ are supplied rather than derived, the crate never parses source on the counting
 path, and the same `FileCoverage` shape is produced whether counts came from V8
 or from injected counters.
 
+Some V8 versions give the instance and the static initializer of a class the
+same range. `apply_v8_coverage_with_static_members` takes the byte spans of the
+static member code from the AST pass, so that code gets the static count.
+
 The `v8_to_istanbul` entry points that build the `FileCoverage` from source live
 in `oxc_coverage_instrument`, which owns the AST pass; this crate stays free of a
 parser dependency on the conversion path.

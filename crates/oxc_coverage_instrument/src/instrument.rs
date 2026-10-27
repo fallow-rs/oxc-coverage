@@ -5,14 +5,16 @@ use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
 use oxc_ast::{
+    AstKind,
     ast::{Expression, Program, Statement},
     builder::AstBuilder,
 };
+use oxc_ast_visit::Visit;
 use oxc_codegen::{Codegen, CodegenOptions};
 use oxc_coverage_types::{FileCoverage, UnhandledPragma};
 use oxc_parser::{Parser, ParserReturn};
 use oxc_semantic::{Scoping, SemanticBuilder};
-use oxc_span::{SPAN, SourceType};
+use oxc_span::{GetSpan, SPAN, SourceType};
 use oxc_transformer::{
     DecoratorOptions, JsxOptions, TransformOptions, Transformer, TypeScriptOptions,
 };
@@ -1051,6 +1053,10 @@ pub struct V8CollectResult {
     /// marks an arm that has no V8 range of its own, such as the implicit
     /// `else` of an `if` or the right side of a logical assignment.
     pub arm_body_byte_spans: BTreeMap<String, Vec<(u32, u32)>>,
+    /// The `(start, end)` byte range of each static field value, static
+    /// accessor value and static block. V8 runs this code in
+    /// `<static_initializer>`.
+    pub static_member_byte_spans: Vec<(u32, u32)>,
 }
 
 /// Parse, scan pragmas, traverse the AST, and build the `FileCoverage` map
@@ -1075,11 +1081,13 @@ pub fn collect_for_v8_to_istanbul(
         return Ok(V8CollectResult {
             coverage_map: empty_coverage(filename),
             arm_body_byte_spans: BTreeMap::new(),
+            static_member_byte_spans: Vec::new(),
         });
     }
 
     let scoping = SemanticBuilder::new().build(&parsed.program).semantic.into_scoping();
     let cov_fn_name = generate_cov_fn_name(filename);
+    let static_member_byte_spans = StaticMemberSpans::collect(&parsed.program);
 
     let mut transform = CoverageTransform::new(TransformInit {
         allocator: &allocator,
@@ -1116,7 +1124,40 @@ pub fn collect_for_v8_to_istanbul(
     let arm_body_byte_spans = collect_arm_body_byte_spans(&transform);
 
     let coverage_map = build_coverage_map(filename, transform);
-    Ok(V8CollectResult { coverage_map, arm_body_byte_spans })
+    Ok(V8CollectResult { coverage_map, arm_body_byte_spans, static_member_byte_spans })
+}
+
+/// Collects the byte spans of the class member code that V8 runs in
+/// `<static_initializer>`.
+#[derive(Default)]
+struct StaticMemberSpans(Vec<(u32, u32)>);
+
+impl StaticMemberSpans {
+    fn collect(program: &Program<'_>) -> Vec<(u32, u32)> {
+        let mut spans = Self::default();
+        spans.visit_program(program);
+        spans.0
+    }
+}
+
+impl<'a> Visit<'a> for StaticMemberSpans {
+    fn enter_node(&mut self, kind: AstKind<'a>) {
+        // V8 runs a computed key with the class definition, so only the
+        // value of a field is in the static initializer.
+        let span = match kind {
+            AstKind::PropertyDefinition(prop) if prop.r#static => {
+                prop.value.as_ref().map(GetSpan::span)
+            }
+            AstKind::AccessorProperty(prop) if prop.r#static => {
+                prop.value.as_ref().map(GetSpan::span)
+            }
+            AstKind::StaticBlock(block) => Some(block.span),
+            _ => None,
+        };
+        if let Some(span) = span {
+            self.0.push((span.start, span.end));
+        }
+    }
 }
 
 fn collect_arm_body_byte_spans(
