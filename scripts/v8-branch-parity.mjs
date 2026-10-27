@@ -69,7 +69,7 @@ function g(a, b) {
   return a ? b ?? 'fallback' : (b && b.x) || 'none';
 }
 f(1, 1, 1); f(1, 0, 1); f(0, 0, 1); f(0, 1, 0); f(0, 0, 0);
-g(1, null); g(1, 2); g(0, { x: 1 }); g(0, null);`,
+g(1, null); g(1, 2); g(1, 3); g(0, { x: 1 }); g(0, null);`,
   },
   {
     name: 'logical chains',
@@ -118,7 +118,7 @@ for (const n of [1, 2, 2, 3, 3, 3]) noElse(n);`,
     out = 5;
   return out;
 }
-for (const n of [0, 2, 3, 4, 5, 6]) f(n);`,
+for (const n of [0, 2, 3, 4, 5, 6, 7]) f(n);`,
   },
   {
     name: 'switch with fallthrough and empty cases',
@@ -160,7 +160,7 @@ for (const n of ['a', 'b', 'b', 'c']) noDefault(n);`,
   }
   return n > 2 ? 'mid' : 'low';
 }
-for (const n of [0, 0, 1, 3, 4, 6, 7, 8]) f(n);`,
+for (const n of [0, 0, 1, 3, 4, 6, 7, 8, 9]) f(n);`,
   },
   {
     name: 'break and continue before a branch',
@@ -179,14 +179,14 @@ for (const n of [0, 0, 1, 3, 4, 6, 7, 8]) f(n);`,
   return total;
 }
 loop([1, -1, 5, 20, -2, 3, 200, 4]);
-loop([5, 5, -1]);`,
+loop([5, -1]);`,
   },
   {
     name: 'arrow expression bodies',
     code: `const sign = (n) => n > 0 ? 1 : n < 0 ? -1 : 0;
 const first = (a, b) => a || b;
 const both = (a, b) => a && b ? 'both' : 'not';
-for (const n of [-2, -1, 0, 1, 2, 3]) { sign(n); first(n, 9); both(n, n > 1); }`,
+for (const n of [-2, -1, 0, 1, 2, 3, 4]) { sign(n); first(n, 9); both(n, n > 1); }`,
   },
   {
     name: 'instance class fields',
@@ -198,7 +198,7 @@ class Box {
     return n > 1 ? n : 1;
   }
 }
-for (const n of [0, 1, 2, 3]) {
+for (const n of [0, 1, 2, 3, 4]) {
   flag = n;
   new Box().size(n);
 }`,
@@ -209,7 +209,9 @@ for (const n of [0, 1, 2, 3]) {
     // (the class body), so an arm in a static field takes its count from the
     // instance initializer. The fix needs the static member spans from the
     // parser.
-    knownDifference: 'a static field arm gets the count of the instance initializer',
+    knownDifference: [
+      'cond-expr 4:16-4:28 arm 1 at 4:27-4:28: v8ToIstanbul 4, Istanbul 1',
+    ],
     code: `let flag = 0;
 class Box {
   kind = 1;
@@ -232,8 +234,8 @@ for (const item of items) {
   }
   total += item > 3 ? 1 : 0;
 }
-const result = total > 0 && 'positive';
-globalThis.out = result || 'other';`,
+const result = items.map((item) => item > 2 && 'big');
+globalThis.out = result.length > 9 || 'other';`,
   },
   {
     name: 'try and catch',
@@ -257,7 +259,7 @@ function label(n) {
   if (n === 0) {
     return '😀' + mark;
   }
-  return prefix.length > 3 && n > 2 ? 'é' : mark;
+  return n > 1 && prefix.length > 3 ? 'é' : mark;
 }
 for (const n of [0, 1, 2, 3, 4]) label(n);`,
   },
@@ -292,7 +294,23 @@ for (const v of [0, 1, 1]) { pick(v); pickElse(v); guard(v); guardIf(v); }`,
   return name + punct;
 }
 const arrow = (n = 1) => n;
-greet(); greet('a'); greet('b', '.'); arrow(); arrow(2);`,
+class Shape {
+  scale(factor = 2) {
+    return factor;
+  }
+}
+function unpack(o) {
+  const { a = 1, b = 2 } = o;
+  return a + b;
+}
+function later() {
+  return 0;
+}
+const { top = 3 } = {};
+greet(); greet('a'); greet('b', '.'); arrow(); arrow(2);
+const shape = new Shape();
+shape.scale(); shape.scale(3); shape.scale(4);
+unpack({}); unpack({ a: 5 }); unpack({ a: 5, b: 6 });`,
   },
   {
     name: 'optional chains and logical assignment',
@@ -305,6 +323,16 @@ greet(); greet('a'); greet('b', '.'); arrow(); arrow(2);`,
   return o ? v : w;
 }
 read(null); read({}); read({ a: { b: 1 } }); read({ a: {} });`,
+    // Istanbul has no reference for these arms. The values pin the converter
+    // output: an arm with no V8 range gets 0 (README part 6).
+    extensionCounts: {
+      'optional-chain 2:10-2:17': [0, 3],
+      'optional-chain 2:10-2:14': [0, 3],
+      'binary-expr 3:2-3:15': [4, 0],
+      'binary-expr 4:2-4:15': [4, 0],
+      'optional-chain 5:10-5:14': [0, 3],
+      'binary-expr 6:2-6:9': [4, 0],
+    },
   },
 ];
 
@@ -367,16 +395,31 @@ const branchesByKey = (coverage) => {
 
 const isBefore = (a, b) => a.line < b.line || (a.line === b.line && a.column <= b.column);
 
-// The Istanbul call count of the function that owns a parameter default. An
-// Istanbul function location is the body, so the owner is the function whose
-// body starts first after the default value.
-const parameterOwnerCount = (coverage, loc) => {
+// The innermost function that matches `test`. Inner functions start later.
+const innermostFunction = (coverage, test) => {
   let best = null;
   for (const [id, fn] of Object.entries(coverage.fnMap)) {
-    if (!isBefore(loc.end, fn.loc.start)) continue;
-    if (best === null || isBefore(fn.loc.start, coverage.fnMap[best].loc.start)) best = id;
+    if (!test(fn)) continue;
+    if (best === null || isBefore(coverage.fnMap[best].decl.start, fn.decl.start)) best = id;
   }
-  return best === null ? null : coverage.f[best];
+  return best;
+};
+
+// The Istanbul count of the code around a default value. An Istanbul function
+// location is the body only, so a parameter default sits between the function
+// name and the body. Any other default sits in a function body, or in the
+// top-level code, which runs once.
+const defaultOwnerCount = (coverage, loc) => {
+  const parameterOwner = innermostFunction(
+    coverage,
+    (fn) => isBefore(fn.decl.start, loc.start) && isBefore(loc.end, fn.loc.start),
+  );
+  if (parameterOwner !== null) return coverage.f[parameterOwner];
+  const bodyOwner = innermostFunction(
+    coverage,
+    (fn) => isBefore(fn.loc.start, loc.start) && isBefore(loc.end, fn.loc.end),
+  );
+  return bodyOwner === null ? 1 : coverage.f[bodyOwner];
 };
 
 const sourceSlice = (code, loc) => {
@@ -400,10 +443,10 @@ const allowedDifference = {
   // gives it a zero-width location, as in the istanbul-diff default gate. The
   // count is still compared.
   syntheticElseLocation: (expected, actual) => isEmptyLocation(expected) && isZeroWidth(actual),
-  // V8 has no range for a default value, so the arm gets the call count of
-  // its function. Istanbul counts only the calls that use the default.
-  defaultArgCount: (type, v8Count, functionCount) =>
-    type === 'default-arg' && v8Count === functionCount,
+  // V8 has no range for a default value, so the arm gets the count of the
+  // code around it: the call count of its function for a parameter default.
+  // Istanbul counts only the evaluations that use the default.
+  defaultArgCount: (type, v8Count, ownerCount) => type === 'default-arg' && v8Count === ownerCount,
   // When a pragma removes the `if` arm, the count of that arm is unknown, so
   // the implicit `else` does not take the remainder and gets 0.
   ignoredIfElseCount: (branch, v8Count) =>
@@ -451,8 +494,8 @@ const compareCase = (testCase, v8Coverage, istanbulCoverage) => {
       const actualCount = actual.counts[arm];
       if (actualCount === expectedCount) return;
       const loc = expected.branch.locations[arm];
-      const functionCount = parameterOwnerCount(istanbulCoverage, loc);
-      if (allowedDifference.defaultArgCount(expected.branch.type, actualCount, functionCount)) {
+      const ownerCount = defaultOwnerCount(istanbulCoverage, loc);
+      if (allowedDifference.defaultArgCount(expected.branch.type, actualCount, ownerCount)) {
         used.add('defaultArgCount');
         return;
       }
@@ -468,11 +511,22 @@ const compareCase = (testCase, v8Coverage, istanbulCoverage) => {
 
   for (const [key, actual] of v8Branches) {
     if (istanbulBranches.has(key)) continue;
-    if (allowedDifference.extensionBranch(actual.branch.type, testCase.code, actual.branch.loc)) {
-      used.add('extensionBranch');
+    if (!allowedDifference.extensionBranch(actual.branch.type, testCase.code, actual.branch.loc)) {
+      failures.push(`${key}: not reported by Istanbul and not a documented extension`);
       continue;
     }
-    failures.push(`${key}: not reported by Istanbul and not a documented extension`);
+    used.add('extensionBranch');
+    const pinned = testCase.extensionCounts?.[key];
+    if (!pinned) {
+      failures.push(`${key}: extension branch [${actual.counts}] has no pinned count`);
+    } else if (pinned.join(',') !== actual.counts.join(',')) {
+      failures.push(`${key}: extension branch [${actual.counts}], pinned [${pinned}]`);
+    }
+  }
+  for (const key of Object.keys(testCase.extensionCounts ?? {})) {
+    if (!v8Branches.has(key) || istanbulBranches.has(key)) {
+      failures.push(`${key}: pinned extension branch is not in the output`);
+    }
   }
 
   return { failures, compared };
@@ -491,12 +545,13 @@ for (const [index, testCase] of cases.entries()) {
   assert(compared > 0, `case "${testCase.name}" must compare at least one branch arm`);
   arms += compared;
   if (testCase.knownDifference) {
-    if (failures.length > 0) {
-      console.log(`gap  ${testCase.name}: ${testCase.knownDifference}`);
+    if (failures.join('\n') === testCase.knownDifference.join('\n')) {
+      console.log(`gap  ${testCase.name}`);
       continue;
     }
     failed += 1;
-    console.log(`FAIL ${testCase.name}: now matches Istanbul, remove knownDifference`);
+    console.log(`FAIL ${testCase.name}: the known difference changed; update knownDifference`);
+    for (const failure of failures) console.log(`     ${failure}`);
     continue;
   }
   if (failures.length === 0) {
