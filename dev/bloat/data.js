@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792836032593,
+  "lastUpdate": 1793095744508,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "043b6d96c838d5e6794cd271b79bef650f3eea58",
-          "message": "fix(napi): clearer error when remapCoverageMap receives a FileCoverage\n\nremapCoverageMap and remapCoverageMapWithLoader expect an Istanbul\nCoverageMap shape ({[path]: FileCoverage}), but the raw serde_json error\nreads \"expected struct FileCoverage\" when the caller passes a single\nFileCoverage. The message is technically correct but unhelpful: it\npoints at the FileCoverage shape rather than the wrong outer container,\nso users end up rechecking their FileCoverage shape instead of wrapping\ntheir input.\n\nWhen parse_coverage_map fails, peek the JSON for a single FileCoverage\nshape and append a hint pointing at `{ [fc.path]: fc }` wrapping.\n\nCaught during the v0.7.2 smoke test. Adds oxc_coverage_types as a path\ndep on the napi crate (already in the workspace, just not previously\nreferenced from napi); napi crate is publish = false so no version\nconstraint needed.",
-          "timestamp": "2026-05-26T11:36:10+02:00",
-          "tree_id": "a91801d8cd0c15d3a7e298696dbb6c60e0780d19",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/043b6d96c838d5e6794cd271b79bef650f3eea58"
-        },
-        "date": 1779788277887,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85414120,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103223680,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "33a67a4f51baaf9a4cf72a0bc2de7a563da2b0bf",
+          "message": "fix(v8): infer branch arm counts that V8 has no range for (#319)\n\n* fix(v8): infer branch arm counts that V8 has no range for\n\nV8 removes a block range when its count equals the count of the parent\nrange. v8ToIstanbul() gave 0 to every arm with no range, so ternary arms,\nlogical operands, switch cases, default values and the implicit else of an\nif counted as not covered.\n\nAn arm with no range now gets a count from its parent:\n\n- A cond-expr arm, or the implicit else of an if, gets the count of the\n  smallest range that contains the start of the branch, minus the counts\n  of the other arms. The start matters: after an early return, break or\n  continue, V8 splits the range around the next branch.\n- An if body, a switch case, a binary-expr operand and a default-arg value\n  get the count of the smallest range that contains the arm.\n\nA cond-expr arm now finds its own range in a window: the range must start\nbetween the end of the previous operand and the start of the arm. V8\nstarts the range at the ? or : token, so a line break or a comment next to\nthat token, or a short sibling arm, made the old distance match fail or\ntake the wrong range.\n\nWhen a pragma removes one arm of a cond-expr or an if, the other arm does\nnot take the remainder, because the count of the removed arm is unknown.\nThe right side of a logical assignment, an optional-chain arm with no\nrange, and an arm under a function-only range still get 0.\n\nOn the V8 coverage of lodash 4.17.21, branches go from 260/2835 to\n949/2835. Istanbul instrumentation of the same workload gives 948/2835.\nIn the functions that ran the same number of times in both runs, every\narm count is equal to the Istanbul count.\n\nA default-arg arm gets the call count of its function, because V8 has no\nrange for a default value.\n\n* test(v8): keep LF line endings in the V8 capture fixtures\n\nA Windows checkout with autocrlf converted the fixture to CRLF, which moved every offset of the real node:inspector capture.",
+          "timestamp": "2026-10-27T10:07:20Z",
+          "tree_id": "f5bb4c3f42d7784d0d30fd6ac40841a9a489c9fc",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/33a67a4f51baaf9a4cf72a0bc2de7a563da2b0bf"
+        },
+        "date": 1793095743491,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103225192,
             "unit": "bytes"
           }
         ]
