@@ -39,6 +39,7 @@ package-surface         primitive    npm package file surfaces
 audit                   primitive    RustSec advisory audit
 shear                   primitive    Unused Rust dependencies
 inspector-smoke         primitive    Real Node inspector conversion
+v8-branch-parity        primitive    V8 branch arm counts against Istanbul
 real-world-output       primitive    Production-like emitted behavior
 real-world-parity       primitive    Pinned production-bundle coverage parity
 compose-real-map-parity primitive    Pinned production-map compose parity
@@ -87,11 +88,12 @@ require_dir() {
 }
 
 require_node_22() {
+  local profile="$1"
   require_tool node "Install Node.js 22."
   local major
   major="$(node -p 'process.versions.node.split(".")[0]')"
   if [ "$major" != "22" ]; then
-    die "Node.js 22 is required for inspector-smoke. Found major version $major."
+    die "Node.js 22 is required for $profile. Found major version $major."
   fi
 }
 
@@ -273,10 +275,18 @@ run_shear() {
 }
 
 run_inspector_smoke() {
-  require_node_22
+  require_node_22 inspector-smoke
   require_native_napi
   echo "[check:inspector-smoke] node scripts/v8-inspector-smoke.mjs"
   node scripts/v8-inspector-smoke.mjs
+}
+
+run_v8_branch_parity() {
+  require_node_22 v8-branch-parity
+  require_native_napi
+  require_dir "$ROOT/node_modules/istanbul-lib-instrument" "Run 'npm install' at the repository root."
+  echo "[check:v8-branch-parity] node scripts/v8-branch-parity.mjs"
+  node scripts/v8-branch-parity.mjs
 }
 
 run_real_world_output() {
@@ -444,6 +454,7 @@ run_all_local() {
   run_audit
   run_shear
   run_inspector_smoke
+  run_v8_branch_parity
   run_real_world_output
   run_real_world_gates
   run_istanbul_upstream
@@ -483,6 +494,7 @@ case "$profile" in
   audit) run_audit ;;
   shear) run_shear ;;
   inspector-smoke) run_inspector_smoke ;;
+  v8-branch-parity) run_v8_branch_parity ;;
   real-world-output) run_real_world_output ;;
   real-world-parity) run_real_world_parity ;;
   compose-real-map-parity) run_compose_real_map_parity ;;

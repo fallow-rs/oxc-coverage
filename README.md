@@ -341,6 +341,9 @@ count of its function, not the number of calls that used the default. An
 optional chain (`?.`) path with no range gets 0, and so does the right side
 of `||=`, `&&=` and `??=`. When an `istanbul ignore` comment removes one path
 of a ternary or an `if`, the other path does not take the remainder.
+V8 gives the instance fields and the static fields of a class the same range,
+so a branch path in a static field initializer can get the count of the
+instance fields.
 
 On the lodash 4.17.21 build, this rule gives a branch total within 1% of the
 Istanbul instrumentation of the same workload.
