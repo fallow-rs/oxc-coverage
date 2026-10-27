@@ -81,6 +81,70 @@ pub struct V8CoverageRange {
 /// match a branch arm end.
 const ARM_TOLERANCE: u32 = 4;
 
+/// The V8 function name of the code that runs the static fields and the
+/// static blocks of a class.
+const STATIC_INITIALIZER_NAME: &str = "<static_initializer>";
+
+/// The V8 function name of the code that runs the instance fields of a class.
+const INSTANCE_INITIALIZER_NAME: &str = "<instance_members_initializer>";
+
+/// The byte spans of the class member code that V8 runs in a class
+/// initializer.
+///
+/// Build it with [`ClassMemberSpans::new`] and pass it to
+/// [`apply_v8_coverage_with_class_members`]. Each span is a `(start, end)`
+/// UTF-8 byte range.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ClassMemberSpans {
+    /// The value of each static field and static accessor, and each static
+    /// block. V8 runs this code in `<static_initializer>`.
+    pub static_members: Vec<(u32, u32)>,
+    /// The value of each instance field and instance accessor. V8 runs this
+    /// code in `<instance_members_initializer>`.
+    pub instance_members: Vec<(u32, u32)>,
+    /// Each computed member key. V8 runs this code with the class definition,
+    /// not in an initializer.
+    pub computed_keys: Vec<(u32, u32)>,
+}
+
+impl ClassMemberSpans {
+    /// Spans from the static member code, the instance member code, and the
+    /// computed keys.
+    #[must_use]
+    pub const fn new(
+        static_members: Vec<(u32, u32)>,
+        instance_members: Vec<(u32, u32)>,
+        computed_keys: Vec<(u32, u32)>,
+    ) -> Self {
+        Self { static_members, instance_members, computed_keys }
+    }
+}
+
+/// The class initializer that runs a range.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Initializer {
+    Static,
+    Instance,
+}
+
+/// When V8 runs the code of a class member.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MemberCode {
+    /// In an initializer.
+    Initializer(Initializer),
+    /// With the class definition.
+    Definition,
+}
+
+/// A class member span in UTF-16 code units.
+#[derive(Clone, Copy)]
+struct MemberSpan {
+    start: u32,
+    end: u32,
+    code: MemberCode,
+}
+
 /// How a branch arm finds its own V8 range.
 #[derive(Clone, Copy)]
 enum ArmMatch {
@@ -100,20 +164,87 @@ enum ArmMatch {
 struct CoverageRangeWithMode {
     range: V8CoverageRange,
     is_block_coverage: bool,
+    /// The initializer for the outer range of an initializer record.
+    initializer: Option<Initializer>,
 }
 
 struct CoverageContext<'a> {
     source_index: &'a SourceIndex,
-    ranges: &'a [V8CoverageRange],
     arm_ranges: &'a [V8CoverageRange],
-    inheritance_ranges: &'a [CoverageRangeWithMode],
+    /// Every V8 range, narrowest first.
+    container_ranges: &'a [CoverageRangeWithMode],
+    /// Class member code.
+    member_spans: &'a [MemberSpan],
     wrapper_length_utf16: u32,
 }
 
 impl CoverageContext<'_> {
+    /// The count of the smallest range that contains the location. A range
+    /// from a function-only record counts too.
     fn count_for_location(&self, loc: &Location) -> u32 {
         let (start, end) = self.location_utf16_span(loc);
-        smallest_containing_range_count(start, end, self.ranges)
+        self.smallest_container(start, end, false).map_or(0, |entry| entry.range.count)
+    }
+
+    /// The smallest range that contains `[start, end)`.
+    ///
+    /// With `strict`, a range equal to `[start, end)` does not count as a
+    /// container. The ranges of the class initializers do not show which code
+    /// each initializer runs. Some V8 versions give both initializers the same
+    /// range, the class body, and a range can include a computed key. See
+    /// [`Self::initializer_runs`].
+    fn smallest_container(
+        &self,
+        start: u32,
+        end: u32,
+        strict: bool,
+    ) -> Option<CoverageRangeWithMode> {
+        self.container_ranges
+            .iter()
+            .find(|entry| {
+                let range = entry.range;
+                range.start_offset <= start
+                    && range.end_offset >= end
+                    && (!strict || range.start_offset < start || range.end_offset > end)
+                    && entry.initializer.is_none_or(|initializer| {
+                        self.initializer_runs(initializer, range, start, end)
+                    })
+            })
+            .copied()
+    }
+
+    /// False when the class member code at `[start, end)` does not run in
+    /// `initializer`, whose outer range is `range`.
+    ///
+    /// The member is the widest member span in `range` that contains the
+    /// code. That is a member of the class that owns `range`, not of a class
+    /// inside it. Code in no member is a method body. V8 normally reports a
+    /// record for each method, but some coverage has no record for a method
+    /// that never ran. That body keeps the instance initializer range,
+    /// because the count of that range is 0 when the class has no instances.
+    fn initializer_runs(
+        &self,
+        initializer: Initializer,
+        range: V8CoverageRange,
+        start: u32,
+        end: u32,
+    ) -> bool {
+        // With no spans, as from `apply_v8_coverage`, every range counts.
+        if self.member_spans.is_empty() {
+            return true;
+        }
+        self.member_spans
+            .iter()
+            .filter(|member| {
+                member.start <= start
+                    && member.end >= end
+                    && member.start >= range.start_offset
+                    && member.end <= range.end_offset
+            })
+            .max_by_key(|member| member.end - member.start)
+            .map_or(initializer == Initializer::Instance, |member| {
+                member.code == MemberCode::Initializer(initializer)
+            })
     }
 
     /// The count of the V8 range that matches one branch arm, if any.
@@ -187,13 +318,7 @@ impl CoverageContext<'_> {
     /// container. A function-only record gives no block counts, so a smallest
     /// container from such a record gives `None`.
     fn smallest_block_range_count(&self, start: u32, end: u32, strict: bool) -> Option<u32> {
-        self.inheritance_ranges
-            .iter()
-            .find(|entry| {
-                entry.range.start_offset <= start
-                    && entry.range.end_offset >= end
-                    && (!strict || entry.range.start_offset < start || entry.range.end_offset > end)
-            })
+        self.smallest_container(start, end, strict)
             .filter(|entry| entry.is_block_coverage)
             .map(|entry| entry.range.count)
     }
@@ -289,6 +414,10 @@ impl CoverageContext<'_> {
 ///
 /// `wrapper_length_utf16` is the UTF-16 code-unit base for producers that report
 /// wrapper-shifted ranges. Pass 0 for source-relative inspector output.
+///
+/// This function has no class member spans. Code in a static field or a
+/// static block can get the count of the instance initializer. Use
+/// [`apply_v8_coverage_with_class_members`] to prevent this.
 pub fn apply_v8_coverage(
     file_coverage: &mut FileCoverage,
     source: &str,
@@ -296,10 +425,36 @@ pub fn apply_v8_coverage(
     wrapper_length_utf16: u32,
     arm_body_byte_spans: &BTreeMap<String, Vec<(u32, u32)>>,
 ) {
+    apply_v8_coverage_with_class_members(
+        file_coverage,
+        source,
+        functions,
+        wrapper_length_utf16,
+        arm_body_byte_spans,
+        &ClassMemberSpans::default(),
+    );
+}
+
+/// As [`apply_v8_coverage`], with the class member code that V8 runs in the
+/// class initializers.
+///
+/// Some V8 versions (for example the V8 in Node.js 22) give
+/// `<instance_members_initializer>` and `<static_initializer>` the same outer
+/// range, the class body. Other versions give each initializer the span from
+/// its first member to its last member, and that span can include a computed
+/// key. With `class_members`, code in a static member gets the count of
+/// `<static_initializer>`, and code in an instance member gets the count of
+/// `<instance_members_initializer>`. A computed key runs with the class
+/// definition, so it gets the count of the code around the class.
+pub fn apply_v8_coverage_with_class_members(
+    file_coverage: &mut FileCoverage,
+    source: &str,
+    functions: &[V8FunctionCoverage],
+    wrapper_length_utf16: u32,
+    arm_body_byte_spans: &BTreeMap<String, Vec<(u32, u32)>>,
+    class_members: &ClassMemberSpans,
+) {
     let source_index = SourceIndex::new(source);
-    let mut ranges: Vec<V8CoverageRange> =
-        functions.iter().flat_map(|f| f.ranges.iter().copied()).collect();
-    ranges.sort_by_key(|r| r.end_offset.saturating_sub(r.start_offset));
     // The first range in every FunctionCoverage record is that function's outer
     // range, not a branch range. A nested function declaration can sit inside an
     // if arm, so only child ranges from block-coverage records are eligible for
@@ -310,22 +465,44 @@ pub fn apply_v8_coverage(
         .flat_map(|function| function.ranges.iter().skip(1).copied())
         .collect();
     arm_ranges.sort_by_key(|r| r.start_offset);
-    let mut inheritance_ranges: Vec<CoverageRangeWithMode> = functions
+    let mut container_ranges: Vec<CoverageRangeWithMode> = functions
         .iter()
         .flat_map(|function| {
-            function.ranges.iter().copied().map(|range| CoverageRangeWithMode {
-                range,
+            let initializer = match function.function_name.as_str() {
+                STATIC_INITIALIZER_NAME => Some(Initializer::Static),
+                INSTANCE_INITIALIZER_NAME => Some(Initializer::Instance),
+                _ => None,
+            };
+            function.ranges.iter().enumerate().map(move |(idx, range)| CoverageRangeWithMode {
+                range: *range,
                 is_block_coverage: function.is_block_coverage,
+                initializer: initializer.filter(|_| idx == 0),
             })
         })
         .collect();
-    inheritance_ranges
+    container_ranges
         .sort_by_key(|entry| entry.range.end_offset.saturating_sub(entry.range.start_offset));
+    let to_members = |spans: &[(u32, u32)], code| {
+        spans
+            .iter()
+            .map(|(start, end)| MemberSpan {
+                start: source_index.byte_to_utf16(*start).saturating_add(wrapper_length_utf16),
+                end: source_index.byte_to_utf16(*end).saturating_add(wrapper_length_utf16),
+                code,
+            })
+            .collect::<Vec<_>>()
+    };
+    let member_spans: Vec<MemberSpan> = [
+        to_members(&class_members.static_members, MemberCode::Initializer(Initializer::Static)),
+        to_members(&class_members.instance_members, MemberCode::Initializer(Initializer::Instance)),
+        to_members(&class_members.computed_keys, MemberCode::Definition),
+    ]
+    .concat();
     let context = CoverageContext {
         source_index: &source_index,
-        ranges: &ranges,
         arm_ranges: &arm_ranges,
-        inheritance_ranges: &inheritance_ranges,
+        container_ranges: &container_ranges,
+        member_spans: &member_spans,
         wrapper_length_utf16,
     };
 
@@ -443,21 +620,4 @@ fn apply_branch_counts(
             counts.into_iter().map(|count| count.unwrap_or_else(|| std::mem::take(&mut remainder))),
         );
     }
-}
-
-/// Pick the count of the smallest V8 range that fully contains `[start, end)`.
-/// Smaller ranges represent inner blocks (with their own counts under
-/// `isBlockCoverage`) and override the outer function-level count.
-///
-/// Both V8 ranges and the statement UTF-16 span use the half-open convention
-/// (`endOffset` / `end` are exclusive). The containment predicate is therefore
-/// `r.start <= start && r.end >= end`: a range whose exclusive end is equal
-/// to the statement's exclusive end is the smallest possible exact container.
-fn smallest_containing_range_count(start: u32, end: u32, ranges: &[V8CoverageRange]) -> u32 {
-    for r in ranges {
-        if r.start_offset <= start && r.end_offset >= end {
-            return r.count;
-        }
-    }
-    0
 }
