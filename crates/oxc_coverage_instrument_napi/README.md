@@ -11,7 +11,8 @@ the [Oxc](https://oxc.rs) parser and exposed to Node.js through napi-rs.
 The `oxc-coverage-instrument` npm package wraps the native instrumenter. It
 exposes instrumentation, coverage remapping, V8-to-Istanbul conversion, coverage
 summaries, and the Istanbul reporters, plus ready-made adapters for Vitest's
-Istanbul provider, for `vite-plugin-istanbul`, and for `karma-coverage`.
+Istanbul provider, for `vite-plugin-istanbul`, and for `karma-coverage`, and a
+Babel plugin that replaces `babel-plugin-istanbul`.
 
 ```bash
 npm install oxc-coverage-instrument
@@ -238,6 +239,93 @@ export default config
 project compares this coverage with the coverage of `istanbul-lib-instrument`.
 The webpack builder does not accept an instrumenter yet: the addon makes its
 own `istanbul-lib-instrument` instance there.
+
+### Babel, Jest, and nyc
+
+`oxc-coverage-instrument/babel` is a Babel plugin that replaces
+`babel-plugin-istanbul`. It accepts the options of `babel-plugin-istanbul`.
+For a file that it instruments, it gives the same coverage: the same
+statement, function, and branch entries, the same key order, and the same
+`hash`. Some syntax is not supported (see the limits below). Babel 7 and
+Babel 8 are supported. `@babel/core` is an optional peer dependency.
+
+```javascript
+// babel.config.js
+module.exports = {
+  plugins: ['oxc-coverage-instrument/babel'],
+};
+```
+
+Options, with the same meaning as in `babel-plugin-istanbul`: `cwd`,
+`include`, `exclude`, `extension`, `excludeNodeModules`,
+`useInlineSourceMaps`, `inputSourceMap`, `ignoreClassMethods`,
+`coverageVariable`, `reportLogic`, and `onCover`. After the transform,
+`result.metadata.coverage` holds the coverage object of the file.
+
+Two options are new:
+
+| Option | Default | Effect |
+|:--|:--|:--|
+| `compat` | `'istanbul'` | `null` turns on the branch entries of `oxc-coverage-instrument` for `??=`, `\|\|=`, `&&=`, and optional chains. |
+| `onlyWithIstanbul` | `false` | Instrument a file only when `babel-plugin-istanbul` is in the same Babel run, and use its options. |
+
+**Jest.** With `coverageProvider: 'babel'` (the default), `babel-jest` adds
+`babel-plugin-istanbul` for `jest --coverage`. Set `onlyWithIstanbul: true`:
+
+```javascript
+// babel.config.js
+module.exports = {
+  presets: ['@babel/preset-env', '@babel/preset-typescript'],
+  plugins: [['oxc-coverage-instrument/babel', { onlyWithIstanbul: true }]],
+};
+```
+
+The plugin then runs only for `jest --coverage`. It takes the options that
+Jest gives to `babel-plugin-istanbul`, and `babel-plugin-istanbul` skips the
+file because it finds the counters. Untested files in
+`collectCoverageFrom` are also reported.
+
+**nyc.** Use the plugin in place of `istanbul` in the Babel config, and keep
+`"sourceMap": false` and `"instrument": false` in the nyc config. With no
+plugin options, the plugin reads `include`, `exclude`, and `extension` from
+the `NYC_CONFIG` environment variable that nyc sets. The plugin does not read
+`.nycrc` files itself, so outside nyc, give the options in the Babel config.
+
+`examples/jest-babel/` in the repository runs Jest and nyc with mocha with
+both plugins and compares the `coverage-final.json` files.
+
+How it works, and the limits:
+
+- The plugin instruments the source text in `parserOverride`, before Babel
+  parses it. The coverage therefore describes the original source, as with
+  `babel-plugin-istanbul`, and the position of the plugin in the list has no
+  effect.
+- Babel permits only one plugin that overrides the parser in a run. Do not
+  use this plugin together with another plugin that returns an AST from
+  `parserOverride`. With `onlyWithIstanbul`, the plugin instruments in
+  `Program.enter` instead, so put it first in the list.
+- The plugin parses a file with the language of the Babel parser plugins.
+  The `jsx` plugin (from `@babel/preset-react`) and the `typescript` plugin
+  apply also to a `.js` file. These files do not work, and Babel stops with a
+  parse error that names the file. `babel-plugin-istanbul` instruments them:
+  - Flow syntax.
+  - Syntax proposals that the native parser does not parse, for example the
+    `pipelineOperator`, `doExpressions`, and `exportDefaultFrom` parser
+    plugins.
+  - `allowReturnOutsideFunction` together with JSX or TypeScript. Without
+    JSX and TypeScript, a `return` at the top level works.
+- Do not give `onCover` to `babel-plugin-istanbul` in the same Babel run.
+  For a file that this plugin instrumented, `babel-plugin-istanbul` cannot
+  call its `onCover`, so the plugin stops with an error that tells you this.
+  Give `onCover` to this plugin.
+- `include` and `exclude` use `test-exclude` when it is installed (Jest, nyc,
+  and `babel-plugin-istanbul` install it). Without it, the plugin uses
+  `path.matchesGlob()` of Node.js.
+- `coverageGlobalScope` is not supported. The coverage object is always on
+  `globalThis`.
+- The plugin is not much faster than `babel-plugin-istanbul` in a Babel run.
+  Babel still parses and prints the instrumented code, and that is most of the
+  time.
 
 ### Custom Vite or Rollup plugin
 

@@ -19,6 +19,7 @@ examples/*/package-lock.json
 !examples/karma/package-lock.json
 !examples/storybook-vite/package-lock.json
 !examples/monocart/package-lock.json
+!examples/jest-babel/package-lock.json
 
 # napi build artifacts
 *.node

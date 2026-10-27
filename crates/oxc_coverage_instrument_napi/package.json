@@ -18,6 +18,10 @@
     "./karma": {
       "types": "./karma.d.ts",
       "default": "./karma.js"
+    },
+    "./babel": {
+      "types": "./babel.d.ts",
+      "default": "./babel.js"
     }
   },
   "files": [
@@ -31,7 +35,9 @@
     "vitest.js",
     "vitest.d.ts",
     "karma.js",
-    "karma.d.ts"
+    "karma.d.ts",
+    "babel.js",
+    "babel.d.ts"
   ],
   "keywords": [
     "oxc",
@@ -72,10 +78,25 @@
     "@emnapi/runtime": "2.0.0-beta.2",
     "@napi-rs/wasm-runtime": "^1.2.4"
   },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0 || ^8.0.0",
+    "test-exclude": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@babel/core": {
+      "optional": true
+    },
+    "test-exclude": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@babel/core": "^7.29.0 || ^8.0.0",
+    "@babel/preset-typescript": "^7.28.0 || ^8.0.0",
     "@jridgewell/gen-mapping": "^0.3.13",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@napi-rs/cli": "3.10.8",
+    "babel-plugin-istanbul": "^8.0.0",
     "emnapi": "2.0.0-beta.2",
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-instrument": "^6.0.3",

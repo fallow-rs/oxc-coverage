@@ -638,6 +638,56 @@ jobs:
         working-directory: examples/karma
         run: npm run verify
 
+  jest-babel-example:
+    # Runs Jest and nyc with mocha on examples/jest-babel, once with
+    # oxc-coverage-instrument/babel and once with babel-plugin-istanbul, and
+    # compares the coverage-final.json files. It also type-checks the plugin
+    # types for ES module and CommonJS consumers.
+    name: Jest and nyc Babel example
+    needs: vitest-example-binding
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: vitest-example-binding
+          path: crates/oxc_coverage_instrument_napi
+
+      # The plugin loads test-exclude from the package directory, as in a
+      # local checkout.
+      - name: Install napi binding deps
+        working-directory: crates/oxc_coverage_instrument_napi
+        run: npm ci || npm install
+
+      - name: Install example deps
+        working-directory: examples/jest-babel
+        run: npm ci
+
+      - name: Run Jest and nyc with both plugins
+        working-directory: examples/jest-babel
+        run: |
+          npm run coverage
+          npm run coverage:istanbul
+          npm run nyc
+          npm run nyc:istanbul
+
+      - name: Compare coverage
+        working-directory: examples/jest-babel
+        run: npm run verify
+
+      - name: Typecheck plugin types
+        working-directory: examples/jest-babel
+        run: npm run typecheck
+
   native-vs-wasm-parity:
     # Byte-for-byte parity between the native binding and each WASM variant
     # napi bindings on every conformance fixture. The existing `istanbul-diff`
@@ -893,6 +943,7 @@ jobs:
       - vitest-typescript-example
       - vitest-examples
       - karma-example
+      - jest-babel-example
       - native-vs-wasm-parity
       - wasm-node-example
       - cloudflare-workers-example

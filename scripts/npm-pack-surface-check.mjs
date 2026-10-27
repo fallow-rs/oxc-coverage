@@ -254,6 +254,8 @@ const specs = [
       'package/vitest.d.ts',
       'package/karma.js',
       'package/karma.d.ts',
+      'package/babel.js',
+      'package/babel.d.ts',
     ],
   },
   ...platformPackSpecs.map((spec) => ({

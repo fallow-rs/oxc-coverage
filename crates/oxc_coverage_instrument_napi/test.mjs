@@ -2793,4 +2793,9 @@ globalThis.__result = {
   console.log('  [PASS] karma instrumenter examples match absolute paths');
 }
 
+// The Babel plugin has its own file; it runs here so that every runner of
+// test.mjs also runs it.
+console.log('');
+await import('./babel.test.mjs');
+
 console.log('\nAll tests passed!');

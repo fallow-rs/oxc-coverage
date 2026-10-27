@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+coverage-istanbul/
+coverage-nyc/
+coverage-nyc-istanbul/
+.nyc_output/
+.nyc_output_istanbul/

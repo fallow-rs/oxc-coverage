@@ -2,6 +2,7 @@
 
 Each example is a small, runnable project. The Vitest examples use the
 Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
+The Jest example uses the Babel plugin.
 
 | Example | Shows |
 |:--|:--|
@@ -13,6 +14,7 @@ Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 | [`vitest-real-projects`](vitest-real-projects/) | Measured speed and coverage parity on es-toolkit, date-fns, hono, and h3. |
 | [`karma`](karma/) | `karma-coverage` in headless Chrome, compared with its default instrumenter on lodash. |
 | [`storybook-vite`](storybook-vite/) | Storybook story coverage with `@storybook/addon-coverage` and the Storybook test-runner, compared with `istanbul-lib-instrument`. |
+| [`jest-babel`](jest-babel/) | Jest and nyc with `oxc-coverage-instrument/babel` in place of `babel-plugin-istanbul`. |
 | [`wasm-node`](wasm-node/) | The WebAssembly binding in Node.js. |
 | [`cloudflare-workers`](cloudflare-workers/) | The instrumenter inside a Cloudflare Worker. |
 
