@@ -38,6 +38,7 @@ const FORWARDED_OPTIONS = [
   'trackOptionalChainBranches',
   'functionIdentityOverlay',
   'nameCallbackArguments',
+  'ifConsequentLocation',
   'stripTypescript',
   'experimentalDecorators',
   'emitDecoratorMetadata',

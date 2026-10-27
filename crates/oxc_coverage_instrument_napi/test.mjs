@@ -2768,6 +2768,25 @@ globalThis.__result = {
 }
 
 {
+  const source = 'if (a) { b(); } else { c(); }';
+  const armZero = (instrumenter) => {
+    instrumenter.instrumentSync(source, 'if.js');
+    const branch = Object.values(instrumenter.lastFileCoverage().branchMap).find(
+      (entry) => entry.type === 'if',
+    );
+    const loc = branch.locations[0];
+    return [loc.start.line, loc.start.column, loc.end.line, loc.end.column];
+  };
+  assert.deepEqual(armZero(new KarmaInstrumenter({})), [1, 0, 1, 29], 'karma default arm 0');
+  assert.deepEqual(
+    armZero(new KarmaInstrumenter({ ifConsequentLocation: true })),
+    [1, 7, 1, 15],
+    'karma adapter forwards ifConsequentLocation',
+  );
+  console.log('  [PASS] karma adapter forwards ifConsequentLocation');
+}
+
+{
   // A filename-less call puts the callback in the second argument, as in
   // istanbul-lib-instrument.
   const oxc = new KarmaInstrumenter();
