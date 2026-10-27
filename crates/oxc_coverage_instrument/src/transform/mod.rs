@@ -111,9 +111,10 @@ pub struct CoverageTransform<'src, 'arena> {
     /// (istanbul convention) while the body span records the consequent
     /// BlockStatement / inner-statement span. `v8_to_istanbul` consumes these
     /// when resolving arm counts because V8 only emits per-block ranges and
-    /// has no range tight to istanbul's whole-IfStatement convention. Slots
-    /// with `(0, 0)` represent unknown bodies (e.g. synthetic else-arms) and
-    /// are skipped by callers.
+    /// has no range tight to istanbul's whole-IfStatement convention. An empty
+    /// slot (`start == end`) marks an arm with no V8 range of its own, such as
+    /// the implicit `else` of an `if` or the right side of a logical
+    /// assignment. `apply_v8_coverage` never matches an empty slot.
     pub branch_arm_body_byte_spans: Vec<Vec<(u32, u32)>>,
     /// Names inherited from a parent node (binding, property key, assignment
     /// target), keyed on the start of the function or arrow that takes them.
