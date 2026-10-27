@@ -160,6 +160,48 @@ test('TypeScript through @babel/preset-typescript: coverage of the original .ts 
 });
 
 // ---------------------------------------------------------------------------
+// Syntax: the language of the Babel parser plugins, not of the file extension
+// ---------------------------------------------------------------------------
+
+const assertSameCoverage = (code, options, label) => {
+  const ours = coverageOf(oxc({}), code, options);
+  const theirs = coverageOf(istanbul({}), code, options);
+  assert.ok(theirs.fileCoverage, `${label}: babel-plugin-istanbul gave no coverage`);
+  assert.ok(ours.fileCoverage, `${label}: this plugin gave no coverage`);
+  assert.equal(JSON.stringify(ours.fileCoverage), JSON.stringify(theirs.fileCoverage), `${label}: coverage object differs`);
+  return ours;
+};
+
+test('JSX in a .js file with the jsx parser plugin: same coverage as babel-plugin-istanbul', () => {
+  const code = 'export const A = ({ x }) => <div>{x ? <b>1</b> : 2}</div>;\n';
+  const ours = assertSameCoverage(code, { parserOpts: { plugins: ['jsx'] } }, 'jsx in .js');
+  assert.match(ours.result.code, /<div>/);
+});
+
+test('TypeScript syntax in a .js file with the typescript parser plugin', () => {
+  const code = 'export const len = (s: string | null): number => s?.length ?? 0;\n';
+  assertSameCoverage(code, { parserOpts: { plugins: ['typescript'] } }, 'typescript in .js');
+});
+
+test('TSX in a .js file with the typescript and jsx parser plugins', () => {
+  const code = 'export const A = (p: { x: number }) => <i>{p.x > 0 ? 1 : 2}</i>;\n';
+  assertSameCoverage(code, { parserOpts: { plugins: ['jsx', ['typescript', {}]] } }, 'tsx in .js');
+});
+
+test('allowReturnOutsideFunction: a top-level return parses', () => {
+  const code = 'if (a) return 1;\nreturn a ? 1 : 2;\n';
+  assertSameCoverage(code, { parserOpts: { allowReturnOutsideFunction: true } }, 'top-level return');
+});
+
+test('syntax that the native parser does not parse gives an error that names the file', () => {
+  const filename = join(project, 'src', 'flow.js');
+  assert.throws(
+    () => coverageOf(oxc({}), 'function f(x: ?number) {}\n', { filename, parserOpts: { plugins: ['flow'] } }),
+    (error) => error.message.includes('cannot parse') && error.message.includes(filename),
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Option surface
 // ---------------------------------------------------------------------------
 
@@ -329,6 +371,21 @@ test('babel-plugin-istanbul in the same run skips the file, before or after this
     assert.ok(fileCoverage);
     assert.match(result.code, /\+\+cov_[0-9a-z]+\.s\[0\]/, `${order}: expected the counters of this plugin`);
     assert.doesNotMatch(result.code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, `${order}: babel-plugin-istanbul also instrumented`);
+  }
+});
+
+test('onCover on babel-plugin-istanbul in the same run gives a clear error', () => {
+  for (const ownOptions of [{ cwd: project }, { onlyWithIstanbul: true }]) {
+    assert.throws(
+      () =>
+        transform(SAMPLE, {
+          plugins: [
+            [oxcPlugin, ownOptions],
+            [istanbulPluginPath, { cwd: project, onCover() {} }],
+          ],
+        }),
+      /babel-plugin-istanbul in the same Babel run has an "onCover" option/,
+    );
   }
 });
 

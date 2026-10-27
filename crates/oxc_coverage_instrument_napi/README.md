@@ -143,10 +143,11 @@ export default defineConfig({
 ### Babel, Jest, and nyc
 
 `oxc-coverage-instrument/babel` is a Babel plugin that replaces
-`babel-plugin-istanbul`. It accepts the same options and gives the same
-coverage: the same statement, function, and branch entries, the same key
-order, and the same `hash`. Babel 7 and Babel 8 are supported. `@babel/core`
-is an optional peer dependency.
+`babel-plugin-istanbul`. It accepts the options of `babel-plugin-istanbul`.
+For a file that it instruments, it gives the same coverage: the same
+statement, function, and branch entries, the same key order, and the same
+`hash`. Some syntax is not supported (see the limits below). Babel 7 and
+Babel 8 are supported. `@babel/core` is an optional peer dependency.
 
 ```javascript
 // babel.config.js
@@ -203,7 +204,20 @@ How it works, and the limits:
   use this plugin together with another plugin that returns an AST from
   `parserOverride`. With `onlyWithIstanbul`, the plugin instruments in
   `Program.enter` instead, so put it first in the list.
-- Flow syntax is not supported.
+- The plugin parses a file with the language of the Babel parser plugins.
+  The `jsx` plugin (from `@babel/preset-react`) and the `typescript` plugin
+  apply also to a `.js` file. These files do not work, and Babel stops with a
+  parse error that names the file. `babel-plugin-istanbul` instruments them:
+  - Flow syntax.
+  - Syntax proposals that the native parser does not parse, for example the
+    `pipelineOperator`, `doExpressions`, and `exportDefaultFrom` parser
+    plugins.
+  - `allowReturnOutsideFunction` together with JSX or TypeScript. Without
+    JSX and TypeScript, a `return` at the top level works.
+- Do not give `onCover` to `babel-plugin-istanbul` in the same Babel run.
+  For a file that this plugin instrumented, `babel-plugin-istanbul` cannot
+  call its `onCover`, so the plugin stops with an error that tells you this.
+  Give `onCover` to this plugin.
 - `include` and `exclude` use `test-exclude` when it is installed (Jest, nyc,
   and `babel-plugin-istanbul` install it). Without it, the plugin uses
   `path.matchesGlob()` of Node.js.

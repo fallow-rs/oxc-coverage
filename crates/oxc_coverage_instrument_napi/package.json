@@ -74,7 +74,7 @@
   },
   "peerDependencies": {
     "@babel/core": "^7.0.0 || ^8.0.0",
-    "test-exclude": "^6.0.0 || ^7.0.0"
+    "test-exclude": "^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "peerDependenciesMeta": {
     "@babel/core": {
@@ -116,9 +116,9 @@
     "@oxc-coverage-instrument/binding-linux-arm64-gnu": "0.18.0",
     "@oxc-coverage-instrument/binding-linux-x64-gnu": "0.18.0",
     "@oxc-coverage-instrument/binding-linux-x64-musl": "0.18.0",
-    "@oxc-coverage-instrument/binding-wasm32-wasi": "0.18.0",
-    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.18.0",
     "@oxc-coverage-instrument/binding-win32-arm64-msvc": "0.18.0",
-    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.18.0"
+    "@oxc-coverage-instrument/binding-win32-x64-msvc": "0.18.0",
+    "@oxc-coverage-instrument/binding-wasm32-wasi": "0.18.0",
+    "@oxc-coverage-instrument/binding-wasm32-wasi-singlethreaded": "0.18.0"
   }
 }

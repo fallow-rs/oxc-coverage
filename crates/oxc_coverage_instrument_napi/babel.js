@@ -51,8 +51,26 @@
 // The cost of `parserOverride`: Babel permits only one plugin that overrides
 // the parser in a run. A second plugin that returns an AST from
 // `parserOverride` (for example a Hermes parser plugin) makes Babel stop with
-// an error. Flow syntax is not supported in any case, because the native
-// parser does not parse Flow.
+// an error.
+//
+// Syntax
+// ------
+//
+// The native parser selects the language from the file extension, and Babel
+// selects it from its parser plugins. The plugin reads the `jsx` and
+// `typescript` parser plugins and `allowReturnOutsideFunction`, and gives the
+// same language to the native parser (see `nativeSourceType`). Thus JSX in a
+// `.js` file works. These limits stay:
+//
+// * Flow syntax is not supported, because the native parser does not parse
+//   Flow.
+// * `allowReturnOutsideFunction` works only without JSX and TypeScript.
+// * Syntax from Babel parser plugins for proposals that the native parser
+//   does not parse (for example `pipelineOperator`, `doExpressions` and
+//   `exportDefaultFrom`) makes the plugin stop with a parse error.
+//
+// For these files, babel-plugin-istanbul instruments the file and this plugin
+// does not. The error message names the file.
 //
 // Plugin order
 // ------------
@@ -610,6 +628,61 @@ const writeCoverageObject = (t, declarators, fileCoverage) => {
 // Instrumentation
 // ---------------------------------------------------------------------------
 
+const TS_EXTENSIONS = new Set(['.ts', '.mts', '.cts']);
+
+/** Returns the names of the Babel parser plugins. */
+const parserPluginNames = (parserOpts) => {
+  const plugins = parserOpts && Array.isArray(parserOpts.plugins) ? parserOpts.plugins : [];
+  return new Set(plugins.map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin)));
+};
+
+/**
+ * Returns the `sourceType` for the native parser, or undefined.
+ *
+ * The native parser selects the language from the file extension. Babel
+ * selects it from the parser plugins. These two can be different, for example
+ * JSX in a `.js` file with the `jsx` parser plugin (preset-react). Then the
+ * plugin gives the language of the Babel parser to the native parser. When the
+ * extension already gives that language, the plugin keeps the extension.
+ *
+ * `allowReturnOutsideFunction` without JSX or TypeScript maps to `commonjs`,
+ * because only that native source type accepts `return` at the top level.
+ *
+ * @param {string} filename
+ * @param {Record<string, unknown> | undefined} parserOpts
+ * @returns {'jsx' | 'ts' | 'tsx' | 'commonjs' | undefined}
+ */
+const nativeSourceType = (filename, parserOpts) => {
+  const plugins = parserPluginNames(parserOpts);
+  const typescript = plugins.has('typescript');
+  const jsx = plugins.has('jsx');
+  const ext = nodePath.extname(filename.split(/[?#]/)[0]).toLowerCase();
+  if (typescript && jsx) return ext === '.tsx' ? undefined : 'tsx';
+  if (typescript) return TS_EXTENSIONS.has(ext) ? undefined : 'ts';
+  if (jsx) return ext === '.jsx' ? undefined : 'jsx';
+  if (parserOpts && parserOpts.allowReturnOutsideFunction === true) return 'commonjs';
+  return undefined;
+};
+
+/**
+ * Calls the native `instrument()`. A parse error names the file and the
+ * syntax that the native parser does not support.
+ */
+const instrumentSource = (code, filename, nativeOptions) => {
+  try {
+    return instrument(code, filename, nativeOptions);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/parse error/i.test(message)) throw error;
+    throw new Error(
+      `${PLUGIN_NAME}/babel: cannot parse ${filename}: ${message}. ` +
+        'The native parser does not parse Flow or some syntax proposals, and it does ' +
+        'not support `allowReturnOutsideFunction` together with JSX or TypeScript.',
+      { cause: error },
+    );
+  }
+};
+
 /**
  * Instruments the source text of one file and parses the result. For a file
  * with `istanbul ignore file`, `ast` is null.
@@ -617,12 +690,13 @@ const writeCoverageObject = (t, declarators, fileCoverage) => {
  * @returns {{ ast: object, fileCoverage: object, declarators: object } | { ast: null, fileCoverage: object }}
  */
 const instrumentToAst = (t, code, filename, options, parse, parserOpts) => {
-  const result = instrument(code, filename, {
+  const result = instrumentSource(code, filename, {
     compat: options.compat ?? undefined,
     coverageVariable: options.coverageVariable,
     ignoreClassMethods: options.ignoreClassMethods,
     reportLogic: options.reportLogic,
     sourceMap: true,
+    sourceType: nativeSourceType(filename, parserOpts),
   });
   const coverageJson = result.coverageMap;
   const fileCoverage = toIstanbulKeyOrder(JSON.parse(coverageJson));
@@ -657,6 +731,25 @@ const findIstanbulPlugin = (file) => {
     }
   }
   return undefined;
+};
+
+/**
+ * Stops with a clear message when babel-plugin-istanbul in the same run has an
+ * `onCover` option. For a file that this plugin instrumented, the Program exit
+ * of babel-plugin-istanbul reads `fileCoverage` of an undefined result when it
+ * calls its `onCover`, and Babel stops with a TypeError. The defect is in
+ * babel-plugin-istanbul, but this plugin causes the state, so it names the
+ * cause first.
+ */
+const assertNoIstanbulOnCover = (file) => {
+  const istanbulOptions = findIstanbulPlugin(file);
+  if (istanbulOptions && typeof istanbulOptions.onCover === 'function') {
+    throw new Error(
+      `${PLUGIN_NAME}/babel: babel-plugin-istanbul in the same Babel run has an "onCover" option. ` +
+        'It cannot read the coverage of a file that this plugin instrumented. ' +
+        'Give "onCover" to oxc-coverage-instrument/babel, or remove babel-plugin-istanbul.',
+    );
+  }
 };
 
 /** Returns the input source map that babel-plugin-istanbul would attach. */
@@ -737,6 +830,7 @@ const babelPluginOxcCoverage = (api, pluginOptions) => {
           if (done) {
             parsed.delete(file.ast);
             state.oxcCoverage = done;
+            assertNoIstanbulOnCover(file);
             return;
           }
           const filename = file.opts.filename;
@@ -752,7 +846,10 @@ const babelPluginOxcCoverage = (api, pluginOptions) => {
           if (ownOptions.onlyWithIstanbul) {
             const istanbulOptions = findIstanbulPlugin(file);
             if (!istanbulOptions) return;
-            opts = { ...istanbulOptions, ...ownOptions };
+            // babel-plugin-istanbul cannot use its `onCover` here (see
+            // `assertNoIstanbulOnCover`), so do not copy it.
+            const { onCover: _istanbulOnCover, ...rest } = istanbulOptions;
+            opts = { ...rest, ...ownOptions };
           }
           if (typeof file.code !== 'string' || file.code === '') return;
           const target = resolveFile(opts, filename, shouldSkip);
@@ -773,6 +870,7 @@ const babelPluginOxcCoverage = (api, pluginOptions) => {
           if (file.ast) file.ast.comments = result.ast.comments;
           path.scope.crawl();
           state.oxcCoverage = { ...target, ...result };
+          assertNoIstanbulOnCover(file);
         },
       },
     },

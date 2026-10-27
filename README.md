@@ -126,7 +126,7 @@ Choose:
 |:--|:--|
 | `istanbul` | Add the `instrumenter` line with `compat: 'istanbul'`. Same numbers, less time. |
 | `v8` and you are happy | Stay on `v8`. Switch when you need coverage in Firefox or WebKit, or Istanbul's exact counts. |
-| `babel-plugin-istanbul` (nyc, Babel builds) | Replace it with `oxc-coverage-instrument/babel` in the Babel config. The coverage is the same. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md#babel-jest-and-nyc). |
+| `babel-plugin-istanbul` (nyc, Babel builds) | Replace it with `oxc-coverage-instrument/babel` in the Babel config. The coverage is the same. Flow and some syntax proposals are not supported. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md#babel-jest-and-nyc). |
 | `vite-plugin-istanbul` | Use the `instrumenter` option of `vite-plugin-istanbul` 9 and newer. See the [npm package README](crates/oxc_coverage_instrument_napi/README.md). |
 | Jest with `coverageProvider: 'babel'` | Add `['oxc-coverage-instrument/babel', { onlyWithIstanbul: true }]` to the Babel config. `coverage-final.json` stays the same. See [`examples/jest-babel`](examples/jest-babel/). |
 
