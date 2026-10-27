@@ -1,7 +1,10 @@
 // Compares the coverage-final.json files of the three karma runs.
 //
-// - oxc-strict (compat: 'istanbul') must equal istanbul exactly: the same
-//   statement, function, and branch maps, and the same hit counts.
+// - oxc-strict (compat: 'istanbul') must have the same statement, function,
+//   and branch maps as istanbul, and the same hit counts. The file objects
+//   are not equal as a whole: `hash` is a different digest, and
+//   oxc-coverage-instrument does not write `_coverageSchema`. The script
+//   checks that no other top-level key differs.
 // - oxc (default profile) must have the same statements and the same hit
 //   counts. It can differ from istanbul only by the extensions that
 //   crates/oxc_coverage_instrument/README.md documents:
@@ -32,8 +35,12 @@ const locationText = (lines, { start, end }) => {
   ].join('\n');
 };
 
+// Top-level keys that differ by design. All other keys must be equal.
+const METADATA_KEYS = new Set(['hash', '_coverageSchema']);
+
 const compareStrict = (reference, actual) =>
-  ['statementMap', 's', 'fnMap', 'f', 'branchMap', 'b']
+  [...new Set([...Object.keys(reference), ...Object.keys(actual)])]
+    .filter((key) => !METADATA_KEYS.has(key))
     .filter((key) => !isEqual(reference[key], actual[key]))
     .map((key) => `${key} differs`);
 
@@ -177,4 +184,7 @@ if (errors.length > 0) {
   if (errors.length > 40) console.error(`... and ${errors.length - 40} more`);
   process.exit(1);
 }
-console.log('PASS: oxc-strict equals istanbul. The default profile differs only by documented extensions.');
+console.log(
+  'PASS: oxc-strict has the same maps and hit counts as istanbul (hash and _coverageSchema differ by design). ' +
+    'The default profile differs only by documented extensions.',
+);

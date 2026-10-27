@@ -2689,4 +2689,29 @@ globalThis.__result = {
   console.log('  [PASS] karma adapter composes an input source map');
 }
 
+{
+  // karma-coverage matches `coverageReporter.instrumenter` patterns against
+  // the absolute path of each file. A relative pattern such as 'src/**/*.js'
+  // never matches, and karma-coverage then uses istanbul without a warning.
+  // Every documented example must therefore start its pattern with `**/`.
+  const documents = [
+    'karma.js',
+    'karma.d.ts',
+    'README.md',
+    '../../README.md',
+    '../../examples/karma/README.md',
+  ];
+  for (const document of documents) {
+    const text = readFileSync(join(__dirname, document), 'utf8').replaceAll('\\/', '/');
+    const patterns = [...text.matchAll(/\binstrumenter: \{([^}]*)\}/g)].flatMap(([, body]) =>
+      [...body.matchAll(/'([^']+)'\s*:/g)].map(([, pattern]) => pattern),
+    );
+    assert(patterns.length > 0, `${document} has an instrumenter example`);
+    for (const pattern of patterns) {
+      assert(pattern.startsWith('**/'), `${document}: instrumenter pattern '${pattern}' must start with **/`);
+    }
+  }
+  console.log('  [PASS] karma instrumenter examples match absolute paths');
+}
+
 console.log('\nAll tests passed!');

@@ -28,8 +28,9 @@ module.exports = (config) => {
 `karma-coverage` matches the `instrumenter` patterns against the absolute path
 of each file. Start each pattern with `**/`.
 
-`compat: 'istanbul'` gives the same coverage data as the default instrumenter
-of `karma-coverage`. Without `compat`, the default profile records more. The
+`compat: 'istanbul'` gives the same statement, function, and branch maps and
+the same hit counts as the default instrumenter of `karma-coverage`. Only the
+`hash` value and the `_coverageSchema` key differ. Without `compat`, the default profile records more. The
 [crate README](../../crates/oxc_coverage_instrument/README.md#differences-from-istanbul-lib-instrument)
 lists each difference.
 
@@ -52,12 +53,14 @@ Set `CHROME_BIN` when Chrome is not in its usual location.
    - `oxc`: `oxc-coverage-instrument`, default profile.
    - `oxc-strict`: `oxc-coverage-instrument` with `compat: 'istanbul'`.
 2. `scripts/compare-coverage.mjs` compares the three files. `oxc-strict` must
-   equal `istanbul`: the same statement, function, and branch maps, and the
-   same hit counts. `oxc` must have the same statements, functions, and hit
+   have the same statement, function, and branch maps as `istanbul`, and the
+   same hit counts. All other keys must be equal too, except `hash` and
+   `_coverageSchema`. `oxc` must have the same statements, functions, and hit
    counts, and it can differ only by the documented extensions.
 3. `scripts/preprocessor-path.mjs` runs the preprocessor of `karma-coverage`
    in Node with an input source map and `includeAllSources: true`. The browser
-   runs do not use these two paths.
+   runs do not use these two paths. It also checks that a relative
+   `instrumenter` pattern does not select the adapter.
 
 ## Result
 

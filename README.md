@@ -225,8 +225,8 @@ module.exports = (config) => {
 
 `karma-coverage` matches the `instrumenter` patterns against the absolute file
 path, so start each pattern with `**/`. With `compat: 'istanbul'`, the
-coverage data is the same as with the default instrumenter of
-`karma-coverage`. The [Karma example](examples/karma/) runs both on lodash in
+statement, function, and branch maps and the hit counts are the same as with
+the default instrumenter of `karma-coverage`. The [Karma example](examples/karma/) runs both on lodash in
 headless Chrome and compares the `coverage-final.json` files.
 
 `stripTypescript: true` removes the TypeScript types. Without it, the output

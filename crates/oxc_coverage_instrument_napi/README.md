@@ -165,15 +165,18 @@ module.exports = (config) => {
 
 `instrumenterOptions.oxc` accepts the options of `createOxcInstrumenter()`,
 for example `compat`, `coverageVariable`, `ignoreClassMethods`, and
-`reportLogic`. The adapter does not use the Babel code-generation options that
+`reportLogic`. Keep the default `coverageVariable` under Karma. The
+`karma-jasmine` adapter sends only `window.__coverage__` to the reporter, so a
+different variable gives an empty report. The istanbul instrumenter has the
+same limit. The adapter does not use the Babel code-generation options that
 `karma-coverage` adds, for example `autoWrap` and `codeGenerationOptions`.
 `lastSourceMap()` returns a map only when `karma-coverage` sets
 `produceSourceMap`, which it does when the input file has a source map. An
 input source map composes into the output map and stays on the file coverage,
 so the reports point at the original source.
 
-With `compat: 'istanbul'`, the coverage data is the same as with the default
-instrumenter of `karma-coverage`. The
+With `compat: 'istanbul'`, the statement, function, and branch maps and the
+hit counts are the same as with the default instrumenter of `karma-coverage`. The
 [Karma example](../../examples/karma/) checks this in headless Chrome.
 
 ### Custom Vite or Rollup plugin

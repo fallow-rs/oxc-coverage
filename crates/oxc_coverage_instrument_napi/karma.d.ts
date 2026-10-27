@@ -41,7 +41,10 @@ export type OxcKarmaInstrumentCallback = (error: Error | null, code?: string) =>
  *     reporters: ['progress', 'coverage'],
  *     coverageReporter: {
  *       instrumenters: { oxc: require('oxc-coverage-instrument/karma') },
- *       instrumenter: { 'src/**\/*.js': 'oxc' },
+ *       // karma-coverage matches these patterns against the absolute path
+ *       // of each file. Start each pattern with `**\/`. A pattern that does
+ *       // not match selects the istanbul instrumenter without a warning.
+ *       instrumenter: { '**\/*.js': 'oxc' },
  *       instrumenterOptions: { oxc: { compat: 'istanbul' } },
  *     },
  *   });

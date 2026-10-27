@@ -58,4 +58,15 @@ const coverage = globalCoverageMap.get()[path];
 assert.ok(coverage, 'includeAllSources registers the coverage from lastFileCoverage()');
 assert.ok(Object.keys(coverage.statementMap).length > 0, 'the registered coverage has statements');
 
-console.log('PASS: karma-coverage preprocessor runs the oxc adapter with a source map and includeAllSources.');
+// karma-coverage matches the instrumenter patterns against the absolute
+// path. A relative pattern does not match, so karma-coverage uses istanbul.
+const relativeCount = constructed.length;
+const preprocessRelative = createCoveragePreprocessor(quietLogger, process.cwd(), ['coverage'], {
+  instrumenters: { oxc: { Instrumenter: RecordingInstrumenter } },
+  instrumenter: { 'src/**/*.js': 'oxc' },
+});
+const plainFile = { originalPath: path, path };
+await new Promise((done) => preprocessRelative(content, plainFile, done));
+assert.equal(constructed.length, relativeCount, 'a relative pattern does not select the oxc adapter');
+
+console.log('PASS: karma-coverage preprocessor runs the oxc adapter with a source map and includeAllSources, and ignores a relative pattern.');
