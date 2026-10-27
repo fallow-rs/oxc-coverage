@@ -1047,8 +1047,9 @@ pub struct V8CollectResult {
     /// Location maps with all hit counts still zero.
     pub coverage_map: FileCoverage,
     /// `arm_body_byte_spans["<branch_id>"][<arm_idx>]` is the `(start, end)`
-    /// byte range of the arm body when known, or `(0, 0)` when the body span
-    /// is synthetic / unknown (e.g. a synthesized else-arm).
+    /// byte range that V8 matches for the arm. An empty span (`start == end`)
+    /// marks an arm that has no V8 range of its own, such as the implicit
+    /// `else` of an `if` or the right side of a logical assignment.
     pub arm_body_byte_spans: BTreeMap<String, Vec<(u32, u32)>>,
 }
 
