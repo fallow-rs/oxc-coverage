@@ -18,8 +18,19 @@ the stories and collects the coverage.
 - `npm run compare` builds the Storybook two times: one time with
   `COVERAGE_INSTRUMENTER=istanbul` (the default `istanbul-lib-instrument`) and
   one time with `oxc-coverage-instrument`. For each build it runs
-  `test-storybook --coverage` and compares the two coverage files, before and
-  after the source-map remap.
+  `test-storybook --coverage` and compares the coverage of the two builds at
+  two points:
+  - Raw coverage, before the remap. The `postVisit` hook in
+    `.storybook/test-runner.ts` writes `window.__coverage__` after each story.
+    The positions are in the instrumented code, and each entry has the
+    `inputSourceMap` from Vite. The script also compares these source maps.
+  - Remapped coverage. The test-runner merges the stories with `nyc merge`, and
+    nyc remaps the result to the `.tsx` sources. The result is
+    `coverage/<instrumenter>/coverage-storybook.json`.
+- The script also remaps the raw coverage with the `istanbul-lib-source-maps`
+  copy that nyc uses. It checks that this result has the same maps and the
+  same covered entries as the nyc output. This shows that the raw coverage is
+  the data that nyc remapped.
 
 ## Run
 
@@ -33,10 +44,12 @@ npm run compare
 ```
 
 The script fails when a file key, a statement, function, or branch map, or
-the covered state of an entry is different. A hit count is the number of times
-a story ran the code before the test-runner read the counters. React can
-render a story one more time before that read, so the script reports different
-hit counts but does not fail on them.
+the covered state of an entry is different. It also fails when a raw entry has
+no `inputSourceMap`, because then the entry is not raw coverage. The script
+reports different hit counts, but it does not fail on them. One earlier run
+showed different counts between the two builds, and the cause is not
+confirmed. The test-runner also saves the coverage on the `beforeunload` event
+of the page, so nyc adds more snapshots than the `postVisit` hook sees.
 
 ## Use it in your own Storybook
 
@@ -54,7 +67,16 @@ Make the addon use `vite-plugin-istanbul` 9. With npm:
 }
 ```
 
-With pnpm, use `pnpm.overrides`. With Yarn, use `resolutions`.
+With pnpm, put the same entry in `pnpm.overrides`. Yarn `resolutions` does
+not accept a `$` reference, so give a version range:
+
+```json
+{
+  "resolutions": {
+    "vite-plugin-istanbul": "^9.0.1"
+  }
+}
+```
 
 ```ts
 // .storybook/main.ts

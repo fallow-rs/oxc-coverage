@@ -20,7 +20,6 @@
     "@types/react-dom": "^19.0.0",
     "http-server": "^14.1.1",
     "istanbul-lib-coverage": "^3.2.2",
-    "istanbul-lib-source-maps": "^5.0.6",
     "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
     "storybook": "^10.6.4",
     "typescript": ">=5.9.3",

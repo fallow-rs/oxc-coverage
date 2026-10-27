@@ -198,8 +198,18 @@ npm install -D @storybook/addon-coverage vite-plugin-istanbul@^9 oxc-coverage-in
 }
 ```
 
-With pnpm, use `pnpm.overrides`. With Yarn, use `resolutions`. Then give the
-instrumenter to the addon:
+With pnpm, put the same entry in `pnpm.overrides`. Yarn `resolutions` does
+not accept a `$` reference, so give a version range:
+
+```json
+{
+  "resolutions": {
+    "vite-plugin-istanbul": "^9.0.1"
+  }
+}
+```
+
+Then give the instrumenter to the addon:
 
 ```typescript
 // .storybook/main.ts
