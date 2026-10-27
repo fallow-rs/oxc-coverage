@@ -6,8 +6,9 @@ This example uses `oxc-coverage-instrument/babel` in place of
 - Jest with `coverageProvider: 'babel'` and `babel-jest`.
 - nyc with mocha and `@babel/register`.
 
-The sources are TypeScript and JavaScript (`src/`). One file, `src/report.ts`,
-has no test. Jest `collectCoverageFrom` and nyc `all` still report it.
+The sources are TypeScript and JavaScript (`src/`). `src/badge.js` has JSX in
+a `.js` file, as many React projects do. One file, `src/report.ts`, has no
+test. Jest `collectCoverageFrom` and nyc `all` still report it.
 
 ## Run it
 
@@ -20,6 +21,7 @@ npm run coverage:istanbul   # Jest, babel-plugin-istanbul
 npm run nyc                 # nyc + mocha, oxc-coverage-instrument/babel
 npm run nyc:istanbul        # nyc + mocha, babel-plugin-istanbul
 npm run verify
+npm run typecheck           # the types of oxc-coverage-instrument/babel
 ```
 
 `npm run verify` compares each pair of `coverage-final.json` files:
@@ -31,6 +33,10 @@ npm run verify
 
 The script also confirms that, in the Jest setup, this plugin instruments the
 files and `babel-plugin-istanbul` skips them.
+
+`npm run typecheck` compiles the files in `types/` with `module: nodenext`.
+It checks the types of the plugin for a default import from an ES module and
+for `require()` from CommonJS.
 
 ## The configuration
 

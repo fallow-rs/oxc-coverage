@@ -34,15 +34,18 @@ const readCoverage = (file) => normalize(JSON.parse(readFileSync(join(root, file
 /** Confirms that the Jest setup runs this plugin, not babel-plugin-istanbul. */
 const assertPluginRuns = () => {
   const babel = require('@babel/core');
-  const filename = join(root, 'src/cart.ts');
-  const { code } = babel.transformSync(readFileSync(filename, 'utf8'), {
-    filename,
-    cwd: root,
-    // babel-jest appends babel-plugin-istanbul in the same way.
-    plugins: [[require.resolve('babel-plugin-istanbul'), { cwd: root, exclude: [], extension: ['.ts'] }]],
-  });
-  assert.match(code, /\+\+cov_[0-9a-z]+\.s\[0\]/, 'expected the counters of oxc-coverage-instrument');
-  assert.doesNotMatch(code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, 'babel-plugin-istanbul also instrumented the file');
+  // TypeScript, and JSX in a `.js` file.
+  for (const file of ['src/cart.ts', 'src/badge.js']) {
+    const filename = join(root, file);
+    const { code } = babel.transformSync(readFileSync(filename, 'utf8'), {
+      filename,
+      cwd: root,
+      // babel-jest appends babel-plugin-istanbul in the same way.
+      plugins: [[require.resolve('babel-plugin-istanbul'), { cwd: root, exclude: [], extension: false }]],
+    });
+    assert.match(code, /\+\+cov_[0-9a-z]+\.s\[0\]/, `${file}: expected the counters of oxc-coverage-instrument`);
+    assert.doesNotMatch(code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, `${file}: babel-plugin-istanbul also instrumented the file`);
+  }
   console.log('[PASS] babel-jest setup: oxc-coverage-instrument/babel instruments, babel-plugin-istanbul skips');
 };
 

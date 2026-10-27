@@ -20,6 +20,9 @@ module.exports = (api) => {
     presets: [
       ['@babel/preset-env', { targets: { node: 'current' } }],
       '@babel/preset-typescript',
+      // JSX in `.js` files (src/badge.js). The preset adds the `jsx` parser
+      // plugin, and oxc-coverage-instrument/babel parses those files as JSX.
+      ['@babel/preset-react', { runtime: 'classic', pragma: 'h' }],
     ],
     plugins,
   };

@@ -7,7 +7,8 @@
     "coverage:istanbul": "COVERAGE_PLUGIN=istanbul jest --coverage --no-cache",
     "nyc": "nyc --report-dir coverage-nyc mocha",
     "nyc:istanbul": "COVERAGE_PLUGIN=istanbul nyc --temp-dir .nyc_output_istanbul --report-dir coverage-nyc-istanbul mocha",
-    "verify": "node scripts/verify-coverage.mjs"
+    "verify": "node scripts/verify-coverage.mjs",
+    "typecheck": "tsc -p types/tsconfig.json"
   },
   "nyc": {
     "all": true,
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.0",
+    "@babel/preset-react": "^7.29.7",
     "@babel/preset-typescript": "^7.28.0",
     "@babel/register": "^7.28.0",
     "babel-jest": "^30.5.2",
@@ -28,6 +30,7 @@
     "jest": "^30.5.2",
     "mocha": "^11.7.0",
     "nyc": "^17.1.0",
-    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi"
+    "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
+    "typescript": "^6.0.3"
   }
 }
