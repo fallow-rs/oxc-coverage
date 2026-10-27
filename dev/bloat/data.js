@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793095744508,
+  "lastUpdate": 1793096314280,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "27c6c49a05080bf319eacc8326f817d5c9d48662",
-          "message": "feat(source-maps): RemapOptions { drop_unmapped } for remap helpers (#93)\n\nAdds an opt-in flag that prunes statement / function / branch entries\n(and their matching s / f / b / bT slots) when their positions cannot\nbe looked up in the inputSourceMap, instead of silently keeping the\ngenerated-output coordinates. Drop semantics match\nistanbul-lib-source-maps's transformer.js: statements drop when start\nor end fails; functions drop when any of decl / loc start or end\nfails; branch arms drop per arm, the whole branch drops only when no\narms survive or the umbrella loc start / end fails.\n\nSurfaced via RemapOptions on both the Rust and napi APIs. Existing\nfns stay as zero-overhead wrappers; the new third arg on\nremapCoverageMap / remapCoverageMapWithLoader is optional so the JS\nsurface is backwards compatible.\n\nUse case (from the issue): Vue 3 + Vite coverage where OXC instruments\ncompiler-emitted boilerplate in the ?vue&type=script chunk that has\nno mapping back to the .vue source. The unmapped positions otherwise\nsurvive at chunk-line coordinates and istanbul-reports renders them\nagainst the .vue path on lines that belong to <template> or CSS.\n\nCloses #92",
-          "timestamp": "2026-05-26T11:04:44+01:00",
-          "tree_id": "2949f177bb31490e2ba8e040cee014f00e2f54bd",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/27c6c49a05080bf319eacc8326f817d5c9d48662"
-        },
-        "date": 1779789983982,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85427152,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/33a67a4f51baaf9a4cf72a0bc2de7a563da2b0bf"
         },
         "date": 1793095743491,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103225192,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7107999e96ebae11f99d917b5e23920fe12ae659",
+          "message": "docs(v8): describe the empty arm body span marker (#320)\n\nThe V8 side table marks an arm with no V8 range by an empty span, not by (0, 0). The implicit else of an if and the right side of a logical assignment use it.",
+          "timestamp": "2026-10-27T10:16:10Z",
+          "tree_id": "5efc1f1f9c761f49eaa9be16658f8ac35a734b6f",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/7107999e96ebae11f99d917b5e23920fe12ae659"
+        },
+        "date": 1793096313263,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
