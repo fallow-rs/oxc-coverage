@@ -2,7 +2,7 @@
 //!
 //! Thin orchestrator that combines this crate's AST-traversal pass
 //! ([`crate::instrument::collect_for_v8_to_istanbul`]) with
-//! `oxc_coverage_v8::apply_v8_coverage_with_static_members` for the V8-range intersection and
+//! `oxc_coverage_v8::apply_v8_coverage_with_class_members` for the V8-range intersection and
 //! `oxc_coverage_v8`'s source-map extraction helpers for the inline /
 //! external `//# sourceMappingURL=` trailer.
 //!
@@ -14,7 +14,7 @@ pub use oxc_coverage_v8::{V8CoverageRange, V8FunctionCoverage};
 
 use oxc_coverage_types::FileCoverage;
 use oxc_coverage_v8::{
-    apply_v8_coverage_with_static_members, extract_external_source_mapping_url,
+    apply_v8_coverage_with_class_members, extract_external_source_mapping_url,
     extract_inline_source_map,
 };
 
@@ -127,13 +127,13 @@ where
     let collected = collect_for_v8_to_istanbul(source, filename)
         .map_err(|e| V8ToIstanbulError::Parse(e.to_string()))?;
     let mut file_coverage = collected.coverage_map;
-    apply_v8_coverage_with_static_members(
+    apply_v8_coverage_with_class_members(
         &mut file_coverage,
         source,
         functions,
         wrapper_length_utf16,
         &collected.arm_body_byte_spans,
-        &collected.static_member_byte_spans,
+        &collected.class_members,
     );
 
     if file_coverage.input_source_map.is_none() {

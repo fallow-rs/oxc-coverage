@@ -1317,3 +1317,120 @@ fn real_v8_node22_static_members_with_a_wrapper_and_non_ascii_text() {
         ]
     );
 }
+
+const COMPUTED_KEY_SOURCE: &str = "let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  static [flag > 10 ? 'x' : 'y'] = flag ? 1 : 2;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
+}
+";
+
+/// The branch counts of `istanbul-lib-instrument` for
+/// [`COMPUTED_KEY_SOURCE`]. The key runs once per class definition.
+fn computed_key_istanbul_branches() -> Vec<(String, Vec<u32>)> {
+    vec![
+        ("cond-expr 3:9".to_string(), vec![6, 2]),
+        ("cond-expr 4:10".to_string(), vec![0, 4]),
+        ("cond-expr 4:35".to_string(), vec![3, 1]),
+    ]
+}
+
+#[test]
+fn real_v8_node22_computed_key_takes_the_class_definition_count() {
+    let functions = [
+        function("", vec![range(0, 230, 1), range(137, 205, 4)], true),
+        function("make", vec![range(27, 118, 4), range(88, 93, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(39, 118, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(39, 118, 4), range(108, 111, 3), range(112, 115, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(COMPUTED_KEY_SOURCE, "key.js", &functions, 0).unwrap();
+    assert_eq!(branch_counts(&fc), computed_key_istanbul_branches());
+}
+
+#[test]
+fn real_v8_node24_computed_key_takes_the_class_definition_count() {
+    // Node 24 starts the static initializer range at `static`, so the range
+    // includes the computed key.
+    let functions = [
+        function("", vec![range(0, 230, 1), range(137, 205, 4)], true),
+        function("make", vec![range(27, 118, 4), range(88, 93, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(43, 66, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+        function(
+            "<static_initializer>",
+            vec![range(70, 115, 4), range(108, 111, 3), range(112, 115, 1)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(COMPUTED_KEY_SOURCE, "key.js", &functions, 0).unwrap();
+    assert_eq!(branch_counts(&fc), computed_key_istanbul_branches());
+}
+
+#[test]
+fn real_v8_node24_instance_range_over_a_computed_key_is_skipped() {
+    // Node 24 gives the instance initializer the span from its first member to
+    // its last member, so the range includes the computed key of the second
+    // field.
+    let source = "let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  [flag > 10 ? 'x' : 'y'] = 1;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
+}
+";
+    let functions = [
+        function("", vec![range(0, 212, 1), range(132, 189, 4)], true),
+        function("make", vec![range(27, 100, 4), range(81, 86, 0)], true),
+        function(
+            "<instance_members_initializer>",
+            vec![range(43, 97, 8), range(55, 60, 6), range(61, 66, 2)],
+            true,
+        ),
+    ];
+    let fc = v8_to_istanbul(source, "key.js", &functions, 0).unwrap();
+    assert_eq!(
+        branch_counts(&fc),
+        [("cond-expr 3:9".to_string(), vec![6, 2]), ("cond-expr 4:3".to_string(), vec![0, 4])]
+    );
+}
+
+#[test]
+fn real_v8_node22_unreported_method_body_takes_the_instance_count() {
+    // V8 reports no record for a method that never ran. Its body then falls
+    // in the class body range of both initializers, and the static record
+    // comes first. The class has no instances, so the body ran 0 times.
+    let source = "class Box {\n  kind = 1;\n  static base = 2;\n  run() {\n    return 3;\n  }\n}\n";
+    let functions = [
+        function("", vec![range(0, 95, 1)], true),
+        function("<static_initializer>", vec![range(10, 72, 1)], true),
+        function("<instance_members_initializer>", vec![range(10, 72, 0)], true),
+    ];
+    let fc = v8_to_istanbul(source, "method.js", &functions, 0).unwrap();
+    let expected: Vec<(String, u32)> = [("2:9-2:10", 0), ("3:16-3:17", 1), ("5:4-5:13", 0)]
+        .into_iter()
+        .map(|(key, count)| (key.to_string(), count))
+        .collect();
+    assert_eq!(statement_counts(&fc), expected);
+}

@@ -4,8 +4,9 @@ use std::collections::BTreeMap;
 
 use oxc_coverage_types::{BranchEntry, FileCoverage, Location, Position};
 use oxc_coverage_v8::{
-    V8CoverageRange, V8FunctionCoverage, apply_v8_coverage, apply_v8_coverage_with_static_members,
-    extract_external_source_mapping_url, extract_inline_source_map,
+    ClassMemberSpans, V8CoverageRange, V8FunctionCoverage, apply_v8_coverage,
+    apply_v8_coverage_with_class_members, extract_external_source_mapping_url,
+    extract_inline_source_map,
 };
 
 // The `~~~~~~` payload packs into sextets that include slot 62, which the
@@ -382,7 +383,7 @@ fn same_span_initializers(source: &str) -> Vec<V8FunctionCoverage> {
             ranges: vec![V8CoverageRange {
                 start_offset: 0,
                 end_offset: byte_len(source),
-                count: 1,
+                count: 7,
             }],
             is_block_coverage: true,
         },
@@ -400,41 +401,40 @@ fn same_span_initializers(source: &str) -> Vec<V8FunctionCoverage> {
 }
 
 #[test]
-fn static_member_spans_select_the_static_initializer_range() {
+fn class_member_spans_select_the_initializer_range() {
     let source = "class A {\n  a = 1;\n  static b = 2;\n}\n";
     let functions = same_span_initializers(source);
-    let static_field =
-        (byte_len("class A {\n  a = 1;\n  "), byte_len("class A {\n  a = 1;\n  static b = 2;"));
-    let at_line = |line: u32| {
-        single_statement_coverage(Location {
-            start: Position { line, column: 2 },
-            end: Position { line, column: 8 },
-        })
+    let instance_value = (byte_len("class A {\n  a = "), byte_len("class A {\n  a = 1"));
+    let static_value = (
+        byte_len("class A {\n  a = 1;\n  static b = "),
+        byte_len("class A {\n  a = 1;\n  static b = 2"),
+    );
+    let members = ClassMemberSpans::new(vec![static_value], vec![instance_value], Vec::new());
+    let count_at = |line: u32, column: u32, members: Option<&ClassMemberSpans>| {
+        let mut fc = single_statement_coverage(Location {
+            start: Position { line, column },
+            end: Position { line, column: column + 1 },
+        });
+        match members {
+            Some(members) => apply_v8_coverage_with_class_members(
+                &mut fc,
+                source,
+                &functions,
+                0,
+                &BTreeMap::new(),
+                members,
+            ),
+            None => apply_v8_coverage(&mut fc, source, &functions, 0, &BTreeMap::new()),
+        }
+        fc.s["0"]
     };
 
-    let mut instance = at_line(2);
-    apply_v8_coverage_with_static_members(
-        &mut instance,
-        source,
-        &functions,
-        0,
-        &BTreeMap::new(),
-        &[static_field],
-    );
-    assert_eq!(instance.s["0"], 4, "an instance field takes the instance initializer count");
-
-    let mut static_member = at_line(3);
-    apply_v8_coverage_with_static_members(
-        &mut static_member,
-        source,
-        &functions,
-        0,
-        &BTreeMap::new(),
-        &[static_field],
-    );
-    assert_eq!(static_member.s["0"], 1, "a static field takes the static initializer count");
-
-    let mut no_spans = at_line(3);
-    apply_v8_coverage(&mut no_spans, source, &functions, 0, &BTreeMap::new());
-    assert_eq!(no_spans.s["0"], 4, "with no static spans, the other range wins the tie");
+    assert_eq!(count_at(2, 6, Some(&members)), 4, "an instance value takes the instance count");
+    assert_eq!(count_at(3, 13, Some(&members)), 1, "a static value takes the static count");
+    assert_eq!(count_at(3, 9, Some(&members)), 4, "code in no member takes the instance range");
+    let key =
+        (byte_len("class A {\n  a = 1;\n  static "), byte_len("class A {\n  a = 1;\n  static b"));
+    let with_key = ClassMemberSpans::new(vec![static_value], vec![instance_value], vec![key]);
+    assert_eq!(count_at(3, 9, Some(&with_key)), 7, "a computed key skips both initializer ranges");
+    assert_eq!(count_at(2, 6, None), 1, "with no member spans, the first record wins");
 }

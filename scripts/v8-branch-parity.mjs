@@ -236,10 +236,26 @@ for (const n of [0, 1, 2, 3]) {
   },
   {
     name: 'computed static key',
+    // A computed key runs once per class definition, not in an initializer.
+    // One key arm never runs, so the other arm needs the count around it.
     code: `let flag = 0;
 const make = () => class {
   kind = flag ? 'a' : 'b';
-  static [flag ? 'x' : 'y'] = flag ? 1 : 2;
+  static [flag > 10 ? 'x' : 'y'] = flag ? 1 : 2;
+};
+for (const n of [0, 1, 2, 3]) {
+  flag = n;
+  const C = make();
+  new C();
+  new C();
+}`,
+  },
+  {
+    name: 'computed instance key',
+    code: `let flag = 0;
+const make = () => class {
+  kind = flag ? 'a' : 'b';
+  [flag > 10 ? 'x' : 'y'] = 1;
 };
 for (const n of [0, 1, 2, 3]) {
   flag = n;
