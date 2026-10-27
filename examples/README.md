@@ -10,6 +10,7 @@ Istanbul coverage provider with the `oxc-coverage-instrument` instrumenter.
 | [`vitest-monorepo`](vitest-monorepo/) | Several Vitest projects with one root coverage config and one report. |
 | [`vitest-ci-reports`](vitest-ci-reports/) | `lcov`, `cobertura`, HTML, and a coverage threshold for CI, from the npm API. |
 | [`vitest-real-projects`](vitest-real-projects/) | Measured speed and coverage parity on es-toolkit, date-fns, hono, and h3. |
+| [`karma`](karma/) | `karma-coverage` in headless Chrome, compared with its default instrumenter on lodash. |
 | [`wasm-node`](wasm-node/) | The WebAssembly binding in Node.js. |
 | [`cloudflare-workers`](cloudflare-workers/) | The instrumenter inside a Cloudflare Worker. |
 
