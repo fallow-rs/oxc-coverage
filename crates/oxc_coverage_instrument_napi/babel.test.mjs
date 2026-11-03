@@ -439,4 +439,17 @@ test('the package exports oxc-coverage-instrument/babel', () => {
   assert.equal(pkg.peerDependenciesMeta['@babel/core'].optional, true);
 });
 
+test('a user binding with the name of the coverage function keeps coverage', () => {
+  // The instrumenter renames its coverage function to `cov_<hash>_1` when the
+  // file already declares `cov_<hash>`. The plugin must still find it.
+  const filename = join(project, 'src', 'a.js');
+  const { instrument } = require('./index.js');
+  const native = /function (cov_[0-9a-z]+)\(\)/.exec(instrument('', filename).code)[1];
+  const code = `var ${native} = 5;\n${SAMPLE}`;
+  const ours = coverageOf(oxc({ exclude: [] }), code, { filename });
+  assert.ok(ours.fileCoverage, 'the plugin should report coverage for the file');
+  assert.match(ours.result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/, 'the plugin should keep the counters');
+  assert.match(ours.result.code, new RegExp(`var ${native} = \\(\\+\\+cov_[0-9a-z]+\\(\\)\\.s\\[0\\], 5\\);`), 'the user binding should stay');
+});
+
 console.log(`\nAll ${passed} oxc-coverage-instrument/babel tests passed (Babel ${babel.version}).`);

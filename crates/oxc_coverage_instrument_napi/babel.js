@@ -103,7 +103,8 @@ const PLUGIN_NAME = 'oxc-coverage-instrument';
 const MAGIC_KEY = '_coverageSchema';
 const MAGIC_VALUE = createHash('sha1').update('istanbul-lib-instrument@4').digest('hex');
 const DEFAULT_COVERAGE_VARIABLE = '__coverage__';
-const NATIVE_COVERAGE_FN_RE = /\bfunction (cov_[0-9a-z]+)\(\) \{ var path = /;
+// The instrumenter adds a `_<n>` suffix when the file already declares the name.
+const NATIVE_COVERAGE_FN_RE = /\bfunction (cov_[0-9a-z]+(?:_\d+)?)\(\) \{ var path = /;
 
 // The defaults of `@istanbuljs/schema` for babel-plugin-istanbul.
 const DEFAULT_EXTENSIONS = ['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx'];
