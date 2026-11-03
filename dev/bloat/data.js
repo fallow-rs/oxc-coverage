@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793136779343,
+  "lastUpdate": 1793703892221,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "55ade84f741ba9d06dda2b4f3e0768c82926a2b3",
-          "message": "chore: release v0.7.4",
-          "timestamp": "2026-05-28T20:22:13+02:00",
-          "tree_id": "85f37052c41d09d9f8253ba155702f6bd55c1834",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/55ade84f741ba9d06dda2b4f3e0768c82926a2b3"
-        },
-        "date": 1779992653187,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85516488,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103217352,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "baa92924ed14b38c579f95ce84290d0c9abe5dac",
+          "message": "chore: update dependencies to their latest versions (#335)\n\nUpdate the oxc crates to 0.157 and the srcmap crates to 0.4.0. Run cargo update for the other crates.\n\nUpdate the npm dependencies of the N-API package and the examples. Add scoped overrides for glob and minimatch, and for uuid in the Storybook example, to fix advisories.\n\nThe jest-babel example stays on Babel 7. Under nyc, Babel 8 @babel/register starts worker threads, and memory and threads grow without limit.",
+          "timestamp": "2026-11-03T12:02:24+01:00",
+          "tree_id": "131497df2032cc61b1393331b3c01b1f1b297dc1",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/baa92924ed14b38c579f95ce84290d0c9abe5dac"
+        },
+        "date": 1793703891465,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103421960,
             "unit": "bytes"
           }
         ]
