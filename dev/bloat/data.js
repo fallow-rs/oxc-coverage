@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793730581501,
+  "lastUpdate": 1793731776922,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "8faba6df9f994c911401ad394b50351b8ca7f943",
-          "message": "chore: release oxc coverage instrument 0.7.6",
-          "timestamp": "2026-06-01T18:58:47+02:00",
-          "tree_id": "241eb7476f3c8b3be45e9d680d35c9bb65b8f739",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/8faba6df9f994c911401ad394b50351b8ca7f943"
-        },
-        "date": 1780333266098,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85492616,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103421960,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1485c436c432988329ae6903003e2c92f7dc2ded",
+          "message": "fix(instrument): keep coverage safe for hoisted calls in ESM cycles (#339)\n\n* fix(instrument): keep coverage safe for hoisted calls in ESM cycles\n\nA module in an import cycle can call a hoisted function of another module\nbefore the body of that module runs. The instrumented function then read\nthe `cov_*` variable before its initializer ran, and threw a TypeError.\n\nThe preamble is now a hoisted `function cov_*()`, as in\nistanbul-lib-instrument. The first call installs the coverage object and\nreplaces the function with a getter for that object. Every counter calls\n`cov_*()`, so a counter works before the module body runs. The setup runs\nonly once, so the cost fix of #34 stays.\n\nThe Babel plugin now finds the coverage function declaration instead of\nthe old variable.\n\nFixes #338\n\n* fix(babel): find a renamed coverage function\n\nThe instrumenter adds a `_<n>` suffix to the coverage function when the\nfile already declares `cov_<hash>`. The Babel plugin did not match the\nsuffix, so it emitted the file without counters and without coverage.",
+          "timestamp": "2026-11-03T18:46:59Z",
+          "tree_id": "2ae99ed294399b6acdd2e6ce15a9a93c94f1c346",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/1485c436c432988329ae6903003e2c92f7dc2ded"
+        },
+        "date": 1793731747865,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103416392,
             "unit": "bytes"
           }
         ]
