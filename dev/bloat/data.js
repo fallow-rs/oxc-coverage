@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793704563593,
+  "lastUpdate": 1793730581501,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "814fda7bc415a6ac931f6c2dbdadb5bc8f4bb370",
-          "message": "refactor: split oversized parser/builder units and cover CLI error paths (#102)\n\nSplits parse_instrument_args, prune_unmapped, and build_file_coverage into focused helpers (no behavior change) and adds CLI integration tests for previously uncovered error branches. CLI main.rs 85.1%->92.0% line; workspace total 95.7%->96.3%. Closes #103.",
-          "timestamp": "2026-05-29T22:55:21+01:00",
-          "tree_id": "bb9bbe523ecf00a3d601ab7944dc4a425d168407",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/814fda7bc415a6ac931f6c2dbdadb5bc8f4bb370"
-        },
-        "date": 1780091822545,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85509040,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/9717b75c61c229dc733efe9105bb9c68c0ad047a"
         },
         "date": 1793704563119,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103421960,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9b9634ff2b7382e370a87e2a721a598eab0ea611",
+          "message": "chore(deps): pin Swatinem/rust-cache to the v2.9.3 release (#337)",
+          "timestamp": "2026-11-03T19:27:14+01:00",
+          "tree_id": "350a9d3b101110de7aae0f263509af73ed6bbc82",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/9b9634ff2b7382e370a87e2a721a598eab0ea611"
+        },
+        "date": 1793730548797,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
