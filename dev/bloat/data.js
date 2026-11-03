@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793737041142,
+  "lastUpdate": 1793742953456,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "1d0f441149fd8dc4ce58e8eb4665e223a5049907",
-          "message": "chore: release v0.7.7",
-          "timestamp": "2026-06-02T11:28:52+02:00",
-          "tree_id": "12c51871c171f47b0ddfa3e19cb3703dcecb413c",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/1d0f441149fd8dc4ce58e8eb4665e223a5049907"
-        },
-        "date": 1780392684915,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86539512,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/3d65ad39c9932df813c290c8a0a855cc79be5e68"
         },
         "date": 1793737012212,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103413224,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f49efb86ef45686502d7d70046076313cb00799f",
+          "message": "fix(napi): move @napi-rs/cli to 3.10.12 so the Linux cross toolchain resolves (#341)\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-11-03T22:54:15+01:00",
+          "tree_id": "923e02d57d3659925f7d27baca9fb10c97c8a7c8",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/f49efb86ef45686502d7d70046076313cb00799f"
+        },
+        "date": 1793742949811,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
