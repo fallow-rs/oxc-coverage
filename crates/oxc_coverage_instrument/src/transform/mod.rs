@@ -430,6 +430,7 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
                     self.pending_arrow_timing = Some(fn_id);
                 }
                 Ancestor::FunctionBody(func) if *func.generator() => {}
+                Ancestor::FunctionBody(func) if !timing::can_wrap_body(func.params(), body) => {}
                 Ancestor::FunctionBody(func) => {
                     let timed = TimedBody { fn_id, leading: 1, is_async: *func.r#async() };
                     timing::wrap_body_with_timing(body, timed, names, ctx);
@@ -497,6 +498,7 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         if let Some(names) = self.timing
             && let Some(fn_id) = self.pending_arrow_timing.take()
             && let Some(body) = arrow.body.as_function_body_mut()
+            && timing::can_wrap_body(&arrow.params, body)
         {
             let timed = TimedBody { fn_id, leading: 1, is_async };
             timing::wrap_body_with_timing(body, timed, names, ctx);

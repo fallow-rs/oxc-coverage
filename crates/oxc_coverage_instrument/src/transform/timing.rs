@@ -27,12 +27,21 @@
 //!
 //! A generator is never timed, because its body suspends at each `yield` and
 //! the `finally` clause runs only when the iterator closes.
+//!
+//! The wrap moves each function declaration of the body into the `try` block,
+//! so the declaration becomes block scoped. A body is not timed when that
+//! changes its meaning: a function declaration that has the name of a
+//! parameter or of a `var` of the body, or two function declarations with one
+//! name. A block cannot hold these declarations in strict mode, and in sloppy
+//! mode a parameter keeps its value. Moving the declarations in front of the
+//! `try` is not safe either, because a declaration there cannot read the
+//! `let` and `const` names of the body.
 
 use std::fmt::Write;
 
 use oxc_allocator::Vec as ArenaVec;
 use oxc_ast::ast::*;
-use oxc_ast_visit::VisitMut;
+use oxc_ast_visit::{Visit, VisitMut};
 use oxc_span::SPAN;
 use oxc_syntax::operator::{
     AssignmentOperator, BinaryOperator, LogicalOperator, UnaryOperator, UpdateOperator,
@@ -122,6 +131,79 @@ pub(super) fn wrap_body_with_timing<'a>(
         BlockStatement::boxed_with_scope_id(SPAN, vec_of(ctx, [end_stmt]), finally_scope, ctx);
     outer.push(Statement::new_try_statement(SPAN, block, None, Some(finalizer), ctx));
     body.statements = outer;
+}
+
+/// Whether [`wrap_body_with_timing`] keeps the meaning of `body`.
+///
+/// It is false when a function declaration of the body has the name of a
+/// parameter, of a `var` of the body, or of another function declaration of
+/// the body. Inside the `try` block these declarations are a syntax error or
+/// change the value of a name.
+pub(super) fn can_wrap_body<'a>(params: &FormalParameters<'a>, body: &FunctionBody<'a>) -> bool {
+    let functions = body_function_names(&body.statements);
+    if functions.is_empty() {
+        return true;
+    }
+    let mut names = VarNames::default();
+    for pattern in params.iter_bindings() {
+        names.add(pattern);
+    }
+    names.visit_statements(&body.statements);
+    let mut seen: Vec<Ident<'a>> = Vec::with_capacity(functions.len());
+    for name in functions {
+        if seen.contains(&name) || names.names.contains(&name) {
+            return false;
+        }
+        seen.push(name);
+    }
+    true
+}
+
+/// The names of the function declarations at the top level of a body.
+fn body_function_names<'a>(statements: &[Statement<'a>]) -> Vec<Ident<'a>> {
+    let mut names = Vec::new();
+    for stmt in statements {
+        let mut stmt = stmt;
+        while let Statement::LabeledStatement(labeled) = stmt {
+            stmt = &labeled.body;
+        }
+        if let Statement::FunctionDeclaration(func) = stmt
+            && func.body.is_some()
+            && let Some(id) = &func.id
+        {
+            names.push(id.name);
+        }
+    }
+    names
+}
+
+/// The `var` names of one body and the parameter names, but not the names of
+/// a nested function or class.
+#[derive(Default)]
+struct VarNames<'a> {
+    names: Vec<Ident<'a>>,
+}
+
+impl<'a> VarNames<'a> {
+    fn add(&mut self, pattern: &BindingPattern<'a>) {
+        self.names.extend(pattern.get_binding_identifiers().into_iter().map(|id| id.name));
+    }
+}
+
+impl<'a> Visit<'a> for VarNames<'a> {
+    fn visit_function(&mut self, _it: &Function<'a>, _flags: ScopeFlags) {}
+
+    fn visit_arrow_function_expression(&mut self, _it: &ArrowFunctionExpression<'a>) {}
+
+    fn visit_class(&mut self, _it: &Class<'a>) {}
+
+    fn visit_variable_declaration(&mut self, it: &VariableDeclaration<'a>) {
+        if it.kind == VariableDeclarationKind::Var {
+            for declarator in &it.declarations {
+                self.add(&declarator.id);
+            }
+        }
+    }
 }
 
 /// `--cd[id] > 0 ? -1 : start(id)`.

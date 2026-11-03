@@ -224,3 +224,54 @@ fn keeps_derived_constructors_and_hoisted_declarations() {
     let total: u64 = data["c"].as_array().unwrap().iter().map(|c| c.as_u64().unwrap()).sum();
     assert_eq!(total, 3, "two constructors and one hoisted function: {data}");
 }
+
+/// Assert that `driver` prints the same JSON for `source` with and without timing.
+fn same_result_with_and_without_timing(source: &str, driver: &str) {
+    let plain = run_node(&instrumented(source, &InstrumentOptions::default()), driver);
+    let timed = run_node(&instrumented(source, &timing(1)), driver);
+    assert_eq!(plain, timed, "timing changed the result of {source}");
+}
+
+#[test]
+fn keeps_a_function_declaration_that_shares_a_name_with_a_var() {
+    same_result_with_and_without_timing(
+        "function f() { var x = 1; function x() {} return typeof x; }",
+        "console.log(JSON.stringify(f()));",
+    );
+    same_result_with_and_without_timing(
+        "function f(c) { function x() {} if (c) { for (var x of [1]) {} } return typeof x; }",
+        "console.log(JSON.stringify([f(true), f(false)]));",
+    );
+}
+
+#[test]
+fn keeps_duplicate_function_declarations_in_strict_mode() {
+    same_result_with_and_without_timing(
+        "'use strict'; function f() { function x() { return 1; } function x() { return 2; } return x(); }",
+        "console.log(JSON.stringify(f()));",
+    );
+}
+
+#[test]
+fn keeps_a_function_declaration_that_shares_a_name_with_a_parameter() {
+    same_result_with_and_without_timing(
+        "function f(a) { var r = typeof arguments[0]; function a() {} return [r, typeof a]; }",
+        "console.log(JSON.stringify(f(1)));",
+    );
+    same_result_with_and_without_timing(
+        "const f = (a) => { function a() {} return typeof a; };",
+        "console.log(JSON.stringify(f(1)));",
+    );
+}
+
+#[test]
+fn still_times_a_function_declaration_that_reads_a_body_let() {
+    let source = "function f() { let x = 2; function g() { return x; } return g(); }";
+    let options = timing(1);
+    let id = fn_id(source, &options, "f");
+    let data = run_node(
+        &instrumented(source, &options),
+        &format!("if (f() !== 2) throw new Error('value'); {PRINT}"),
+    );
+    assert_eq!(data["c"][id], 1, "{data}");
+}
