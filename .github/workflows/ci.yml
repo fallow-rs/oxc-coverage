@@ -133,7 +133,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
       # Deterministic, no network: every internal version pin must equal the
       # dependency crate's local version, and every publishable crate must be
       # in the release-npm.yml publish-crate job. npm targets, platform
@@ -215,7 +215,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install dependencies
         working-directory: crates/oxc_coverage_instrument_napi
@@ -273,7 +273,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install dependencies
         working-directory: crates/oxc_coverage_instrument_napi
@@ -353,7 +353,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install conformance dependencies
         run: npm ci
@@ -403,7 +403,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -454,7 +454,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install napi binding deps
         working-directory: crates/oxc_coverage_instrument_napi
@@ -486,7 +486,7 @@ jobs:
     # only ever resolves the newest satisfying versions, so without pinning each
     # leg the floor of those ranges would never be exercised. Legs pair a Node
     # major with the matching @types/node major, and cover both the floor
-    # (Node 22 / TS 6 / types 22) and the ceiling (Node 24 / TS 7 / types 26).
+    # (Node 22 / TS 6 / types 22) and the ceiling (Node 26 / TS 7 / types 26).
     name: Vitest TypeScript example (node ${{ matrix.node }}, ts ${{ matrix.ts }})
     needs: vitest-example-binding
     runs-on: ubuntu-26.04
@@ -507,6 +507,12 @@ jobs:
             ts: 6
             types: 24
           - node: 24
+            ts: 7
+            types: 26
+          - node: 26
+            ts: 6
+            types: 26
+          - node: 26
             ts: 7
             types: 26
     steps:
@@ -578,7 +584,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Download binding
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
@@ -620,7 +626,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Download binding
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
@@ -654,7 +660,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Download binding
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
@@ -717,7 +723,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install napi deps
         working-directory: crates/oxc_coverage_instrument_napi
@@ -788,7 +794,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install napi deps
         working-directory: crates/oxc_coverage_instrument_napi
@@ -859,7 +865,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install napi deps
         working-directory: crates/oxc_coverage_instrument_napi

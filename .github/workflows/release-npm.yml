@@ -49,10 +49,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           package-manager-cache: false
-          node-version: 22
+          node-version: 26.13.0
 
-      - name: Install trusted-publishing npm
-        run: npm install -g --ignore-scripts npm@11.12.1
+      - name: Check bundled trusted-publishing npm
+        run: test "$(npm --version)" = 11.20.0
 
       - name: Validate release metadata
         run: ./scripts/check.sh version-sync
@@ -141,7 +141,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           package-manager-cache: false
-          node-version: 22
+          node-version: 26
 
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         if: contains(matrix.target, 'musl')
@@ -355,11 +355,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           package-manager-cache: false
-          node-version: 22
+          node-version: 26.13.0
           registry-url: https://registry.npmjs.org
 
-      - name: Install trusted-publishing npm
-        run: npm install -g --ignore-scripts npm@11.12.1
+      - name: Check bundled trusted-publishing npm
+        run: test "$(npm --version)" = 11.20.0
 
       - name: Install dependencies
         working-directory: crates/oxc_coverage_instrument_napi
@@ -515,10 +515,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           package-manager-cache: false
-          node-version: 24
+          node-version: 26.13.0
           registry-url: https://registry.npmjs.org
-      - name: Install pinned publishing tool without lifecycle scripts
-        run: npm install --global --ignore-scripts npm@11.19.0
+      - name: Check bundled publishing npm
+        run: test "$(npm --version)" = 11.20.0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: npm-release-ready

@@ -117,7 +117,7 @@ workflow_version_sync_has_node_and_profile() {
       }
       next
     }
-    in_setup_node && $0 == "          node-version: 22" { has_node_version = 1 }
+    in_setup_node && $0 == "          node-version: 26" { has_node_version = 1 }
 
     END {
       finish_step()
@@ -243,12 +243,15 @@ workflow_job_has_deterministic_npm() {
   ' "$workflow"
 }
 
+# Node 26.13.0 bundles npm 11.20.0, so the release jobs check the version and install nothing.
+NPM_VERSION_CHECK='test "$(npm --version)" = 11.20.0'
+
 release_workflow_has_deterministic_npm() {
   local workflow="$1"
-  workflow_job_has_deterministic_npm "$workflow" prepublish "npm install -g --ignore-scripts npm@11.12.1" 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" prepublish "$NPM_VERSION_CHECK" 1 || return 1
   workflow_job_has_deterministic_npm "$workflow" build "" 1 || return 1
-  workflow_job_has_deterministic_npm "$workflow" prepare-npm "npm install -g --ignore-scripts npm@11.12.1" 1 || return 1
-  workflow_job_has_deterministic_npm "$workflow" publish "npm install --global --ignore-scripts npm@11.19.0" 0 || return 1
+  workflow_job_has_deterministic_npm "$workflow" prepare-npm "$NPM_VERSION_CHECK" 1 || return 1
+  workflow_job_has_deterministic_npm "$workflow" publish "$NPM_VERSION_CHECK" 0 || return 1
   ! grep -Eq 'npm@latest' "$workflow"
 }
 
@@ -434,11 +437,11 @@ chmod +x "$TMP/old-node-bin/node"
 if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" inspector-smoke >"$TMP/old-node.log" 2>&1; then
   fail "inspector profile accepted an unsupported Node.js major"
 fi
-assert_contains "$TMP/old-node.log" "Node.js 22 is required for inspector-smoke."
+assert_contains "$TMP/old-node.log" "Node.js 26 is required for inspector-smoke."
 if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" v8-branch-parity >"$TMP/old-node-parity.log" 2>&1; then
   fail "v8-branch-parity profile accepted an unsupported Node.js major"
 fi
-assert_contains "$TMP/old-node-parity.log" "Node.js 22 is required for v8-branch-parity."
+assert_contains "$TMP/old-node-parity.log" "Node.js 26 is required for v8-branch-parity."
 
 mkdir -p "$TMP/old-python-bin"
 printf '%s\n' '#!/bin/sh' 'echo 3.10' 'exit 1' >"$TMP/old-python-bin/python3"
@@ -675,7 +678,7 @@ if ! workflow_job_has_need "$workflow" ci-ok version-sync; then
   fail "ci-ok.needs is missing version-sync"
 fi
 if ! workflow_version_sync_has_node_and_profile "$workflow"; then
-  fail "CI version-sync job is missing Node.js 22 or the metadata validation profile"
+  fail "CI version-sync job is missing Node.js 26 or the metadata validation profile"
 fi
 release_workflow="$ROOT/.github/workflows/release-npm.yml"
 while read -r job dependency; do
@@ -761,7 +764,7 @@ printf '%s\n' \
   '      - uses: actions/setup-node@example' \
   '      - name: Unrelated step' \
   '        with:' \
-  '          node-version: 22' \
+  '          node-version: 26' \
   '      - run: ./scripts/check.sh version-sync' \
   '  audit:' \
   '    runs-on: ubuntu-26.04' \
@@ -812,17 +815,17 @@ if workflow_job_has_need "$invalid_npm_order" publish publish-crate; then
 fi
 
 mutable_npm_workflow="$TMP/mutable-npm-workflow.yml"
-sed 's/npm@11\.12\.1/npm@latest/' "$release_workflow" >"$mutable_npm_workflow"
+sed 's/test "\$(npm --version)" = 11\.20\.0/npm install -g --ignore-scripts npm@latest/' "$release_workflow" >"$mutable_npm_workflow"
 assert_file_differs "$mutable_npm_workflow" "$release_workflow" "mutable_npm_workflow"
 if release_workflow_has_deterministic_npm "$mutable_npm_workflow"; then
   fail "release validator accepted npm@latest"
 fi
 
 mutable_publisher_workflow="$TMP/mutable-publisher-workflow.yml"
-sed 's/npm@11\.19\.0/npm@latest/' "$release_workflow" >"$mutable_publisher_workflow"
+sed 's/test "\$(npm --version)" = 11\.20\.0/test "$(npm --version)" = 11.21.0/' "$release_workflow" >"$mutable_publisher_workflow"
 assert_file_differs "$mutable_publisher_workflow" "$release_workflow" "mutable publisher"
 if release_workflow_has_deterministic_npm "$mutable_publisher_workflow"; then
-  fail "release validator accepted a mutable publisher tool"
+  fail "release validator accepted another npm version"
 fi
 
 lifecycle_install_workflow="$TMP/lifecycle-install-workflow.yml"
@@ -835,7 +838,9 @@ fi
 publisher_dependencies_workflow="$TMP/publisher-dependencies-workflow.yml"
 awk '
   { print }
-  $0 == "        run: npm install --global --ignore-scripts npm@11.19.0" {
+  $0 == "      - name: Check bundled publishing npm" { in_check = 1; next }
+  in_check {
+    in_check = 0
     print "      - name: Dependency installation in privileged publisher"
     print "        run: npm ci --ignore-scripts"
   }
@@ -985,7 +990,9 @@ fi
 extra_publish_install_workflow="$TMP/extra-publish-install-workflow.yml"
 awk '
   { print }
-  !inserted && $0 == "        run: npm install --global --ignore-scripts npm@11.19.0" {
+  $0 == "      - name: Check bundled publishing npm" { in_check = 1; next }
+  !inserted && in_check {
+    in_check = 0
     print "      - name: Unrelated publish install"
     print "        run: npm install example-package"
     inserted = 1
