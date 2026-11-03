@@ -150,7 +150,7 @@ publication behaviour.
 
 ## Code conventions
 
-- Rust 2024 edition, MSRV 1.96.
+- Rust 2024 edition, MSRV 1.97.
 - Strict clippy: all, pedantic, nursery, plus the workspace restriction lints.
 - `cargo fmt` with `style_edition = "2024"` and `use_small_heuristics = "Max"`.
 - `#[expect(..., reason = "...")]` rather than `#[allow]`.

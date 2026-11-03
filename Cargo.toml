@@ -21,7 +21,7 @@ homepage = "https://github.com/fallow-rs/oxc-coverage"
 keywords = ["oxc", "istanbul", "coverage", "javascript", "typescript"]
 license = "MIT"
 repository = "https://github.com/fallow-rs/oxc-coverage"
-rust-version = "1.96.0"
+rust-version = "1.97.0"
 
 [workspace.dependencies]
 # Suite crates. Path for workspace builds, version so that a `cargo publish`d

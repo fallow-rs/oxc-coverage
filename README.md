@@ -560,7 +560,7 @@ node scripts/replacement-benchmarks.mjs
 
 ## Compatibility
 
-- Rust 1.96 or newer, 2024 edition
+- Rust 1.97 or newer, 2024 edition
 - Oxc 0.155.x
 - Istanbul `coverage-final.json` v3 or newer
 - Node.js 18 or newer, through napi-rs
