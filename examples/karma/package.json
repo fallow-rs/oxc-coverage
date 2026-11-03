@@ -12,12 +12,16 @@
     "verify": "npm run test:istanbul && npm run test:oxc && npm run test:oxc-strict && npm run compare && npm run preprocessor"
   },
   "devDependencies": {
-    "jasmine-core": "^5.1.2",
+    "jasmine-core": "^7.0.2",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
     "lodash": "4.17.21",
     "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi"
+  },
+  "overrides": {
+    "glob@>=9.0.0 <14.0.2": "14.0.3",
+    "minimatch@>=9.0.0 <11.0.1": "11.0.4"
   }
 }

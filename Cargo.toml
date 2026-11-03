@@ -58,16 +58,16 @@ napi-derive = "3"
 # Upstream oxc: the parser, AST, semantic and codegen halves of the
 # instrumenter. Oxc gives no stability guarantee between minors, so all nine
 # move together on a bump.
-oxc_allocator = "0.155"
-oxc_ast = "0.155"
-oxc_ast_visit = "0.155"
-oxc_codegen = "0.155"
-oxc_parser = "0.155"
-oxc_semantic = "0.155"
-oxc_span = "0.155"
-oxc_syntax = "0.155"
-oxc_transformer = "0.155"
-oxc_traverse = "0.155"
+oxc_allocator = "0.157"
+oxc_ast = "0.157"
+oxc_ast_visit = "0.157"
+oxc_codegen = "0.157"
+oxc_parser = "0.157"
+oxc_semantic = "0.157"
+oxc_span = "0.157"
+oxc_syntax = "0.157"
+oxc_transformer = "0.157"
+oxc_traverse = "0.157"
 # Independent source map decoder, used in tests to read back the maps the
 # instrumenter emits without going through the srcmap crates under test.
 oxc_sourcemap = "9.0"
@@ -90,9 +90,9 @@ serde_json = "1"
 sha2 = "0.11"
 # Companion source map crates (fallow-rs/srcmap). Exact-pinned because srcmap is
 # pre-1.0 and only the parse + composition APIs are stable; bump these explicitly.
-srcmap-generator = "=0.3.9"
-srcmap-remapping = "=0.3.9"
-srcmap-sourcemap = "=0.3.9"
+srcmap-generator = "=0.4.0"
+srcmap-remapping = "=0.4.0"
+srcmap-sourcemap = "=0.4.0"
 # Server-side syntax highlighter for the html reporter. `default-fancy`
 # selects the pure-Rust `fancy-regex` backend (no Oniguruma C dep), keeping
 # cross-compilation simple on Windows. Bundled grammars and themes are

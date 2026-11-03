@@ -9,10 +9,10 @@
     "verify": "node scripts/verify-reports.mjs"
   },
   "devDependencies": {
-    "@vitest/coverage-istanbul": "^5.0.0",
+    "@vitest/coverage-istanbul": "^5.1.0",
     "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
     "typescript": ">=6.0.3",
-    "vite": "^8.0.0",
-    "vitest": "^5.0.0"
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   }
 }

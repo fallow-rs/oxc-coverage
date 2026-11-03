@@ -20,17 +20,21 @@
     "reporter": ["json", "text"]
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.0",
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
     "@babel/preset-react": "^7.29.7",
-    "@babel/preset-typescript": "^7.28.0",
-    "@babel/register": "^7.28.0",
+    "@babel/preset-typescript": "^7.29.7",
+    "@babel/register": "^7.29.7",
     "babel-jest": "^30.5.2",
     "babel-plugin-istanbul": "^8.0.0",
     "jest": "^30.5.2",
-    "mocha": "^11.7.0",
-    "nyc": "^17.1.0",
+    "mocha": "^12.0.3",
+    "nyc": "^18.0.0",
     "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "glob@>=9.0.0 <14.0.2": "14.0.3",
+    "minimatch@>=9.0.0 <11.0.1": "11.0.4"
   }
 }

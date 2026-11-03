@@ -11,6 +11,6 @@
     "oxc-coverage-instrument": "file:../../crates/oxc_coverage_instrument_napi"
   },
   "devDependencies": {
-    "wrangler": "^4.94.0"
+    "wrangler": "^4.156.2"
   }
 }
