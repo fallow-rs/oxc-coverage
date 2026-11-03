@@ -1,9 +1,9 @@
 ---
-source: tests/instrument/snapshot.rs
+source: crates/oxc_coverage_instrument/tests/instrument/snapshot.rs
 expression: code_without_preamble(&result.code)
 ---
 function add(a, b) {
-	++cov_18ab365425.f[0];
-	++cov_18ab365425.s[0];
+	++cov_18ab365425().f[0];
+	++cov_18ab365425().s[0];
 	return a + b;
 }

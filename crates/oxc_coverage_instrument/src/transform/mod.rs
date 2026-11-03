@@ -2,7 +2,7 @@
 //!
 //! Collects the statement, function and branch spans that make up the
 //! coverage map while injecting the matching counter expressions
-//! (`cov_fn.s[N]++` and friends) into the AST, converting arrow expression
+//! (`cov_fn().s[N]++` and friends) into the AST, converting arrow expression
 //! bodies to block bodies where a counter needs a statement slot.
 //!
 //! ## Example
@@ -19,14 +19,14 @@
 //!
 //! ```js
 //! function f(x) {
-//!   ++cov_1abc.f[0];
-//!   ++cov_1abc.s[0];
+//!   ++cov_1abc().f[0];
+//!   ++cov_1abc().s[0];
 //!   if (x) {
-//!     ++cov_1abc.b[0][0];
-//!     ++cov_1abc.s[1];
+//!     ++cov_1abc().b[0][0];
+//!     ++cov_1abc().s[1];
 //!     return 1;
 //!   } else {
-//!     ++cov_1abc.b[0][1];
+//!     ++cov_1abc().b[0][1];
 //!   }
 //! }
 //! ```
@@ -48,7 +48,7 @@
 //! - `logical.rs`: logical-chain flattening and per-leaf counter wrapping.
 //! - `names.rs`: `fnMap` name inference from declarations, bindings, property
 //!   keys, assignment targets and call arguments.
-//! - `preamble.rs`: the per-file coverage-object IIFE inserted after directives.
+//! - `preamble.rs`: the per-file coverage function inserted after directives.
 //! - `statements.rs`: statement-counter placement, including the hoists that
 //!   keep `Function.name` inference intact.
 
@@ -253,7 +253,7 @@ pub struct TransformInit<'src, 'arena> {
     pub allocator: &'arena Allocator,
     /// The source text; used for line-offset precomputation and span lookups.
     pub source: &'src str,
-    /// Per-file IIFE function name (e.g. `cov_<hash>`); copied into the arena
+    /// Per-file coverage function name (e.g. `cov_<hash>`); copied into the arena
     /// so AST identifiers can refer to it for the lifetime of the traversal.
     pub cov_fn_name: &'src str,
     /// When true, emits the truthy-value tracker (`bT` counters) for logical

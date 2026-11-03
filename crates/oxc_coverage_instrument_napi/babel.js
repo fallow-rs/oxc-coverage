@@ -103,7 +103,8 @@ const PLUGIN_NAME = 'oxc-coverage-instrument';
 const MAGIC_KEY = '_coverageSchema';
 const MAGIC_VALUE = createHash('sha1').update('istanbul-lib-instrument@4').digest('hex');
 const DEFAULT_COVERAGE_VARIABLE = '__coverage__';
-const NATIVE_COVERAGE_FN_RE = /\bvar (cov_[0-9a-z]+) = \(function \(\) \{ var path = /;
+// The instrumenter adds a `_<n>` suffix when the file already declares the name.
+const NATIVE_COVERAGE_FN_RE = /\bfunction (cov_[0-9a-z]+(?:_\d+)?)\(\) \{ var path = /;
 
 // The defaults of `@istanbuljs/schema` for babel-plugin-istanbul.
 const DEFAULT_EXTENSIONS = ['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx'];
@@ -600,10 +601,10 @@ const findDeclarator = (statements, name) => {
  * an instrumented program.
  */
 const findCoverageDeclarators = (program, coverageFn) => {
-  const declarator = findDeclarator(program.body, coverageFn);
-  let factory = declarator && declarator.init && declarator.init.callee;
-  if (factory && factory.type === 'ParenthesizedExpression') factory = factory.expression;
-  const body = factory && factory.body && factory.body.body;
+  const factory = program.body.find(
+    (statement) => statement.type === 'FunctionDeclaration' && statement.id && statement.id.name === coverageFn,
+  );
+  const body = factory && factory.body.body;
   const hash = body && findDeclarator(body, 'hash');
   const data = body && findDeclarator(body, 'coverageData');
   if (!hash || !data) {

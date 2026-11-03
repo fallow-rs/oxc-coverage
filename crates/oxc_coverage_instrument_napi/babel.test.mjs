@@ -369,7 +369,7 @@ test('babel-plugin-istanbul in the same run skips the file, before or after this
   for (const order of ['before', 'after']) {
     const { result, fileCoverage } = coverageOf(oxc({}), SAMPLE, { [order]: [[istanbulPluginPath, { cwd: project }]] });
     assert.ok(fileCoverage);
-    assert.match(result.code, /\+\+cov_[0-9a-z]+\.s\[0\]/, `${order}: expected the counters of this plugin`);
+    assert.match(result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/, `${order}: expected the counters of this plugin`);
     assert.doesNotMatch(result.code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, `${order}: babel-plugin-istanbul also instrumented`);
   }
 });
@@ -406,7 +406,7 @@ test('onlyWithIstanbul: takes the options of babel-plugin-istanbul and replaces 
   });
   const theirs = coverageOf(istanbul({ exclude: [], extension: ['.js'] }), SAMPLE).fileCoverage;
   assert.equal(JSON.stringify(ours), JSON.stringify(theirs));
-  assert.match(result.code, /\+\+cov_[0-9a-z]+\.s\[0\]/);
+  assert.match(result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/);
   const excluded = transform(SAMPLE, {
     plugins: [
       [oxcPlugin, { onlyWithIstanbul: true }],
@@ -437,6 +437,19 @@ test('the package exports oxc-coverage-instrument/babel', () => {
   const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
   assert.ok(pkg.files.includes('babel.js') && pkg.files.includes('babel.d.ts'));
   assert.equal(pkg.peerDependenciesMeta['@babel/core'].optional, true);
+});
+
+test('a user binding with the name of the coverage function keeps coverage', () => {
+  // The instrumenter renames its coverage function to `cov_<hash>_1` when the
+  // file already declares `cov_<hash>`. The plugin must still find it.
+  const filename = join(project, 'src', 'a.js');
+  const { instrument } = require('./index.js');
+  const native = /function (cov_[0-9a-z]+)\(\)/.exec(instrument('', filename).code)[1];
+  const code = `var ${native} = 5;\n${SAMPLE}`;
+  const ours = coverageOf(oxc({ exclude: [] }), code, { filename });
+  assert.ok(ours.fileCoverage, 'the plugin should report coverage for the file');
+  assert.match(ours.result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/, 'the plugin should keep the counters');
+  assert.match(ours.result.code, new RegExp(`var ${native} = \\(\\+\\+cov_[0-9a-z]+\\(\\)\\.s\\[0\\], 5\\);`), 'the user binding should stay');
 });
 
 console.log(`\nAll ${passed} oxc-coverage-instrument/babel tests passed (Babel ${babel.version}).`);

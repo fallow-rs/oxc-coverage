@@ -16,10 +16,10 @@ fn run_node_eval(code: &str) -> std::process::Output {
     Command::new("node").arg("--eval").arg(code).output().expect("node must be available")
 }
 
-/// The `cov_<hash>` binding the preamble declares.
+/// The `cov_<hash>` function the preamble declares.
 fn coverage_binding_name(code: &str) -> &str {
-    let start = code.find("var cov_").expect("coverage binding declaration") + 4;
-    let end = code[start..].find(' ').expect("coverage binding terminator") + start;
+    let start = code.find("function cov_").expect("coverage function declaration") + 9;
+    let end = code[start..].find('(').expect("coverage function terminator") + start;
     &code[start..end]
 }
 
@@ -686,7 +686,7 @@ fn source_map_preserves_mappings_before_preamble_insertion() {
     assert_eq!(lines[0], "#!/usr/bin/env node");
     assert_eq!(lines[1], "/*! retained */");
     assert_eq!(lines[2], "\"use strict\";");
-    assert!(lines[3].starts_with("var cov_"));
+    assert!(lines[3].starts_with("function cov_"));
 
     let sm =
         oxc_sourcemap::SourceMap::from_json_string(result.source_map.as_ref().unwrap()).unwrap();
@@ -814,6 +814,9 @@ fn inherited_object_property_names_are_rejected_as_coverage_variables() {
 
 #[test]
 fn proto_filename_uses_an_enumerable_own_coverage_slot_and_reuses_it() {
+    // Each copy runs in its own function scope, as separate modules do. The
+    // copies declare a coverage function with the same name, and in one shared
+    // scope the last declaration would hoist over the others.
     let first =
         instrument("globalThis.first = 1;", "__proto__", &InstrumentOptions::default()).unwrap();
     let second = instrument(
@@ -823,7 +826,7 @@ fn proto_filename_uses_an_enumerable_own_coverage_slot_and_reuses_it() {
     )
     .unwrap();
     let script = format!(
-        "{}\nconst firstCoverage = globalThis.__coverage__.__proto__;\n{}\nconst replacedCoverage = globalThis.__coverage__.__proto__;\n{}\nconst store = globalThis.__coverage__;\nconsole.log(JSON.stringify({{ own: Object.hasOwn(store, '__proto__'), keys: Object.keys(store), staleReplaced: store.__proto__ !== firstCoverage, sameHashReused: store.__proto__ === replacedCoverage, path: store.__proto__.path, statements: Object.keys(store.__proto__.statementMap).length }}));",
+        "(() => {{ {} }})();\nconst firstCoverage = globalThis.__coverage__.__proto__;\n(() => {{ {} }})();\nconst replacedCoverage = globalThis.__coverage__.__proto__;\n(() => {{ {} }})();\nconst store = globalThis.__coverage__;\nconsole.log(JSON.stringify({{ own: Object.hasOwn(store, '__proto__'), keys: Object.keys(store), staleReplaced: store.__proto__ !== firstCoverage, sameHashReused: store.__proto__ === replacedCoverage, path: store.__proto__.path, statements: Object.keys(store.__proto__.statementMap).length }}));",
         first.code, second.code, second.code,
     );
     let output = run_node_eval(&script);
@@ -1288,16 +1291,20 @@ fn preamble_refreshes_stale_coverage_by_hash() {
 
 #[test]
 fn preamble_invokes_setup_once_and_counters_use_cached_coverage() {
-    let result = instrument_js("function f() { return 1; }");
-    let cov_name = coverage_binding_name(&result.code);
+    // After the first call the setup must not run again: a cleared store stays
+    // empty, and later counters still reach the cached coverage object.
+    let result = instrument_js("function f() { return 1; }\nf();");
+    let output = run_node_eval(&format!(
+        "{}\nconst first = globalThis.__coverage__['test.js']; globalThis.__coverage__ = {{}}; f();\nconsole.log(JSON.stringify({{ keys: Object.keys(globalThis.__coverage__), f: first.f[0], s: first.s[0] }}));",
+        result.code
+    ));
+
     assert!(
-        result.code.contains("return actualCoverage; })();"),
-        "coverage setup should be invoked once in the preamble"
+        output.status.success(),
+        "instrumented runtime failed: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        !result.code.contains(&format!("{cov_name}().")),
-        "counter sites should not call the coverage setup function"
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), r#"{"keys":[],"f":2,"s":2}"#);
 }
 
 #[test]
@@ -1308,7 +1315,7 @@ fn top_level_coverage_binding_collision_is_uniquified() {
     let result = instrument(&source, filename, &InstrumentOptions::default()).unwrap();
     let output = run_with_statement_counts(&result.code, filename);
 
-    assert!(result.code.starts_with(&format!("var {base}_1 =")));
+    assert!(result.code.starts_with(&format!("function {base}_1()")));
     assert_runtime_counted(&output);
 }
 
@@ -1320,7 +1327,7 @@ fn nested_parameter_coverage_binding_collision_is_uniquified() {
     let result = instrument(&source, filename, &InstrumentOptions::default()).unwrap();
     let output = run_with_statement_counts(&result.code, filename);
 
-    assert!(result.code.starts_with(&format!("var {base}_1 =")));
+    assert!(result.code.starts_with(&format!("function {base}_1()")));
     assert_runtime_counted(&output);
 }
 
@@ -1332,7 +1339,7 @@ fn unresolved_coverage_binding_reference_is_not_captured() {
     let result = instrument(&source, filename, &InstrumentOptions::default()).unwrap();
     let output = run_with_statement_counts(&result.code, filename);
 
-    assert!(result.code.starts_with(&format!("var {base}_1 =")));
+    assert!(result.code.starts_with(&format!("function {base}_1()")));
     assert_runtime_counted(&output);
     assert_eq!(String::from_utf8_lossy(&output.stdout).lines().next(), Some("undefined"));
 }
@@ -1348,7 +1355,7 @@ fn derived_coverage_helper_collision_uniquifies_base() {
     let result = instrument(&source, filename, &InstrumentOptions::default()).unwrap();
     let output = run_with_statement_counts(&result.code, filename);
 
-    assert!(result.code.starts_with(&format!("var {base}_1 =")));
+    assert!(result.code.starts_with(&format!("function {base}_1()")));
     assert_runtime_counted(&output);
 }
 
@@ -1358,7 +1365,7 @@ fn non_colliding_coverage_binding_keeps_deterministic_base_name() {
     let base = base_coverage_binding(filename);
     let result = instrument("console.log('ok');", filename, &InstrumentOptions::default()).unwrap();
 
-    assert!(result.code.starts_with(&format!("var {base} =")));
+    assert!(result.code.starts_with(&format!("function {base}()")));
 }
 
 #[test]
@@ -1369,7 +1376,7 @@ fn stripped_type_only_binding_does_not_force_coverage_suffix() {
     let options = InstrumentOptions { strip_typescript: true, ..InstrumentOptions::default() };
     let result = instrument(&source, filename, &options).unwrap();
 
-    assert!(result.code.starts_with(&format!("var {base} =")));
+    assert!(result.code.starts_with(&format!("function {base}()")));
 }
 
 #[test]
@@ -1873,4 +1880,72 @@ fn source_map_composition_preserves_input_names() {
         sm["names"].as_array().unwrap().iter().filter_map(|v| v.as_str()).collect();
     assert!(names.contains(&"foo"), "names should include 'foo', got {names:?}");
     assert!(names.contains(&"bar"), "names should include 'bar', got {names:?}");
+}
+
+/// Instrument two ESM modules that form an import cycle, run them in Node, and
+/// print the `result` of `b.mjs` and the function counts of `a.mjs`.
+/// `b.mjs` calls the hoisted `value` of `a.mjs` before the body of `a.mjs` runs.
+fn run_cyclic_esm(label: &str, options: &InstrumentOptions) -> std::process::Output {
+    let root =
+        std::env::temp_dir().join(format!("oxc-coverage-cycle-{label}-{}", std::process::id()));
+    fs::create_dir_all(&root).expect("create cycle fixture directory");
+    let sources = [
+        (
+            "a.mjs",
+            "import './b.mjs';\nexport function value(input) { return input?.answer ?? (input || 42); }",
+        ),
+        ("b.mjs", "import { value } from './a.mjs';\nexport const result = value();"),
+    ];
+    for (name, source) in sources {
+        let path = root.join(name);
+        let filename = path.to_str().expect("utf-8 temp path");
+        let result = instrument(source, filename, options).expect("instrument cycle fixture");
+        fs::write(&path, result.code).expect("write cycle fixture");
+    }
+    let a_path = root.join("a.mjs");
+    let script = format!(
+        "import {{ pathToFileURL }} from 'node:url';\
+         const a = {a:?};\
+         await import(pathToFileURL(a).href);\
+         const {{ result }} = await import(pathToFileURL({b:?}).href);\
+         console.log(JSON.stringify({{ result, f: globalThis.__coverage__[a].f }}));",
+        a = a_path.to_str().expect("utf-8 temp path"),
+        b = root.join("b.mjs").to_str().expect("utf-8 temp path"),
+    );
+    let output = Command::new("node")
+        .arg("--input-type=module")
+        .arg("--eval")
+        .arg(script)
+        .output()
+        .expect("node must be available");
+    fs::remove_dir_all(&root).expect("remove cycle fixture directory");
+    output
+}
+
+#[test]
+fn hoisted_function_runs_before_module_body_in_esm_cycle() {
+    let profiles = [
+        ("default", InstrumentOptions::default()),
+        (
+            "istanbul",
+            InstrumentOptions {
+                compat: Some(oxc_coverage_instrument::CompatProfile::Istanbul),
+                ..InstrumentOptions::default()
+            },
+        ),
+        ("logic", InstrumentOptions { report_logic: true, ..InstrumentOptions::default() }),
+    ];
+    for (label, options) in profiles {
+        let output = run_cyclic_esm(label, &options);
+        assert!(
+            output.status.success(),
+            "{label}: instrumented cycle failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            r#"{"result":42,"f":{"0":1}}"#,
+            "{label}: the cycle must return 42 and count the hoisted call once"
+        );
+    }
 }

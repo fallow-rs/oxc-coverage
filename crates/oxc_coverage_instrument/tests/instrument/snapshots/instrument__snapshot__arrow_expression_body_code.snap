@@ -1,10 +1,10 @@
 ---
-source: crates/oxc_coverage_instrument/tests/snapshot_test.rs
+source: crates/oxc_coverage_instrument/tests/instrument/snapshot.rs
 expression: code_without_preamble(&result.code)
 ---
-++cov_18ab365425.s[0];
+++cov_18ab365425().s[0];
 const double = (x) => {
-	++cov_18ab365425.f[0];
-	++cov_18ab365425.s[1];
+	++cov_18ab365425().f[0];
+	++cov_18ab365425().s[1];
 	return x * 2;
 };

@@ -1,5 +1,5 @@
 ---
-source: tests/instrument/snapshot.rs
+source: crates/oxc_coverage_instrument/tests/instrument/snapshot.rs
 expression: code_without_preamble(&result.code)
 ---
-const x = (++cov_18ab365425.s[0], (++cov_18ab365425.b[0][0], a) || (++cov_18ab365425.b[0][1], b) && (++cov_18ab365425.b[0][2], c));
+const x = (++cov_18ab365425().s[0], (++cov_18ab365425().b[0][0], a) || (++cov_18ab365425().b[0][1], b) && (++cov_18ab365425().b[0][2], c));

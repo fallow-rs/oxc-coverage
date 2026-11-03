@@ -13,9 +13,9 @@ use super::CoverageState;
 /// Which counter map a [`PendingInsertion`] belongs to.
 #[derive(Clone, Copy)]
 pub(super) enum CounterType {
-    /// `cov_fn.s[counter_id]`.
+    /// `cov_fn().s[counter_id]`.
     Statement,
-    /// Left arm of a logical assignment, `cov_fn.b[counter_id][0]`.
+    /// Left arm of a logical assignment, `cov_fn().b[counter_id][0]`.
     BranchLeft,
 }
 
@@ -34,9 +34,9 @@ pub(super) struct PendingInsertion {
 /// four primitives through every call site.
 #[derive(Clone, Copy)]
 pub(super) enum CounterKind<'a> {
-    /// `cov_fn.s[id]` or `cov_fn.f[id]` slot, `kind` being `"s"` or `"f"`.
+    /// `cov_fn().s[id]` or `cov_fn().f[id]` slot, `kind` being `"s"` or `"f"`.
     Slot { cov_fn_name: &'a str, kind: &'static str, id: usize },
-    /// `cov_fn.b[branch_id][path_idx]` slot.
+    /// `cov_fn().b[branch_id][path_idx]` slot.
     Branch { cov_fn_name: &'a str, branch_id: usize, path_idx: usize },
 }
 
@@ -89,20 +89,28 @@ fn computed_index<'a>(
     )
 }
 
-/// Build a counter increment expression: `cov_fn.s[id]++`, `cov_fn.f[id]++`,
-/// or `cov_fn.b[branch_id][path_idx]++` depending on the kind.
+/// Build the `cov_fn()` call that returns the coverage object. A call, not a
+/// plain identifier, keeps a counter safe in a hoisted function that runs
+/// before the preamble initializes the coverage object.
+fn coverage_call<'a>(cov_fn_name: &'a str, ctx: &TraverseCtx<'a, CoverageState>) -> Expression<'a> {
+    let callee = Expression::new_identifier(SPAN, cov_fn_name, ctx);
+    Expression::new_call_expression(SPAN, callee, None, ArenaVec::new_in(ctx), false, ctx)
+}
+
+/// Build a counter increment expression: `cov_fn().s[id]++`, `cov_fn().f[id]++`,
+/// or `cov_fn().b[branch_id][path_idx]++` depending on the kind.
 fn build_counter_expr<'a>(
     kind: CounterKind<'a>,
     ctx: &TraverseCtx<'a, CoverageState>,
 ) -> Expression<'a> {
     let target = match kind {
         CounterKind::Slot { cov_fn_name, kind, id } => {
-            let coverage = Expression::new_identifier(SPAN, cov_fn_name, ctx);
+            let coverage = coverage_call(cov_fn_name, ctx);
             let field = static_field(coverage, kind, ctx);
             computed_index(field, id, ctx)
         }
         CounterKind::Branch { cov_fn_name, branch_id, path_idx } => {
-            let coverage = Expression::new_identifier(SPAN, cov_fn_name, ctx);
+            let coverage = coverage_call(cov_fn_name, ctx);
             let b = static_field(coverage, "b", ctx);
             let outer = computed_index(b, branch_id, ctx);
             computed_index(outer, path_idx, ctx)
