@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793703892221,
+  "lastUpdate": 1793704563593,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "3d3c742b81e9aa65587603ede0e654932e18e0f6",
-          "message": "chore: release v0.7.5",
-          "timestamp": "2026-05-28T21:26:04+02:00",
-          "tree_id": "984e0d4d92064e81ab0c7a432affbfdb70896372",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/3d3c742b81e9aa65587603ede0e654932e18e0f6"
-        },
-        "date": 1779996486860,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85505312,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/baa92924ed14b38c579f95ce84290d0c9abe5dac"
         },
         "date": 1793703891465,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103421960,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9717b75c61c229dc733efe9105bb9c68c0ad047a",
+          "message": "fix: declare Rust 1.97 as the MSRV (#336)\n\nThe oxc crates need rustc 1.97 since 0.153, but the workspace declared\n1.96. A build on 1.96 failed with a dependency error and not with a\nclear MSRV message.\n\nThe MSRV job did not see this, because rust-toolchain.toml overrides\nthe toolchain that the job installs. The job now sets RUSTUP_TOOLCHAIN,\nso it builds with the declared MSRV.\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-11-03T12:14:06+01:00",
+          "tree_id": "208c9971704aa294b8575c3035bd7647bc81bb99",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/9717b75c61c229dc733efe9105bb9c68c0ad047a"
+        },
+        "date": 1793704563119,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
