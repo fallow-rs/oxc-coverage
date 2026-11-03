@@ -66,7 +66,7 @@ A profile that loads the native N-API artifact also fails when the artifact is
 older than a source file, `build.rs`, `Cargo.toml`, or `Cargo.lock` of the
 binding. Rebuild the artifact after a revert or a branch switch.
 
-`all-local` needs Node.js 22, npm dependencies installed at the repository root,
+`all-local` needs Node.js 26, npm dependencies installed at the repository root,
 in the N-API crate, and in the Vitest example, plus `typos`, `cargo-audit`,
 `cargo-shear`, `actionlint`, and `uv`. Build the native N-API artifact and both
 generated WASI package surfaces first:

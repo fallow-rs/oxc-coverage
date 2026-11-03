@@ -74,8 +74,8 @@ assert.throws(
 );
 assert.match(prepublish, /uses: actions\/checkout@[a-f0-9]+/);
 assert.match(prepublish, /uses: actions\/setup-node@[a-f0-9]+/);
-assert.match(prepublish, /^\s{10}node-version: 22$/m);
-assert.match(prepublish, /^\s{8}run: npm install -g --ignore-scripts npm@11\.12\.1$/m);
+assert.match(prepublish, /^\s{10}node-version: 26\.13\.0$/m);
+assert.match(prepublish, /^\s{8}run: test "\$\(npm --version\)" = 11\.20\.0$/m);
 assert.match(prepublish, /^\s{8}run: \.\/scripts\/check\.sh version-sync$/m);
 assert.match(
   prepublish,
