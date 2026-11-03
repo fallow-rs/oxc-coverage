@@ -87,13 +87,13 @@ require_dir() {
   fi
 }
 
-require_node_22() {
+require_node_26() {
   local profile="$1"
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   local major
   major="$(node -p 'process.versions.node.split(".")[0]')"
-  if [ "$major" != "22" ]; then
-    die "Node.js 22 is required for $profile. Found major version $major."
+  if [ "$major" != "26" ]; then
+    die "Node.js 26 is required for $profile. Found major version $major."
   fi
 }
 
@@ -222,7 +222,7 @@ run_typos() {
 
 run_version_sync() {
   require_python_311
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   echo "[check:version-sync] ./scripts/check-version-sync.sh --mode=pins"
   ./scripts/check-version-sync.sh --mode=pins
   echo "[check:version-sync] node scripts/check-version-sync.test.mjs"
@@ -234,7 +234,7 @@ run_version_sync() {
 }
 
 require_native_napi() {
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   require_file "$NAPI_DIR/index.js" "Build the N-API package first."
   require_napi_artifact
 }
@@ -246,7 +246,7 @@ run_napi_test() {
 }
 
 run_wasi_shim_test() {
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   echo "[check:wasi-shim-test] (cd crates/oxc_coverage_instrument_napi && node scripts/patch-wasi-browser-shim.test.mjs)"
   (cd "$NAPI_DIR" && node scripts/patch-wasi-browser-shim.test.mjs)
 }
@@ -278,7 +278,7 @@ run_prepare_package_surface() {
 }
 
 run_package_surface() {
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   require_tool npm "Install npm with Node.js."
   require_file "$NAPI_DIR/index.js" "Build and prepare the N-API packages first."
   require_file "$NAPI_DIR/npm/wasm32-wasi/coverage-instrument.wasm32-wasi.wasm" "Run './scripts/check.sh prepare-package-surface' first."
@@ -302,14 +302,14 @@ run_shear() {
 }
 
 run_inspector_smoke() {
-  require_node_22 inspector-smoke
+  require_node_26 inspector-smoke
   require_native_napi
   echo "[check:inspector-smoke] node scripts/v8-inspector-smoke.mjs"
   node scripts/v8-inspector-smoke.mjs
 }
 
 run_v8_branch_parity() {
-  require_node_22 v8-branch-parity
+  require_node_26 v8-branch-parity
   require_native_napi
   require_dir "$ROOT/node_modules/istanbul-lib-instrument" "Run 'npm install' at the repository root."
   echo "[check:v8-branch-parity] node scripts/v8-branch-parity.mjs"
@@ -323,7 +323,7 @@ run_real_world_output() {
 }
 
 require_real_world_corpus() {
-  require_tool node "Install Node.js 22."
+  require_tool node "Install Node.js 26."
   require_dir "$ROOT/node_modules/istanbul-lib-instrument" "Run 'npm install' at the repository root."
   require_native_napi
   echo "[check:real-world-corpus] node scripts/prepare-real-world-corpus.mjs --check-only"

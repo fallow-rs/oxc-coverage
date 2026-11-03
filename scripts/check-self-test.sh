@@ -437,11 +437,11 @@ chmod +x "$TMP/old-node-bin/node"
 if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" inspector-smoke >"$TMP/old-node.log" 2>&1; then
   fail "inspector profile accepted an unsupported Node.js major"
 fi
-assert_contains "$TMP/old-node.log" "Node.js 22 is required for inspector-smoke."
+assert_contains "$TMP/old-node.log" "Node.js 26 is required for inspector-smoke."
 if PATH="$TMP/old-node-bin:/usr/bin:/bin" "$CHECK" v8-branch-parity >"$TMP/old-node-parity.log" 2>&1; then
   fail "v8-branch-parity profile accepted an unsupported Node.js major"
 fi
-assert_contains "$TMP/old-node-parity.log" "Node.js 22 is required for v8-branch-parity."
+assert_contains "$TMP/old-node-parity.log" "Node.js 26 is required for v8-branch-parity."
 
 mkdir -p "$TMP/old-python-bin"
 printf '%s\n' '#!/bin/sh' 'echo 3.10' 'exit 1' >"$TMP/old-python-bin/python3"
@@ -678,7 +678,7 @@ if ! workflow_job_has_need "$workflow" ci-ok version-sync; then
   fail "ci-ok.needs is missing version-sync"
 fi
 if ! workflow_version_sync_has_node_and_profile "$workflow"; then
-  fail "CI version-sync job is missing Node.js 22 or the metadata validation profile"
+  fail "CI version-sync job is missing Node.js 26 or the metadata validation profile"
 fi
 release_workflow="$ROOT/.github/workflows/release-npm.yml"
 while read -r job dependency; do

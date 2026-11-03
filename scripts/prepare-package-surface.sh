@@ -164,7 +164,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-require_tool node "Install Node.js 22."
+require_tool node "Install Node.js 26."
 require_tool npm "Install npm with Node.js."
 require_tool npx "Install npm with Node.js."
 require_tool cargo "Install Rust using rustup."
