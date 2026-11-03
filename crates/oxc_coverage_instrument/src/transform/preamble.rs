@@ -1,6 +1,6 @@
-//! The per-file coverage preamble: the IIFE that installs the coverage object
-//! on the global, the runtime helpers it declares, and the path-derived
-//! identifier and hash it is keyed by.
+//! The per-file coverage preamble: the hoisted function that installs the
+//! coverage object on the global, the runtime helpers it declares, and the
+//! path-derived identifier and hash it is keyed by.
 
 use std::fmt::Write;
 
@@ -17,7 +17,7 @@ pub struct PreambleInputs<'a> {
     pub coverage_hash: &'a str,
     /// Name of the global coverage variable (default `__coverage__`).
     pub coverage_var: &'a str,
-    /// Per-file IIFE function name (e.g. `cov_<hash>`).
+    /// Per-file coverage function name (e.g. `cov_<hash>`).
     pub cov_fn_name: &'a str,
     /// Whether to emit the truthy-value tracking helper (`_bt`).
     pub report_logic: bool,
@@ -29,8 +29,14 @@ pub struct PreambleInputs<'a> {
 /// directive prologue in the emitted code.
 ///
 /// The preamble is built as a string rather than as AST nodes, which is what
-/// istanbul-lib-instrument does: the IIFE is fixed apart from the interpolated
-/// names and the embedded coverage literal.
+/// istanbul-lib-instrument does: the function is fixed apart from the
+/// interpolated names and the embedded coverage literal.
+///
+/// The coverage object comes from a hoisted function declaration, not from a
+/// `var` initializer, and every counter calls it (`cov_fn().s[0]++`). A hoisted
+/// function of the module can run before the module body, for example through
+/// an ES module import cycle. The first call installs the coverage object and
+/// then replaces the function with a getter for that object.
 pub fn generate_preamble_source(inputs: &PreambleInputs<'_>) -> String {
     let PreambleInputs {
         coverage,
@@ -45,7 +51,7 @@ pub fn generate_preamble_source(inputs: &PreambleInputs<'_>) -> String {
     // the full coverage map arrives already serialized as `coverage_json`, so
     // no JSON error is reachable from here.
     let mut buf = String::with_capacity(256 + coverage_json.len());
-    let _ = write!(buf, "var {cov_fn_name} = (function () {{ var path = ");
+    let _ = write!(buf, "function {cov_fn_name}() {{ var path = ");
     buf.push_str(
         &serde_json::to_string(&coverage.path).expect("serializing a String to JSON is infallible"),
     );
@@ -68,7 +74,10 @@ pub fn generate_preamble_source(inputs: &PreambleInputs<'_>) -> String {
     } else {
         buf.push_str("if (!coverage[gcv][path] || coverage[gcv][path].hash !== hash) { coverage[gcv][path] = coverageData; }");
     }
-    buf.push_str(" var actualCoverage = coverage[gcv][path]; return actualCoverage; })();\n");
+    let _ = writeln!(
+        buf,
+        " var actualCoverage = coverage[gcv][path]; {cov_fn_name} = function () {{ return actualCoverage; }}; return actualCoverage; }}\n{cov_fn_name}();"
+    );
     if report_logic {
         append_logic_helper(&mut buf, cov_fn_name);
     }
@@ -86,7 +95,7 @@ fn append_logic_helper(buf: &mut String, cov_fn_name: &str) {
     let _ = writeln!(buf, "var {cov_fn_name}_temp;");
     let _ = writeln!(
         buf,
-        "function {cov_fn_name}_bt(val, id, idx) {{ {cov_fn_name}_temp = val; if ({cov_fn_name}_temp && (!Array.isArray({cov_fn_name}_temp) || {cov_fn_name}_temp.length) && (Object.getPrototypeOf({cov_fn_name}_temp) !== Object.prototype || Object.values({cov_fn_name}_temp).length)) {{ ++{cov_fn_name}.bT[id][idx]; }} return {cov_fn_name}_temp; }}"
+        "function {cov_fn_name}_bt(val, id, idx) {{ {cov_fn_name}_temp = val; if ({cov_fn_name}_temp && (!Array.isArray({cov_fn_name}_temp) || {cov_fn_name}_temp.length) && (Object.getPrototypeOf({cov_fn_name}_temp) !== Object.prototype || Object.values({cov_fn_name}_temp).length)) {{ ++{cov_fn_name}().bT[id][idx]; }} return {cov_fn_name}_temp; }}"
     );
 }
 
@@ -97,7 +106,7 @@ fn append_logic_helper(buf: &mut String, cov_fn_name: &str) {
 fn append_optional_chain_helper(buf: &mut String, cov_fn_name: &str) {
     let _ = writeln!(
         buf,
-        "function {cov_fn_name}_oc(val, id) {{ ++{cov_fn_name}.b[id][val == null ? 0 : 1]; return val; }}"
+        "function {cov_fn_name}_oc(val, id) {{ ++{cov_fn_name}().b[id][val == null ? 0 : 1]; return val; }}"
     );
 }
 

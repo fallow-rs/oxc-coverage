@@ -369,7 +369,7 @@ test('babel-plugin-istanbul in the same run skips the file, before or after this
   for (const order of ['before', 'after']) {
     const { result, fileCoverage } = coverageOf(oxc({}), SAMPLE, { [order]: [[istanbulPluginPath, { cwd: project }]] });
     assert.ok(fileCoverage);
-    assert.match(result.code, /\+\+cov_[0-9a-z]+\.s\[0\]/, `${order}: expected the counters of this plugin`);
+    assert.match(result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/, `${order}: expected the counters of this plugin`);
     assert.doesNotMatch(result.code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, `${order}: babel-plugin-istanbul also instrumented`);
   }
 });
@@ -406,7 +406,7 @@ test('onlyWithIstanbul: takes the options of babel-plugin-istanbul and replaces 
   });
   const theirs = coverageOf(istanbul({ exclude: [], extension: ['.js'] }), SAMPLE).fileCoverage;
   assert.equal(JSON.stringify(ours), JSON.stringify(theirs));
-  assert.match(result.code, /\+\+cov_[0-9a-z]+\.s\[0\]/);
+  assert.match(result.code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/);
   const excluded = transform(SAMPLE, {
     plugins: [
       [oxcPlugin, { onlyWithIstanbul: true }],

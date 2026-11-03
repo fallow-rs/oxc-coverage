@@ -43,7 +43,7 @@ const assertPluginRuns = () => {
       // babel-jest appends babel-plugin-istanbul in the same way.
       plugins: [[require.resolve('babel-plugin-istanbul'), { cwd: root, exclude: [], extension: false }]],
     });
-    assert.match(code, /\+\+cov_[0-9a-z]+\.s\[0\]/, `${file}: expected the counters of oxc-coverage-instrument`);
+    assert.match(code, /\+\+cov_[0-9a-z]+\(\)\.s\[0\]/, `${file}: expected the counters of oxc-coverage-instrument`);
     assert.doesNotMatch(code, /cov_[0-9a-z]+\(\)\.s\[0\]\+\+/, `${file}: babel-plugin-istanbul also instrumented the file`);
   }
   console.log('[PASS] babel-jest setup: oxc-coverage-instrument/babel instruments, babel-plugin-istanbul skips');

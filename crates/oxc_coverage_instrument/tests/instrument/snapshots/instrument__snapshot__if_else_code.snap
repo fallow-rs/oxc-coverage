@@ -1,14 +1,14 @@
 ---
-source: tests/instrument/snapshot.rs
+source: crates/oxc_coverage_instrument/tests/instrument/snapshot.rs
 expression: code_without_preamble(&result.code)
 ---
-++cov_18ab365425.s[0];
+++cov_18ab365425().s[0];
 if (x > 0) {
-	++cov_18ab365425.b[0][0];
-	++cov_18ab365425.s[1];
+	++cov_18ab365425().b[0][0];
+	++cov_18ab365425().s[1];
 	console.log("positive");
 } else {
-	++cov_18ab365425.b[0][1];
-	++cov_18ab365425.s[2];
+	++cov_18ab365425().b[0][1];
+	++cov_18ab365425().s[2];
 	console.log("negative");
 }

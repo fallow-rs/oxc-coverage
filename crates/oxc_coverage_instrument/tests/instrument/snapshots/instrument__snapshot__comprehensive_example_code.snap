@@ -1,31 +1,31 @@
 ---
-source: crates/oxc_coverage_instrument/tests/snapshot_test.rs
+source: crates/oxc_coverage_instrument/tests/instrument/snapshot.rs
 expression: code_without_preamble(&result.code)
 ---
 function greet(name) {
-	++cov_18ab365425.f[0];
-	++cov_18ab365425.s[0];
+	++cov_18ab365425().f[0];
+	++cov_18ab365425().s[0];
 	if (name) {
-		++cov_18ab365425.b[0][0];
-		++cov_18ab365425.s[1];
+		++cov_18ab365425().b[0][0];
+		++cov_18ab365425().s[1];
 		return "Hello, " + name;
 	} else {
-		++cov_18ab365425.b[0][1];
-		++cov_18ab365425.s[2];
+		++cov_18ab365425().b[0][1];
+		++cov_18ab365425().s[2];
 		return "Hello, stranger";
 	}
 }
-++cov_18ab365425.s[3];
+++cov_18ab365425().s[3];
 const double = (x) => {
-	++cov_18ab365425.f[1];
-	++cov_18ab365425.s[4];
+	++cov_18ab365425().f[1];
+	++cov_18ab365425().s[4];
 	return x * 2;
 };
 class Calculator {
 	divide(a, b) {
-		++cov_18ab365425.f[2];
-		++cov_18ab365425.s[5];
-		return b !== 0 ? (++cov_18ab365425.b[1][0], a / b) : (++cov_18ab365425.b[1][1], 0);
+		++cov_18ab365425().f[2];
+		++cov_18ab365425().s[5];
+		return b !== 0 ? (++cov_18ab365425().b[1][0], a / b) : (++cov_18ab365425().b[1][1], 0);
 	}
 }
-const result = (++cov_18ab365425.s[6], (++cov_18ab365425.b[2][0], greet("world")) || (++cov_18ab365425.b[2][1], double(21)));
+const result = (++cov_18ab365425().s[6], (++cov_18ab365425().b[2][0], greet("world")) || (++cov_18ab365425().b[2][1], double(21)));

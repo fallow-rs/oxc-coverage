@@ -10,11 +10,13 @@ fn instrument_js(source: &str) -> oxc_coverage_instrument::InstrumentResult {
     instrument(source, "test.js", &InstrumentOptions::default()).unwrap()
 }
 
-/// The instrumented code without its coverage setup IIFE, which would
-/// otherwise dominate every code snapshot.
+/// The instrumented code without the coverage setup function and its first
+/// call, which would otherwise dominate every code snapshot.
 fn code_without_preamble(code: &str) -> &str {
-    const PREAMBLE_END: &str = "})();\n";
-    code.find(PREAMBLE_END).map_or(code, |index| &code[index + PREAMBLE_END.len()..])
+    const SETUP_END: &str = "return actualCoverage; }\n";
+    let Some(index) = code.find(SETUP_END) else { return code };
+    let call = &code[index + SETUP_END.len()..];
+    call.find('\n').map_or(call, |end| &call[end + 1..])
 }
 
 // Coverage map snapshots
