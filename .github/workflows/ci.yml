@@ -87,7 +87,12 @@ jobs:
           toolchain: ${{ steps.msrv.outputs.version }}
           cache-key: msrv
 
+      # rust-toolchain.toml pins a newer toolchain, and rustup prefers that
+      # file over the default toolchain. RUSTUP_TOOLCHAIN overrides the file,
+      # so the check really builds with the declared MSRV.
       - name: Check MSRV
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
         run: cargo check --workspace
 
   doc:
