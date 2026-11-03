@@ -149,7 +149,7 @@ mod v8_to_istanbul;
 
 pub use instrument::{
     CompatProfile, DecoratorMode, InstrumentError, InstrumentOptions, InstrumentResult,
-    InstrumentSourceType, instrument,
+    InstrumentSourceType, TimingOptions, instrument,
 };
 #[cfg(feature = "ast-api")]
 pub use instrument::{InstrumentProgramResult, instrument_program};

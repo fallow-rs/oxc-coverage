@@ -75,6 +75,7 @@ mod logical;
 mod names;
 mod preamble;
 mod statements;
+mod timing;
 
 use counters::PendingInsertion;
 use coverage_map::is_synthetic_span;
@@ -84,6 +85,8 @@ use ignore::{
 use names::assignment_target_name;
 
 pub use preamble::{PreambleInputs, djb31_hex, generate_cov_fn_name, generate_preamble_source};
+use timing::{TimedBody, TimingNames};
+pub use timing::{TimingPreambleInputs, append_timing_helpers};
 
 /// State carried through the traverse for coverage instrumentation.
 pub struct CoverageState {
@@ -214,6 +217,15 @@ pub struct CoverageTransform<'src, 'arena> {
     record_private_methods: bool,
     /// Whether transform details should match `istanbul-lib-instrument`.
     istanbul_compat: bool,
+    /// Timing helper names. `Some` only when the timing option is on.
+    timing: Option<TimingNames<'arena>>,
+    /// Per-function-body record of the `fnMap` id whose counter the body got,
+    /// pushed on body entry and popped on body exit. `None` for a body with
+    /// no counter.
+    timing_frames: Vec<Option<usize>>,
+    /// The id of the arrow body that exited last. The arrow hook wraps the
+    /// body after its concise expression became a `return`.
+    pending_arrow_timing: Option<usize>,
     /// Branch IDs of logical expression branches (for building the `bT` map).
     pub logical_branch_ids: Vec<usize>,
     /// Set once any optional-chain link has been wrapped in the `cov_fn_oc`
@@ -286,6 +298,9 @@ pub struct TransformInit<'src, 'arena> {
     pub pre_expanded_arrows: PreExpandedArrows,
     /// Whether transform details should match `istanbul-lib-instrument`.
     pub istanbul_compat: bool,
+    /// When true, wrap each function body that gets a counter, except
+    /// generator bodies, for wall-time sampling.
+    pub timing: bool,
     /// Eager-compose position-remap gate. `Some` only when
     /// `compose_input_source_map` is on and a usable input map is present;
     /// `None` for every other caller, where gating is a strict no-op.
@@ -305,6 +320,7 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             if_consequent_location,
             record_private_methods,
             istanbul_compat,
+            timing,
             pre_expanded_arrows,
             eager_remapper,
         } = init;
@@ -344,6 +360,15 @@ impl<'src, 'arena> CoverageTransform<'src, 'arena> {
             if_consequent_location,
             record_private_methods,
             istanbul_compat,
+            timing: timing.then(|| TimingNames {
+                countdown: allocator.alloc_str(&format!("{cov_fn_name}_cd")),
+                start: allocator.alloc_str(&format!("{cov_fn_name}_ts")),
+                end: allocator.alloc_str(&format!("{cov_fn_name}_te")),
+                settle: allocator.alloc_str(&format!("{cov_fn_name}_tr")),
+                local: allocator.alloc_str(&format!("{cov_fn_name}_t")),
+            }),
+            timing_frames: Vec::new(),
+            pending_arrow_timing: None,
             logical_branch_ids: Vec::new(),
             used_optional_chain_helper: false,
             eager_remapper,
@@ -377,7 +402,10 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         body: &mut FunctionBody<'a>,
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
-        self.insert_function_counter(body, ctx);
+        let fn_id = self.insert_function_counter(body, ctx);
+        if self.timing.is_some() {
+            self.timing_frames.push(fn_id);
+        }
         // The block that wraps a concise arrow body is not a block in Babel,
         // so a comment before the expression does not target it.
         let wraps_concise_body = matches!(ctx.parent(), Ancestor::ArrowFunctionExpressionBody(_))
@@ -388,10 +416,27 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
 
     fn exit_function_body(
         &mut self,
-        _body: &mut FunctionBody<'a>,
-        _ctx: &mut TraverseCtx<'a, CoverageState>,
+        body: &mut FunctionBody<'a>,
+        ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.ignored_node_stack.pop();
+        if let Some(names) = self.timing
+            && let Some(fn_id) = self.timing_frames.pop().flatten()
+        {
+            match ctx.parent() {
+                // A concise arrow body still ends in the wrapped expression,
+                // which the arrow hook turns into a `return`; wrap after that.
+                Ancestor::ArrowFunctionExpressionBody(_) => {
+                    self.pending_arrow_timing = Some(fn_id);
+                }
+                Ancestor::FunctionBody(func) if *func.generator() => {}
+                Ancestor::FunctionBody(func) => {
+                    let timed = TimedBody { fn_id, leading: 1, is_async: *func.r#async() };
+                    timing::wrap_body_with_timing(body, timed, names, ctx);
+                }
+                _ => {}
+            }
+        }
     }
 
     fn enter_block_statement(
@@ -448,6 +493,14 @@ impl<'a> Traverse<'a, CoverageState> for CoverageTransform<'_, 'a> {
         ctx: &mut TraverseCtx<'a, CoverageState>,
     ) {
         self.convert_arrow_expression_body(arrow, ctx);
+        let is_async = arrow.r#async;
+        if let Some(names) = self.timing
+            && let Some(fn_id) = self.pending_arrow_timing.take()
+            && let Some(body) = arrow.body.as_function_body_mut()
+        {
+            let timed = TimedBody { fn_id, leading: 1, is_async };
+            timing::wrap_body_with_timing(body, timed, names, ctx);
+        }
     }
 
     fn enter_variable_declaration(

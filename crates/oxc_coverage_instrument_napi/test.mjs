@@ -2870,6 +2870,29 @@ globalThis.__result = {
   console.log('  [PASS] karma instrumenter examples match absolute paths');
 }
 
+// Test: the experimental timing option wraps function bodies and validates sampleEvery
+{
+  const source = 'function add(a, b) { return a + b; }\nfunction* gen() { yield 1; }';
+  const off = instrument(source, 'timing.js').code;
+  assert(!off.includes('__fallow_timing__'), 'timing is off by default');
+
+  const on = instrument(source, 'timing.js', { timing: { sampleEvery: 1 } }).code;
+  assert.equal(on.match(/\} finally \{/g)?.length, 1, 'only the plain function is wrapped');
+  // A local `globalThis` keeps the coverage and timing objects off the real global.
+  const scope = {};
+  assert.equal(new Function('globalThis', `${on}\nreturn add;`)(scope)(2, 3), 5);
+  const entry = scope.__fallow_timing__['timing.js'];
+  assert.equal(entry.sampleEvery, 1, 'sampleEvery is recorded');
+  assert.equal(entry.c[0], 1, 'one timed call');
+
+  assert.throws(
+    () => instrument(source, 'timing.js', { timing: { sampleEvery: 0 } }),
+    /sampleEvery must be 1 or more/,
+    'sampleEvery 0 is rejected',
+  );
+  console.log('  [PASS] timing option wraps function bodies and validates sampleEvery');
+}
+
 // The Babel plugin has its own file; it runs here so that every runner of
 // test.mjs also runs it.
 console.log('');
