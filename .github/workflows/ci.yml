@@ -145,6 +145,10 @@ jobs:
       # manifests, optional dependencies, pack specs, and release targets must
       # also agree before a release.
       - run: ./scripts/check.sh version-sync
+      - name: Comment quality tests
+        run: node --test scripts/check-comment-quality.test.mjs
+      - name: Comment quality
+        run: node scripts/check-comment-quality.mjs --all
 
   audit:
     name: Security Audit

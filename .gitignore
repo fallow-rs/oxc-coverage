@@ -41,7 +41,8 @@ crates/oxc_coverage_instrument_napi/npm/*/wasi-worker-browser.mjs
 crates/oxc_coverage_instrument_napi/node_modules/
 
 # local scratch
-.claude/
+.claude/*
+!.claude/settings.json
 .internal/
 /.plans/
 /.playwright-mcp/
