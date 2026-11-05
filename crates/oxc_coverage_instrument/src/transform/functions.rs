@@ -108,13 +108,14 @@ impl<'arena> CoverageTransform<'_, 'arena> {
     }
 
     /// Prepend the function counter to a body, if the function was registered.
+    /// Returns the `fnMap` id of the counter it emitted.
     pub(super) fn insert_function_counter(
         &mut self,
         body: &mut FunctionBody<'arena>,
         ctx: &TraverseCtx<'arena, CoverageState>,
-    ) {
+    ) -> Option<usize> {
         if self.in_ignored_subtree() {
-            return;
+            return None;
         }
         // Popped unconditionally to stay balanced with `register_function_entry`;
         // only a registered function (`Some`) gets a counter.
@@ -122,7 +123,9 @@ impl<'arena> CoverageTransform<'_, 'arena> {
             let cov_fn = self.cov_fn_name;
             let counter = build_counter_stmt(CounterKind::func(cov_fn, fn_id), ctx);
             body.statements.insert(0, counter);
+            return Some(fn_id);
         }
+        None
     }
 
     /// Register the `fnMap` entry for an arrow, or record that its subtree is

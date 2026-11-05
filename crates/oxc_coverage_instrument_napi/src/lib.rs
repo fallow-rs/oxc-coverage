@@ -209,6 +209,23 @@ pub struct InstrumentOptions {
     ///
     /// Defaults to `false`.
     pub if_consequent_location: Option<bool>,
+    /// Experimental wall-time sampling. When set, each function body that
+    /// gets a function counter, except a generator body, is wrapped in
+    /// `try { .. } finally { .. }`, and one call in `sampleEvery` per
+    /// function is timed. The data goes to
+    /// `globalThis.__fallow_timing__[path]`.
+    ///
+    /// Defaults to unset: no wrap.
+    pub timing: Option<TimingOptions>,
+}
+
+/// Options of the experimental wall-time sampling mode.
+#[napi(object)]
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TimingOptions {
+    /// One call in this many is timed, per function. Must be 1 or more.
+    pub sample_every: u32,
 }
 
 /// Options for `remapCoverageMap` and `remapCoverageMapWithLoader`.
@@ -588,7 +605,17 @@ fn core_instrument_options_from(
         function_identity_overlay: options.function_identity_overlay.unwrap_or(false),
         name_callback_arguments: options.name_callback_arguments.unwrap_or(false),
         if_consequent_location: options.if_consequent_location.unwrap_or(false),
+        timing: options.timing.map(timing_options_from).transpose()?,
     })
+}
+
+fn timing_options_from(
+    timing: TimingOptions,
+) -> napi::Result<oxc_coverage_instrument::TimingOptions> {
+    let sample_every = std::num::NonZeroU32::new(timing.sample_every).ok_or_else(|| {
+        napi::Error::new(napi::Status::InvalidArg, "timing.sampleEvery must be 1 or more")
+    })?;
+    Ok(oxc_coverage_instrument::TimingOptions { sample_every })
 }
 
 #[cfg(test)]
@@ -642,6 +669,7 @@ mod tests {
             function_identity_overlay: None,
             name_callback_arguments: None,
             if_consequent_location: None,
+            timing: None,
         }
     }
 
