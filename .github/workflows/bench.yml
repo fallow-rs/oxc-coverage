@@ -91,7 +91,7 @@ jobs:
           rm target/codspeed/analysis/${{ matrix.package }}/*.d
 
       - name: Run benchmark shard
-        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
+        uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
         with:
           mode: simulation
           run: cargo codspeed run ${{ matrix.bench }}
