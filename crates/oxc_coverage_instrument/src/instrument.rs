@@ -25,8 +25,8 @@ use crate::arrow_body::{PreExpandedArrows, pre_expand_concise_arrow_bodies};
 use crate::coverage_builder::{CoverageMaps, build_file_coverage, build_function_identity_map};
 use crate::pragma::PragmaMap;
 use crate::transform::{
-    CoverageState, CoverageTransform, PreambleInputs, TransformInit, djb31_hex,
-    generate_cov_fn_name, generate_preamble_source,
+    CoverageState, CoverageTransform, PreambleInputs, TimingPreambleInputs, TransformInit,
+    append_timing_helpers, djb31_hex, generate_cov_fn_name, generate_preamble_source,
 };
 
 /// Parser source type supplied explicitly by an embedding host.
@@ -182,6 +182,29 @@ pub struct InstrumentOptions {
     /// The strict Istanbul profile ignores this option. Defaults to `false`,
     /// which keeps the `istanbul-lib-instrument` shape.
     pub if_consequent_location: bool,
+    /// Experimental wall-time sampling. When set, each function body that
+    /// gets a function counter, except a generator body, is wrapped in
+    /// `try { .. } finally { .. }`. One call in
+    /// [`TimingOptions::sample_every`] per function reads the clock at entry
+    /// and at completion. The `finally` clause runs when an async body
+    /// settles, so the time of an async function includes its awaits.
+    ///
+    /// The data goes to `globalThis.__fallow_timing__[path]`:
+    /// `{ path, hash, sampleEvery, unit: "ms", c, s, b }`, where `c[id]` is
+    /// the number of sampled calls of `fnMap` id `id`, `s[id]` their summed
+    /// time in milliseconds, and `b[id]` is `null` or 32 log2 buckets of
+    /// microseconds.
+    ///
+    /// Defaults to `None`: no wrap and no helper.
+    pub timing: Option<TimingOptions>,
+}
+
+/// Options of the experimental wall-time sampling mode. See
+/// [`InstrumentOptions::timing`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimingOptions {
+    /// One call in this many is timed, per function. `1` times every call.
+    pub sample_every: std::num::NonZeroU32,
 }
 
 /// How `strip_typescript` handles decorator syntax.
@@ -260,6 +283,7 @@ impl Default for InstrumentOptions {
             function_identity_overlay: false,
             name_callback_arguments: false,
             if_consequent_location: false,
+            timing: None,
         }
     }
 }
@@ -382,6 +406,13 @@ impl InstrumentOptions {
     #[must_use]
     pub fn with_if_consequent_location(mut self, if_consequent_location: bool) -> Self {
         self.if_consequent_location = if_consequent_location;
+        self
+    }
+
+    /// Set [`InstrumentOptions::timing`].
+    #[must_use]
+    pub const fn with_timing(mut self, timing: Option<TimingOptions>) -> Self {
+        self.timing = timing;
         self
     }
 }
@@ -883,6 +914,7 @@ fn run_coverage_transform<'src, 'arena>(
             && options.compat != Some(CompatProfile::Istanbul),
         // Istanbul gives a private method no fnMap entry.
         record_private_methods: false,
+        timing: options.timing.is_some(),
         pre_expanded_arrows,
         eager_remapper,
     });
@@ -912,6 +944,23 @@ fn build_instrument_preamble(
         report_logic: options.report_logic,
         needs_optional_chain_helper,
     });
+    let preamble = match options.timing {
+        Some(timing) => {
+            let mut preamble = preamble;
+            append_timing_helpers(
+                &mut preamble,
+                &TimingPreambleInputs {
+                    path: &coverage_map.path,
+                    coverage_hash: &coverage_hash,
+                    cov_fn_name,
+                    function_count: coverage_map.fn_map.len(),
+                    sample_every: timing.sample_every.get(),
+                },
+            );
+            preamble
+        }
+        None => preamble,
+    };
     (coverage_json, preamble)
 }
 
@@ -1132,6 +1181,8 @@ pub fn collect_for_v8_to_istanbul(
         // needs its own fnMap entry. Without it, a consumer cannot match that
         // range to the method.
         record_private_methods: true,
+        // V8-collect emits no code, so it has no timing wrap.
+        timing: false,
         // V8-collect parses and traverses in one step, with no strip pass in
         // between, so no arrow body is wrapped ahead of the traverse.
         pre_expanded_arrows: PreExpandedArrows::default(),

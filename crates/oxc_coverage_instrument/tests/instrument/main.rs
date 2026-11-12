@@ -21,6 +21,7 @@ mod pragma;
 mod real_world;
 mod snapshot;
 mod source_maps;
+mod timing;
 mod typescript_direct;
 mod typescript_equivalence;
 mod v8_to_istanbul;
