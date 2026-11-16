@@ -84,11 +84,17 @@ jobs:
       - name: Build benchmark shard
         env:
           RUSTFLAGS: "-C debuginfo=1 -C strip=none -g --cfg codspeed"
+          PACKAGE: ${{ matrix.package }}
+          BENCH: ${{ matrix.bench }}
         run: |
-          cargo build --release -p ${{ matrix.package }} --bench ${{ matrix.bench }} --features codspeed
-          mkdir -p target/codspeed/analysis/${{ matrix.package }}
-          mv target/release/deps/${{ matrix.bench }}-* target/codspeed/analysis/${{ matrix.package }}
-          rm target/codspeed/analysis/${{ matrix.package }}/*.d
+          # Cargo 1.100 puts bench binaries in the build directory, not in
+          # target/release/deps. Take the path from the build output.
+          exe=$(cargo build --release -p "$PACKAGE" --bench "$BENCH" --features codspeed \
+            --message-format=json-render-diagnostics \
+            | jq -r --arg bench "$BENCH" 'select(.reason == "compiler-artifact" and .target.name == $bench and .executable != null) | .executable')
+          test -n "$exe"
+          mkdir -p "target/codspeed/analysis/$PACKAGE"
+          mv "$exe" "target/codspeed/analysis/$PACKAGE/"
 
       - name: Run benchmark shard
         uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f # v5.6.3
