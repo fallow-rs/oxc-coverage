@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794370490498,
+  "lastUpdate": 1794864019145,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "935539412783f9cf34db4d0312b2214eea301ada",
-          "message": "chore: bump oxc_coverage_types to 0.2.1 to resync published docstring\n\ncheck-version-sync.sh --mode=published flagged that types' local src/\ndiverged from the published 0.2.0: commit 8debd7f refined the\nFunctionIdentity docstring (to describe the SHA-256 id formula) without\nbumping types, so docs.rs for 0.2.0 carries the old, inaccurate\nderivation. Bump types 0.2.0 -> 0.2.1 and cascade the five internal\npins so the corrected docstring publishes on the next release.",
-          "timestamp": "2026-06-02T12:19:57+02:00",
-          "tree_id": "df90ccece6b21f4c4fc6c058d5828e2ffefd5786",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/935539412783f9cf34db4d0312b2214eea301ada"
-        },
-        "date": 1780395733861,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86535976,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103413224,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "30ea32a6756f4e3702653d7fcce4c63d83424f06",
+          "message": "chore: move to Rust 1.100.0 (#352)\n\n* chore: move to Rust 1.100.0\n\nSet the rust-toolchain.toml channel to 1.100.0. The coverage job now installs the toolchain through setup-rust, which reads that file. Before, it used moving stable.\n\n* ci(bench): take the bench binary path from the cargo build output\n\nCargo 1.100 puts bench binaries in the build directory, not in target/release/deps. The CodSpeed shard step now reads the executable path from the JSON build output and moves that file.",
+          "timestamp": "2026-11-16T22:17:08+01:00",
+          "tree_id": "c05a5dac78ccd56cef9ad741f70e3f9a9f32fb45",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/30ea32a6756f4e3702653d7fcce4c63d83424f06"
+        },
+        "date": 1794864018403,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103379176,
             "unit": "bytes"
           }
         ]
