@@ -43,6 +43,7 @@ two-face = { workspace = true, optional = true }
 criterion2 = { workspace = true }
 insta = { workspace = true }
 lcov = { workspace = true }
+rayon = { workspace = true }
 tempfile = { workspace = true }
 
 [[bench]]
