@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794864019145,
+  "lastUpdate": 1794931182204,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "5800d27e132992701747c44857ee1ed1580747b1",
-          "message": "fix: composeInputSourceMap no longer emits dangling counters (issue #106)\n\nv0.7.7 made eager composeInputSourceMap drop coverage entries whose\npositions have no source-map mapping (the #105 fix), but only trimmed the\ncoverage data: the instrumented code still incremented those dropped\ncounters. At runtime that ran ++cov.b[id][..] against a pruned slot\n(undefined), throwing TypeError and crashing any app using\ncomposeInputSourceMap (e.g. Vue 3 + Vite E2E).\n\nFix at the AST level (issue #106): in eager mode a coverage point whose\npositions do not remap through the input source map is never instrumented,\nno map entry and no counter, so the runtime coverage object and the\nemitted counters are derived from the same decision and agree by\nconstruction. add_function/add_statement/add_branch/add_branch_path now\nreturn Option and register nothing when a point does not remap; callers\nskip only the counter and continue traversing (nested mappable statements\nare still instrumented). Branches with fixed arm indices (logical /\nbinary / optional-chain / logical-assign) gate at the whole-branch level;\nif / ternary / switch gate per arm with contiguous indices. Compose\nreverts to a plain no-drop remap since the transform now owns the drop.\n\nThe gate is a strict no-op unless composeInputSourceMap is set with a\nusable input map, so all non-eager output is byte-identical.\n\nCompanion oxc_coverage_source_maps gains a public PositionRemapper used by\nthe gate; its predicate mirrors try_remap_position exactly.\n\nCloses #106",
-          "timestamp": "2026-06-02T14:41:17+02:00",
-          "tree_id": "70876e186768e54131f227a755814201ec04b8aa",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/5800d27e132992701747c44857ee1ed1580747b1"
-        },
-        "date": 1780404187758,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85521280,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/30ea32a6756f4e3702653d7fcce4c63d83424f06"
         },
         "date": 1794864018403,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103379176,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c6d0e0f64695e80a98e276664ea62b3eacdb7232",
+          "message": "chore(bench): run the HTML benchmark on the bench thread under CodSpeed (#353)\n\nThe HTML writer fans detail pages out over rayon. Under the CodSpeed CPU\nsimulation, the bench thread waited on a futex for the rayon worker, and\nCodSpeed counted the wait as system call time. Both html_report::write\nbenchmarks then read as dominated by system calls. Under cfg(codspeed),\nthe bench thread is now the only thread of the global pool and runs the\nwork inline.\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-11-17T16:57:53+01:00",
+          "tree_id": "d24275262494b72a972858b115d590aac407cc0d",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/c6d0e0f64695e80a98e276664ea62b3eacdb7232"
+        },
+        "date": 1794931181504,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
