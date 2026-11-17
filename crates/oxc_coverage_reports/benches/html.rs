@@ -104,7 +104,25 @@ fn fixture(file_count: usize, lines: u32) -> (TempDir, TempDir, CoverageMap) {
     (root, output, map)
 }
 
+/// Make the bench thread the only thread of the global rayon pool.
+///
+/// The HTML writer fans detail pages out over rayon. With a separate worker,
+/// the bench thread blocks on a futex until the work is done, and CodSpeed
+/// counts that wait as system call time. The benchmark then reads as
+/// "dominated by system calls", and a change of the wait moves the value.
+/// When the bench thread is the pool, it runs the work inline and never waits.
+#[cfg(codspeed)]
+fn run_rayon_on_bench_thread() {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .use_current_thread()
+        .build_global()
+        .expect("the benchmark builds the global rayon pool first");
+}
+
 fn bench_html(c: &mut Criterion) {
+    #[cfg(codspeed)]
+    run_rayon_on_bench_thread();
     let options = HtmlOptions::default();
     let mut group = c.benchmark_group("html_report");
 
