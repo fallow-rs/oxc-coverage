@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794931182204,
+  "lastUpdate": 1794947791591,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "5417025677c72b4642468351243c9fe6454fe04f",
-          "message": "chore: release v0.7.8",
-          "timestamp": "2026-06-02T14:45:14+02:00",
-          "tree_id": "b7573bce5de75ca8991e76110195f2c7c7cbb6e1",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/5417025677c72b4642468351243c9fe6454fe04f"
-        },
-        "date": 1780404433607,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85528128,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103379176,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f7094dda76266f57cd51271deb111259fab87ae0",
+          "message": "chore(deps): move the srcmap crates to 0.6.0 (#354)\n\nMove srcmap-generator, srcmap-remapping and srcmap-sourcemap from =0.4.0 to =0.6.0. finalize_generated_source_map now calls remap_ref, which composes through a borrowed input map and does not copy it.\n\nsrcmap rejects a map with original column u32::MAX since 0.5.0. The test for that map now expects None, and a new test covers column u32::MAX - 1. A new test pins the composed mappings.",
+          "timestamp": "2026-11-17T21:34:47+01:00",
+          "tree_id": "af23669e6ae53e0e5e42946da58508394d58e3dd",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/f7094dda76266f57cd51271deb111259fab87ae0"
+        },
+        "date": 1794947791072,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103443896,
             "unit": "bytes"
           }
         ]
