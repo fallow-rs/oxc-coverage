@@ -166,7 +166,7 @@ pub fn finalize_generated_source_map(
     };
     let input_sm = prepared_input.map(|prepared| &prepared.sm).or(parsed_input.as_ref());
     if let Some(input_sm) = input_sm {
-        let composed = srcmap_remapping::remap(&output_sm, |_name: &str| Some(input_sm.clone()));
+        let composed = srcmap_remapping::remap_ref(&output_sm, |_name: &str| Some(input_sm));
         return composed.to_json();
     }
 

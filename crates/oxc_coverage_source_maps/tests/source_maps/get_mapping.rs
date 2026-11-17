@@ -105,25 +105,42 @@ fn get_mapping_mappings_only_handles_sparse_huge_original_line() {
 }
 
 #[test]
-fn get_mapping_drops_original_column_that_cannot_advance() {
+fn get_mapping_rejects_original_column_at_u32_max() {
+    // The second segment decodes to original column `u32::MAX`. The source map
+    // decoder rejects a position that does not fit below `u32::MAX`, so the map
+    // is invalid and neither mode remaps the coverage.
     let map = serde_json::from_str(
         r#"{"version":3,"sources":["src/app.ts"],"sourcesContent":["const x = 1;\n"],"names":[],"mappings":"AAAA,KAA+/////H"}"#,
     )
     .expect("source map is valid JSON");
     let fc = single_statement_coverage(map, 1, 0, 1, 6);
 
-    let remapped = remap_coverage_with_options(&fc, RemapOptions { drop_unmapped: true })
-        .expect("malformed mapping is handled without panicking");
-
     assert!(
-        remapped.statement_map.is_empty(),
-        "an original column that cannot advance has no valid exclusive end",
+        remap_coverage_with_options(&fc, RemapOptions { drop_unmapped: true }).is_none(),
+        "drop mode does not remap through an invalid map",
     );
-    assert!(remapped.s.is_empty(), "the dropped statement's counter is removed");
+    assert!(remap_coverage(&fc).is_none(), "default mode does not remap through an invalid map");
+}
 
-    let kept = remap_coverage(&fc).expect("default mode also handles malformed input safely");
-    assert_eq!(kept.statement_map.len(), 1, "default mode retains the generated entry");
-    assert_eq!(kept.s.len(), 1, "default mode retains the aligned counter");
+#[test]
+fn get_mapping_handles_original_column_below_u32_max() {
+    // The end segment maps to the largest original column that the decoder
+    // accepts. No segment follows it, so the end clamps to the line length.
+    let mut generator = SourceMapGenerator::new(Some("intermediate.js".to_string()));
+    let source = generator.add_source(SRC_PATH);
+    generator.set_source_content(source, "const x = 1;\n".to_string());
+    generator.add_mapping(0, 0, source, 0, 0);
+    generator.add_mapping(0, 5, source, 0, u32::MAX - 1);
+    let map = serde_json::from_str(&generator.to_json()).expect("generated source map is valid");
+    let fc = single_statement_coverage(map, 1, 0, 1, 6);
+
+    for options in [RemapOptions { drop_unmapped: true }, RemapOptions::default()] {
+        let remapped =
+            remap_coverage_with_options(&fc, options).expect("the largest valid column remaps");
+        let loc = &remapped.statement_map["0"];
+        assert_eq!((loc.start.line, loc.start.column), (1, 0), "start resolves to orig (1,0)");
+        assert_eq!((loc.end.line, loc.end.column), (1, 12), "end clamps to the line length");
+    }
 }
 
 #[test]

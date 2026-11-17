@@ -78,3 +78,23 @@ fn prepared_map_composes_output_after_generated_line_shift() {
 
     assert_eq!(prepared, raw, "prepared and raw composition paths must remain byte-equal");
 }
+
+#[test]
+fn composed_map_traces_each_segment_to_the_original_source() {
+    // Input map, intermediate line 1: col 0 -> src/app.ts(1,0), col 4 has no
+    // source, col 8 -> src/app.ts(1,8).
+    let input_json = r#"{"version":3,"sources":["src/app.ts"],"sourcesContent":["const a = 1;\n"],"mappings":"AAAA,I,IAAQ","names":[]}"#;
+    // Output map, generated line 1: col 0 -> intermediate(1,0),
+    // col 2 -> intermediate(1,5), col 6 -> intermediate(1,9).
+    let output_json = r#"{"version":3,"sources":["intermediate.js"],"sourcesContent":["const a = 1;\n"],"mappings":"AAAA,EAAK,IAAI","names":[]}"#;
+
+    let composed = finalize_generated_source_map(output_json, None, None, Some(input_json));
+    let composed: serde_json::Value = serde_json::from_str(&composed).expect("composed map parses");
+
+    assert_eq!(composed["sources"], serde_json::json!(["src/app.ts"]));
+    assert_eq!(composed["sourcesContent"], serde_json::json!(["const a = 1;\n"]));
+    // The segment at col 2 lands on the input segment without a source, so it
+    // stays in the result without a source. The mapping at col 0 must not
+    // extend over it.
+    assert_eq!(composed["mappings"], "AAAA,E,IAAQ");
+}
