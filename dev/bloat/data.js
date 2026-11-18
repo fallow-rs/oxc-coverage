@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794947791591,
+  "lastUpdate": 1794975652850,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "8e642d633bf4f4875c01bc35bd034d6fc284aa2c",
-          "message": "ci: commit napi package-lock.json and add fetch-retry .npmrc\n\nThe napi package-lock.json had been gitignored since the #45 workspace\nrestructure (lumped in with the napi dir's genuinely-generated artifacts\nlike index.js / *.wasi.cjs). With no committed lockfile, the release\nmatrix's `npm ci || npm install` always fell through to `npm install`,\nwhich hits the live registry for resolution + download on all seven\nplatform runners. v0.7.8's musl build failed on a transient ECONNRESET\nthere, which skipped the npm publish (recovered via rerun).\n\nCommit the lockfile so `npm ci` takes the deterministic fast path\n(fewer network round-trips), and add an .npmrc with fetch retries +\nbackoff so a transient registry blip is retried instead of failing the\nbuild. The .npmrc carries only fetch tuning; registry auth / OIDC\ntrusted-publishing config stays in the release workflow. The existing\n`npm ci || npm install` steps are unchanged: npm ci now succeeds, with\nnpm install kept as a last-resort fallback.",
-          "timestamp": "2026-06-02T14:57:25+02:00",
-          "tree_id": "43ef871abf8a00d6b7b89ddbf7aad8a616250d66",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/8e642d633bf4f4875c01bc35bd034d6fc284aa2c"
-        },
-        "date": 1780405161518,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 85528128,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/f7094dda76266f57cd51271deb111259fab87ae0"
         },
         "date": 1794947791072,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103443896,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "11a8dcf668dc8ee090710e3eca9862d0ce344283",
+          "message": "chore(deps): bump the napi group with 2 updates (#358)\n\nBumps the napi group with 2 updates: [napi](https://github.com/napi-rs/napi-rs) and [napi-derive](https://github.com/napi-rs/napi-rs).\n\n\nUpdates `napi` from 3.16.1 to 3.16.2\n- [Release notes](https://github.com/napi-rs/napi-rs/releases)\n- [Commits](https://github.com/napi-rs/napi-rs/compare/napi-v3.16.1...napi-v3.16.2)\n\nUpdates `napi-derive` from 3.7.0 to 3.7.1\n- [Release notes](https://github.com/napi-rs/napi-rs/releases)\n- [Commits](https://github.com/napi-rs/napi-rs/compare/napi-derive-v3.7.0...napi-derive-v3.7.1)\n\n---\nupdated-dependencies:\n- dependency-name: napi\n  dependency-version: 3.16.2\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: napi\n- dependency-name: napi-derive\n  dependency-version: 3.7.1\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: napi\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-11-18T04:18:05Z",
+          "tree_id": "4934958732a7d5f278ed1b53f0e6aa35d270877c",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/11a8dcf668dc8ee090710e3eca9862d0ce344283"
+        },
+        "date": 1794975652145,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
