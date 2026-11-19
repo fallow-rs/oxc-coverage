@@ -20,6 +20,9 @@ on:
       package-version:
         description: oxc-coverage-instrument version from npm
         default: '0.18.0'
+      vitest-version:
+        description: Vitest version for every project (empty keeps the pinned version)
+        default: ''
 
 concurrency:
   group: vitest-real-projects-${{ github.ref }}
@@ -52,8 +55,12 @@ jobs:
         env:
           RUNS: ${{ inputs.runs || '3' }}
           PACKAGE_VERSION: ${{ inputs.package-version || '0.18.0' }}
+          VITEST_VERSION: ${{ inputs.vitest-version || '' }}
           OXC_BENCH_PLAYWRIGHT_WITH_DEPS: '1'
-        run: node examples/vitest-real-projects/run.mjs --runs="$RUNS" --package-version="$PACKAGE_VERSION" --markdown=results.md
+        run: |
+          set -- --runs="$RUNS" --package-version="$PACKAGE_VERSION" --markdown=results.md
+          if [ -n "$VITEST_VERSION" ]; then set -- "$@" --vitest-version="$VITEST_VERSION"; fi
+          node examples/vitest-real-projects/run.mjs "$@"
 
       - name: Write the step summary
         if: always()

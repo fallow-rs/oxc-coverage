@@ -19,7 +19,11 @@
 // oxc-coverage-instrument runs must give the same coverage totals.
 //
 // Usage:
-//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0] [--markdown=<file>]
+//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0]
+//     [--vitest-version=5.1.1] [--markdown=<file>]
+//
+// --vitest-version installs that version of `vitest` and of each `@vitest/*`
+// package of the project, in place of the version that the commit pins.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -39,12 +43,13 @@ const STEP_MODES = ['istanbul', OXC_MODE, 'v8'];
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
 const parseArgs = () => {
-  const args = { runs: 3, only: null, packageVersion: '0.18.0', markdown: null };
+  const args = { runs: 3, only: null, packageVersion: '0.18.0', vitestVersion: null, markdown: null };
   for (const arg of process.argv.slice(2)) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'runs') args.runs = Number(value);
     else if (key === 'only') args.only = value.split(',');
     else if (key === 'package-version') args.packageVersion = value;
+    else if (key === 'vitest-version') args.vitestVersion = value;
     else if (key === 'markdown') args.markdown = value;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -76,7 +81,15 @@ const vitestVersion = (project, cwd) => {
   return out.match(/vitest\/(\d+\.\d+\.\d+)/)[1];
 };
 
-const prepare = (project, oxcVersion) => {
+// The `vitest` and `@vitest/*` packages of the project, set to one version, so
+// that the runner, the browser provider, and the coverage providers match.
+const vitestPackages = (cwd, version) => {
+  const manifest = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
+  const names = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
+  return names.filter((name) => name === 'vitest' || name.startsWith('@vitest/')).map((name) => `${name}@${version}`);
+};
+
+const prepare = (project, oxcVersion, vitestOverride) => {
   const cwd = join(WORK_DIR, project.name);
   if (!existsSync(cwd)) {
     run(WORK_DIR, 'git', ['clone', '--quiet', '--filter=blob:none', project.repository, cwd]);
@@ -86,7 +99,7 @@ const prepare = (project, oxcVersion) => {
   const head = run(cwd, 'git', ['rev-parse', 'HEAD'], { quiet: true }).trim();
   if (head !== project.commit) run(cwd, 'git', ['checkout', '--quiet', '--force', project.commit]);
   const stamp = join(cwd, '.coverage-bench-installed');
-  const wanted = `${project.commit} ${oxcVersion}`;
+  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'}`;
   const installed = readFileSync(join(cwd, 'package.json'), 'utf8').includes(`"oxc-coverage-instrument"`);
   if (installed && existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted) return cwd;
 
@@ -95,11 +108,14 @@ const prepare = (project, oxcVersion) => {
   } else {
     pmRun(project, cwd, ['install', '--no-frozen-lockfile']);
   }
-  const version = vitestVersion(project, cwd);
+  const version = vitestOverride ?? vitestVersion(project, cwd);
   const extra = [
-    `@vitest/coverage-istanbul@${version}`,
-    `@vitest/coverage-v8@${version}`,
-    `oxc-coverage-instrument@${oxcVersion}`,
+    ...new Set([
+      ...(vitestOverride ? vitestPackages(cwd, vitestOverride) : []),
+      `@vitest/coverage-istanbul@${version}`,
+      `@vitest/coverage-v8@${version}`,
+      `oxc-coverage-instrument@${oxcVersion}`,
+    ]),
   ];
   if (project.packageManager === 'yarn') {
     pmRun(project, cwd, ['add', '--dev', ...extra]);
@@ -337,7 +353,7 @@ const main = () => {
 
   for (const project of projects.filter((p) => !args.only || args.only.includes(p.name))) {
     process.stderr.write(`\n== ${project.name}\n`);
-    const cwd = prepare(project, args.packageVersion);
+    const cwd = prepare(project, args.packageVersion, args.vitestVersion);
     writeBenchConfig(project, cwd);
     rmSync(join(cwd, '.coverage-bench'), { recursive: true, force: true });
     const version = vitestVersion(project, cwd);

@@ -18,7 +18,7 @@ reports that a CI system reads, and fails the run under a coverage threshold.
 - `rootDir` makes the paths in `lcov` and `cobertura` relative to the
   repository, which most CI services expect.
 
-In this example the `lcov` and `cobertura` reporters are 2.6x to 2.9x faster
+In this example the `lcov` and `cobertura` reporters are 2.5x to 2.6x faster
 than `istanbul-reports`. The `html` report is slower, because it highlights the
 source code when it writes the report. See the benchmarks in the root README.
 
