@@ -1,0 +1,49 @@
+name: Comparison benchmarks (one run)
+
+on:
+  push:
+    branches: [chore/check-benchmark-freshness]
+
+permissions: {}
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-rust
+        with:
+          cache-key: comparison-bench
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+
+      - name: Prepare corpus and build the binding
+        run: |
+          node scripts/prepare-real-world-corpus.mjs
+          npm --prefix crates/oxc_coverage_instrument_napi ci
+          npm --prefix crates/oxc_coverage_instrument_napi run build
+
+      - name: Per-component benchmarks
+        run: node scripts/replacement-benchmarks.mjs --runs=15 --markdown=replacement.md
+
+      - name: Instrumenter comparison
+        run: ./scripts/benchmark-comparison.sh > comparison.txt 2>&1 || (cat comparison.txt; exit 1)
+
+      - name: Job summary
+        run: |
+          { nproc; lscpu | grep 'Model name'; cat replacement.md; echo '```'; cat comparison.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: comparison-bench
+          path: |
+            replacement.md
+            comparison.txt
