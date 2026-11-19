@@ -81,12 +81,17 @@ const vitestVersion = (project, cwd) => {
   return out.match(/vitest\/(\d+\.\d+\.\d+)/)[1];
 };
 
+// These `@vitest/*` packages have their own version numbers, apart from Vitest.
+const SEPARATE_RELEASES = new Set(['@vitest/eslint-plugin']);
+
 // The `vitest` and `@vitest/*` packages of the project, set to one version, so
 // that the runner, the browser provider, and the coverage providers match.
 const vitestPackages = (cwd, version) => {
   const manifest = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
   const names = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-  return names.filter((name) => name === 'vitest' || name.startsWith('@vitest/')).map((name) => `${name}@${version}`);
+  return names
+    .filter((name) => name === 'vitest' || (name.startsWith('@vitest/') && !SEPARATE_RELEASES.has(name)))
+    .map((name) => `${name}@${version}`);
 };
 
 const prepare = (project, oxcVersion, vitestOverride) => {
