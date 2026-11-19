@@ -58,19 +58,19 @@ napi-derive = "3"
 # Upstream oxc: the parser, AST, semantic and codegen halves of the
 # instrumenter. Oxc gives no stability guarantee between minors, so all nine
 # move together on a bump.
-oxc_allocator = "0.157"
-oxc_ast = "0.157"
-oxc_ast_visit = "0.157"
-oxc_codegen = "0.157"
-oxc_parser = "0.157"
-oxc_semantic = "0.157"
-oxc_span = "0.157"
-oxc_syntax = "0.157"
-oxc_transformer = "0.157"
-oxc_traverse = "0.157"
+oxc_allocator = "0.158"
+oxc_ast = "0.158"
+oxc_ast_visit = "0.158"
+oxc_codegen = "0.158"
+oxc_parser = "0.158"
+oxc_semantic = "0.158"
+oxc_span = "0.158"
+oxc_syntax = "0.158"
+oxc_transformer = "0.158"
+oxc_traverse = "0.158"
 # Independent source map decoder, used in tests to read back the maps the
 # instrumenter emits without going through the srcmap crates under test.
-oxc_sourcemap = "9.0"
+oxc_sourcemap = "10.0"
 # Data parallelism for per-file detail-page rendering. Syntect tokenization
 # is CPU-bound; running it across cores keeps emit time linear in
 # wall-clock terms even on large monorepos.
