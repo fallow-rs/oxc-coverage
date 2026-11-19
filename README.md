@@ -72,29 +72,33 @@ exact statement, branch, and function counts. This package replaces the step
 that inserts the counters.
 
 The table shows that step on the test suites of four open-source projects,
-with the setup above (`compat: 'istanbul'`). It was measured on a GitHub-hosted
-runner with a cold Vitest cache, as in CI
+with the setup above (`compat: 'istanbul'`) and Vitest 5.1.1. It was measured on
+2026-11-19 on a GitHub-hosted runner with a cold Vitest cache, as in CI
 ([method and full results](examples/vitest-real-projects/)). The instrumenter
 columns give the time of all Vitest workers together, for all source files of
 the run. The last column gives the time of the whole `vitest run`:
 
-| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup | Whole run |
+| Project | Files instrumented | Vitest 5.1.1 instrumenter | `oxc-coverage-instrument` | Speedup | Whole run |
 |:--|--:|--:|--:|--:|--:|
-| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.5 s | 0.1 s | **13.4x** | 19.4 s → 17.3 s |
-| [hono](https://github.com/honojs/hono) (web framework) | 636 | 11.8 s | 0.9 s | **13.3x** | 29.4 s → 26.3 s |
-| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 4.0 s | 0.5 s | **7.5x** | 37.4 s → 35.1 s |
-| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 5.7 s | 1.0 s | **5.7x** | 197.6 s → 194.3 s |
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 0.2 s | < 0.1 s | **3.9x** | 16.6 s → 16.4 s |
+| [hono](https://github.com/honojs/hono) (web framework) | 636 | 1.2 s | 0.4 s | **3.4x** | 26.8 s → 26.5 s |
+| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 0.6 s | 0.3 s | **2.3x** | 36.0 s → 33.6 s |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 1.0 s | 0.2 s | **3.9x** | 187.2 s → 187.4 s |
 
 The times are rounded; the speedup comes from the unrounded times.
 
 - **The coverage numbers stay the same.** The covered and total counts of
   lines, statements, functions, and branches are equal to those of Vitest's own
   instrumenter in all four projects.
-- **The whole test run gains 2.1 s to 3.3 s.** That is 11% of the run for h3
-  and hono, 6% for date-fns, and 2% for es-toolkit. The workers instrument
-  files at the same time, so the time that you save is less than the sum in
-  the table. The rest of the run (the tests themselves, the coverage
-  collection, and the reports) does not change.
+- **Vitest 5.1 made its own instrumenter much faster.** The instrumentation
+  step now takes about 1 s or less with both instrumenters. In Node.js tests
+  (h3, hono, es-toolkit) the whole run changes by 0.3 s or less, which is less
+  than the difference between two runs.
+- **Browser mode gains the most.** date-fns runs most tests in Chromium. Its
+  whole run is 2.4 s (7%) shorter.
+- **Older Vitest versions gain more.** With Vitest 5.0 and 4.1, the step is
+  5.7x to 13.4x faster and the whole run gains 2.1 s to 3.3 s (see the
+  [earlier results](examples/vitest-real-projects/#vitest-50-and-41)).
 - **Local reruns gain less.** Vitest 5 caches the instrumented files on disk,
   so a rerun with a warm cache skips this step.
 
@@ -185,8 +189,8 @@ Put it in a map before you pass it on:
 each statement, function, and branch. When the tests run the copy, each counter
 adds one each time its code runs.
 
-**Why use it.** This is the slowest step of Istanbul coverage. In Vitest it is
-5.7x to 13.4x faster than Vitest's own instrumenter (see
+**Why use it.** It is 2.3x to 3.9x faster than the instrumenter of Vitest
+5.1, and 5.7x to 13.4x faster than the instrumenter of Vitest 5.0 and 4.1 (see
 [Is it worth it?](#is-it-worth-it)).
 
 **How.** In Vitest, use the setup at the top of this README. In

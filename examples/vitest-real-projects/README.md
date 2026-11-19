@@ -56,19 +56,92 @@ Each project runs in five modes:
   instrumented code. The script deletes the caches before every run, as in a
   CI run. A warm local rerun does not instrument the files again.
 
-Vitest's default instrumenter differs by version. Vitest 5 uses the
-Babel-based `@vitest/istanbul-lib-instrument`; Vitest 4 bundles
-`istanbul-lib-instrument`. Both instrument each file twice: once for the code,
-once more for a source map without the coverage counters.
+Vitest's default instrumenter differs by version. Vitest 5.1 uses
+`@vitest/istanbul-lib-instrument` 2, built on `magic-string` and `rolldown`,
+and instruments each file once. Vitest 5.0 uses the Babel-based
+`@vitest/istanbul-lib-instrument` 1; Vitest 4 bundles
+`istanbul-lib-instrument`. Those two instrument each file twice: once for the
+code, once more for a source map without the coverage counters.
+
+`--vitest-version` sets one Vitest version for all four projects. Without it,
+each project runs the version that its commit pins (the table above).
 
 ## Results
 
 The CI workflow `Vitest real projects` runs this script on a GitHub-hosted
 runner and writes the tables below to its step summary.
 
-Measured in [CI run 40417479338](https://github.com/fallow-rs/oxc-coverage/actions/runs/40417479338) on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 24.21.0, `oxc-coverage-instrument@0.18.0`, 3 cold runs per mode.
+### Vitest 5.1
 
-### Instrumentation
+Measured in [CI run 44514986449](https://github.com/fallow-rs/oxc-coverage/actions/runs/44514986449) on 2026-11-19 on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 26.13.1, Vitest 5.1.1 in all four projects (`--vitest-version=5.1.1`), 3 cold runs per mode. The native binding is `oxc-coverage-instrument@0.20.0`, with the adapter that does not embed the input source maps for Vitest 5.1 (`--adapter`).
+
+#### Instrumentation
+
+Time in the Istanbul provider's transform hook, summed over all files (median):
+
+| Project | Files instrumented | Vitest 5.1.1 instrumenter | `oxc-coverage-instrument` | Speedup |
+|:--|--:|--:|--:|--:|
+| es-toolkit | 802 | 1.0 s | 0.2 s | 3.9x |
+| date-fns | 1061 | 0.6 s | 0.3 s | 2.3x |
+| hono | 636 | 1.2 s | 0.4 s | 3.4x |
+| h3 | 81 | 0.2 s | < 0.1 s | 3.9x |
+
+The times are rounded; the speedup comes from the unrounded times.
+
+#### Steps after the test run
+
+Time in the main Vitest process after the tests (median). The steps are the
+ones under [What the script measures](#what-the-script-measures):
+
+| Project | Provider | Read and merge | Remap | Untested files | Reports | Total |
+|:--|:--|--:|--:|--:|--:|--:|
+| es-toolkit | Istanbul, Vitest's instrumenter | 0.72 s | 0.11 s | 0.27 s | 0.60 s | 1.69 s |
+| es-toolkit | Istanbul, `oxc-coverage-instrument` | 0.73 s | 0.14 s | 0.25 s | 0.60 s | 1.72 s |
+| es-toolkit | V8 | 0.41 s | 0.76 s | 0.12 s | 0.62 s | 1.90 s |
+| date-fns | Istanbul, Vitest's instrumenter | 1.86 s | 0.08 s | 0.00 s | 0.36 s | 2.30 s |
+| date-fns | Istanbul, `oxc-coverage-instrument` | 1.82 s | 0.10 s | 0.00 s | 0.37 s | 2.30 s |
+| date-fns | V8 | 0.08 s | 1.62 s | 0.00 s | 0.37 s | 2.05 s |
+| hono | Istanbul, Vitest's instrumenter | 1.93 s | 0.22 s | 0.00 s | 0.57 s | 2.75 s |
+| hono | Istanbul, `oxc-coverage-instrument` | 1.83 s | 0.31 s | 0.00 s | 0.56 s | 2.69 s |
+| hono | V8 | 0.44 s | 0.95 s | 0.00 s | 0.60 s | 2.01 s |
+| h3 | Istanbul, Vitest's instrumenter | 0.52 s | 0.03 s | 0.02 s | 0.08 s | 0.65 s |
+| h3 | Istanbul, `oxc-coverage-instrument` | 0.51 s | 0.05 s | 0.02 s | 0.08 s | 0.66 s |
+| h3 | V8 | 0.13 s | 0.15 s | 0.01 s | 0.08 s | 0.38 s |
+
+#### Whole test run
+
+Wall time of `vitest run` (median). The coverage overhead is the time above the
+run without coverage:
+
+| Project | Test files | No coverage | Istanbul, Vitest's instrumenter | Istanbul, `oxc-coverage-instrument` | V8 | Overhead, Vitest's instrumenter | Overhead, `oxc-coverage-instrument` |
+|:--|--:|--:|--:|--:|--:|--:|--:|
+| es-toolkit | 720 | 177.6 s | 187.2 s | 187.4 s | 192.5 s | 9.6 s | 9.8 s |
+| date-fns | 267 | 22.1 s | 36.0 s | 33.6 s | 25.5 s | 13.9 s | 11.5 s |
+| hono | 122 | 23.2 s | 26.8 s | 26.5 s | 26.7 s | 3.6 s | 3.3 s |
+| h3 | 70 | 13.7 s | 16.6 s | 16.4 s | 16.1 s | 2.9 s | 2.7 s |
+
+#### What this means
+
+- **Vitest 5.1 closed most of the gap.** It made its instrumenter 5x to 10x
+  faster ([vitest-dev/vitest#11648](https://github.com/vitest-dev/vitest/pull/11648)).
+  `oxc-coverage-instrument` is still 2.3x to 3.9x faster, but the step takes
+  about 1 s or less with both.
+- **In Node.js tests the whole run is the same.** The differences (0.3 s or
+  less, in both directions) are smaller than the difference between two runs.
+- **In browser mode the run is 2.4 s shorter.** date-fns has 17% less coverage
+  overhead (11.5 s against 13.9 s).
+- **The adapter must not embed the input source maps for Vitest 5.1.** Vitest
+  5.1 keeps the maps itself. `oxc-coverage-instrument` 0.20.0 still embedded
+  each map in the coverage of each module. In a
+  [run with that adapter](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604), date-fns
+  was 3.8 s slower than Vitest's own instrumenter, and "Read and merge" was
+  0.14 s to 0.59 s slower in all four projects.
+
+### Vitest 5.0 and 4.1
+
+Measured in [CI run 40417479338](https://github.com/fallow-rs/oxc-coverage/actions/runs/40417479338) on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 24.21.0, `oxc-coverage-instrument@0.18.0`, 3 cold runs per mode. Each project ran the Vitest version that its commit pins (es-toolkit 4.1.10, date-fns 5.0.1, hono 5.0.1, h3 5.0.5).
+
+#### Instrumentation
 
 Time in the Istanbul provider's transform hook, summed over all files (median):
 
@@ -81,7 +154,7 @@ Time in the Istanbul provider's transform hook, summed over all files (median):
 
 The times are rounded; the speedup comes from the unrounded times.
 
-### Steps after the test run
+#### Steps after the test run
 
 Time in the main Vitest process after the tests (median). The test files write
 their coverage to disk; Vitest then reads and merges it, remaps it through the
@@ -110,7 +183,7 @@ instrumentation table above. The remap with `oxc-coverage-instrument` takes
 longer for es-toolkit and hono (0.57 s against 0.35 s, and 0.32 s against
 0.25 s). The cause is not measured yet.
 
-### Whole test run
+#### Whole test run
 
 Wall time of `vitest run` (median). The coverage overhead is the time above the
 run without coverage:
@@ -122,25 +195,7 @@ run without coverage:
 | hono | 122 | 22.9 s | 29.4 s | 26.3 s | 26.7 s | 6.5 s | 3.4 s |
 | h3 | 70 | 14.3 s | 19.4 s | 17.3 s | 16.7 s | 5.1 s | 3.0 s |
 
-### Coverage
-
-The two strict Istanbul runs give the same covered and total counts for lines,
-statements, functions, and branches in all four projects. For example, hono:
-6265/6483 lines, 6495/6720 statements, 1089/1135 functions, and 4112/4408
-branches in both runs. The V8 provider counts a little differently, as usual.
-
-The `oxc-coverage-instrument-default` mode uses the default profile. Against
-Vitest's instrumenter it records more branch entries, mostly optional chains,
-and gives more functions a name:
-
-| Project | Branch entries | Optional-chain entries | Branch paths that no test ran | Functions | Functions without a name | Branch coverage |
-|:--|--:|--:|--:|--:|--:|--:|
-| es-toolkit | 1609 → 1668 | 0 → 59 | 54 → 68 | 1161 | 332 → 274 | 98.4% → 98.0% |
-| date-fns | 776 → 1064 | 0 → 287 | 211 → 254 | 572 | 252 → 45 | 88.4% → 89.4% |
-| hono | 2143 → 2375 | 0 → 176 | 296 → 385 | 1135 | 1055 → 414 | 93.3% → 92.1% |
-| h3 | 1302 → 1491 | 0 → 173 | 195 → 276 | 641 | 268 → 157 | 92.7% → 91.0% |
-
-### What this means
+#### What this means
 
 - **The instrumentation step is 5.7x to 13.4x faster.** That step is where
   `oxc-coverage-instrument` works, and the coverage numbers stay the same.
@@ -167,6 +222,25 @@ and gives more functions a name:
   chains.
 - **A warm rerun gains less.** Vitest 5 caches the instrumented modules on
   disk, so a local rerun skips the instrumentation step.
+
+### Coverage
+
+The two strict Istanbul runs give the same covered and total counts for lines,
+statements, functions, and branches in all four projects, with both Vitest
+versions. For example, hono:
+6265/6483 lines, 6495/6720 statements, 1089/1135 functions, and 4112/4408
+branches in both runs. The V8 provider counts a little differently, as usual.
+
+The `oxc-coverage-instrument-default` mode uses the default profile. Against
+Vitest's instrumenter it records more branch entries, mostly optional chains,
+and gives more functions a name:
+
+| Project | Branch entries | Optional-chain entries | Branch paths that no test ran | Functions | Functions without a name | Branch coverage |
+|:--|--:|--:|--:|--:|--:|--:|
+| es-toolkit | 1609 → 1668 | 0 → 59 | 54 → 68 | 1161 | 332 → 274 | 98.4% → 98.0% |
+| date-fns | 776 → 1064 | 0 → 287 | 211 → 254 | 572 | 252 → 45 | 88.4% → 89.4% |
+| hono | 2143 → 2375 | 0 → 176 | 296 → 385 | 1135 | 1055 → 414 | 93.3% → 92.1% |
+| h3 | 1302 → 1491 | 0 → 173 | 195 → 276 | 641 | 268 → 157 | 92.7% → 91.0% |
 
 ## Run it yourself
 
