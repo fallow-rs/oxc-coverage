@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794975652850,
+  "lastUpdate": 1795076910969,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "1111d69a28fb54f41352df23fb1cc986e0b537bc",
-          "message": "fix: reconcile orphan counters in remap so nyc merge never crashes (#107)\n\n* fix: drop orphan counters in remap so nyc merge never crashes (issue #107)\n\nAn orphan counter, an s/f/b key with no matching statementMap/fnMap/branchMap\nentry, is fatal to istanbul-lib-coverage's CoverageMap.merge: mergeProp iterates\nevery s key, looks up statementMap[key], and keyFromLoc destructures start of the\nundefined entry, throwing \"Cannot destructure property 'start' of 'undefined'\".\nA single orphan anywhere aborts the whole nyc report step.\n\nThe v0.7.8 composeInputSourceMap path cannot itself emit an orphan: the #106\nAST-level gate makes the emitted code, the embedded literal (s = statementMap\nkeys), and the location maps consistent by construction, and compose is a\nno-drop remap (verified by code review plus fuzzing multi-segment and NO_SOURCE\nmaps). A null-valued orphan is the runtime signature of a dangling cov.s[id]++\nagainst a pruned slot (undefined + 1 = NaN, serialized back as null), the\npre-#106 shape, so it reaches our pipeline only via runtime-collected coverage\nfrom an upstream/older instrumenter.\n\nThe remap helpers previously propagated such an orphan unchanged. Now every\nremap exit point reconciles to the Istanbul merge invariant:\n\n- New FileCoverage::prune_orphan_counters() drops s/f/b/bT keys absent from\n  their location maps and keeps the x_fallow_functionMap overlay 1:1 with fnMap.\n- Wired into apply_source_map (after remap/prune) and both map-level None\n  passthrough branches (remap_coverage_map* and SourceMapStore variants), so an\n  already-composed entry with no embedded map is reconciled too.\n\nA no-op on already-consistent coverage; s deserializes null to 0, so a coverage\nobject carrying the exact issue-107 shape ingests and cleans rather than\ncrashing the consumer.\n\nCloses #107\n\n* refactor: count overlay prunes in prune_orphan_counters return (review)\n\nReview CONCERN: the returned count excluded x_fallow_functionMap overlay\nprunes, so a caller using removed>0 as a was-this-dirty signal could get a\nfalse negative when an orphan lived only in the overlay. Count overlay removals\ntoo, so the return is the total orphan entries removed across every map.\n\n* test: add verbatim issue #107 FileCoverage as a regression fixture\n\nThe reporter shared the exact malformed coverage object (names mocked, shape\nverbatim) straight from window.__coverage__: statementMap jumps 2 -> 4 with\ns[\"3\"] = null, while fnMap/branchMap stay consistent. Capture it as a fixture\nand assert (a) the raw shape crashes istanbul-lib-coverage merge, (b)\nremapCoverageMap reconciles it via the passthrough branch (drops only the single\norphan, preserves the other 35 statement counters), and (c) the cleaned object\nmerges without throwing. This is the real-world consumer crash, not a synthetic\nconstruction.",
-          "timestamp": "2026-06-03T10:26:08+02:00",
-          "tree_id": "4374282c6747dba6b6b6db0e9f72656689c5abf8",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/1111d69a28fb54f41352df23fb1cc986e0b537bc"
-        },
-        "date": 1780475272468,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86069448,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103443896,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "69cadad2c6a5758991e0dcae30fd07e5bcc9217d",
+          "message": "chore(deps): bump the oxc group with 11 updates (#357)\n\n* chore(deps): bump the oxc group with 11 updates\n\nBumps the oxc group with 11 updates:\n\n| Package | From | To |\n| --- | --- | --- |\n| [oxc_allocator](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_ast](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_ast_visit](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_codegen](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_parser](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_semantic](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_span](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_syntax](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_transformer](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_traverse](https://github.com/oxc-project/oxc) | `0.157.0` | `0.158.0` |\n| [oxc_sourcemap](https://github.com/oxc-project/oxc-sourcemap) | `9.0.0` | `10.0.0` |\n\n\nUpdates `oxc_allocator` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_ast` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_ast_visit` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_codegen` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_parser` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_semantic` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_span` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_syntax` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_transformer` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_traverse` from 0.157.0 to 0.158.0\n- [Release notes](https://github.com/oxc-project/oxc/releases)\n- [Changelog](https://github.com/oxc-project/oxc/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc/compare/crates_v0.157.0...crates_v0.158.0)\n\nUpdates `oxc_sourcemap` from 9.0.0 to 10.0.0\n- [Release notes](https://github.com/oxc-project/oxc-sourcemap/releases)\n- [Changelog](https://github.com/oxc-project/oxc-sourcemap/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/oxc-project/oxc-sourcemap/compare/v9.0.0...v10.0.0)\n\n---\nupdated-dependencies:\n- dependency-name: oxc_allocator\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_ast\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_ast_visit\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_codegen\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_parser\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_semantic\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_span\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_syntax\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_transformer\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_traverse\n  dependency-version: 0.158.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n  dependency-group: oxc\n- dependency-name: oxc_sourcemap\n  dependency-version: 10.0.0\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n  dependency-group: oxc\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* test(instrument): read nullable sources from oxc_sourcemap 10\n\noxc_sourcemap 10 returns each source as an Option. The composition test\nkeeps only the named sources.\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: fallow-dependabot[bot] <345233803+fallow-dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-11-19T09:26:32+01:00",
+          "tree_id": "6e4a10c6e938bb4a7d8cd4bbf7201258ab761b8e",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/69cadad2c6a5758991e0dcae30fd07e5bcc9217d"
+        },
+        "date": 1795076910458,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103808032,
             "unit": "bytes"
           }
         ]
