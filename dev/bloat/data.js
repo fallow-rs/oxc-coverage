@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795079369506,
+  "lastUpdate": 1795083847603,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "5b413f49faab74e18f21d67862b35062ee685867",
-          "message": "feat(source-maps): resolve remap positions via istanbul getMapping semantics (#112)\n\nremapCoverageMap and instrument(..., { composeInputSourceMap: true }) now\nresolve surviving coverage positions through an istanbul getMapping-equivalent\nrange remap instead of a direct original_position_for lookup, finishing the\ndocumented createSourceMapStore().transformCoverage equivalence the drop\nsemantics already claim.\n\nSource maps carry segments only at token starts, so the old direct lookup (1)\ntruncated exclusive ends backward to the previous segment (a statement covering\nstate.someVeryLongPropertyName1 came back covering only state.) and (2) never\nballooned a span smaller than its enclosing segment (a 1-char arrow decl stayed\n1 char). Both are one root cause: starts now resolve with greatest-lower-bound\nand ends resolve to the next original segment via originalEndPositionFor (or the\nend of the original line). The end-of-line case (istanbul's column: Infinity)\nclamps to the original line's UTF-16 length from sourcesContent, falling back to\nthe rightmost mapped column when content is absent. The degenerate-span branch\nis ported so zero-width spans cannot corrupt keyFromLoc merge dedup.\n\nBehavior change: ends widen to the full token and 1-char decls balloon to their\nenclosing span. Line numbers and coverage percentages are unchanged. Because\nistanbul-lib-coverage keyFromLoc includes columns, pre-upgrade coverage caches\nor artifacts must be flushed before merging with post-upgrade runs, and snapshot\nassertions on exact columns will diff. oxc_coverage_source_maps is bumped to\n0.4.0 to signal the position-shape change to semver-range pinners.\n\nAdds an end-to-end byte-parity test against istanbul-lib-source-maps@5.0.6\n(createSourceMapStore().transformCoverage), the reporter's two concrete cases as\nfixtures, and Rust unit tests for end widening, the 1-char balloon, the\nend-of-line clamp, and the degenerate-span guard.\n\nCloses #111",
-          "timestamp": "2026-06-03T11:45:10+02:00",
-          "tree_id": "7b266f23bc69e21584414fc8233924b7aabd675d",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/5b413f49faab74e18f21d67862b35062ee685867"
-        },
-        "date": 1780480052043,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86428560,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/43082f6a41b79846d50b2f41ad13ae008817e7b9"
         },
         "date": 1795079369089,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103805472,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "85a68342d3da688f05c4793f40ab9dbdbb621e9f",
+          "message": "fix(napi): pin the WASI packages to the emnapi version of the root package (#361)\n\nnapi pre-publish rejects a WASI platform package whose emnapi runtime\nversion differs from the root package. The pins check now finds this\ndrift on every pull request.\n\nSigned-off-by: Bart Waardenburg <bart@waardenburg.dev>",
+          "timestamp": "2026-11-19T11:22:03+01:00",
+          "tree_id": "92ca96fe52e701b34db6471a02149d31d78ee5c1",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/85a68342d3da688f05c4793f40ab9dbdbb621e9f"
+        },
+        "date": 1795083847115,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
