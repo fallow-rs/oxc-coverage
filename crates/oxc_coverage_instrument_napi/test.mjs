@@ -2922,6 +2922,13 @@ globalThis.__result = {
   withProject('5.0.5', () => {
     assert.deepEqual(run(vitestOptions).coverage.inputSourceMap.sources, map.sources, 'Vitest 5.0: map stays embedded');
   });
+  // The 5.1.0 prerelease came before the provider kept the maps.
+  withProject('5.1.0-beta.1', () => {
+    assert(run(vitestOptions).coverage.inputSourceMap, 'Vitest 5.1.0 prerelease: map stays embedded');
+  });
+  withProject('6.0.0-beta.1', () => {
+    assert.equal(run(vitestOptions).coverage.inputSourceMap, undefined, 'Vitest 6.0.0 prerelease: no embedded map');
+  });
   withProject(null, () => {
     assert(run(vitestOptions).coverage.inputSourceMap, 'unknown Vitest version: map stays embedded');
   });

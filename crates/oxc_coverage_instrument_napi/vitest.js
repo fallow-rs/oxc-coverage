@@ -51,10 +51,19 @@ function coverageIstanbulVersion() {
 // so every case that is not certain keeps it.
 function defaultEmbedInputSourceMap(options) {
   if (options.coverageGlobalScope === undefined) return true;
-  const match = /^(\d+)\.(\d+)/.exec(coverageIstanbulVersion() || '');
+  const match = /^(\d+)\.(\d+)\.(\d+)(-)?/.exec(coverageIstanbulVersion() || '');
   if (!match) return true;
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
+  let major = Number(match[1]);
+  let minor = Number(match[2]);
+  // A prerelease of X.Y.0 comes before X.Y.0 and can lack its changes, so it
+  // counts as the minor version before it.
+  if (match[4] && Number(match[3]) === 0) {
+    if (minor > 0) minor -= 1;
+    else {
+      major -= 1;
+      minor = Infinity;
+    }
+  }
   const keepsMaps =
     major > PROVIDER_KEEPS_MAPS.major ||
     (major === PROVIDER_KEEPS_MAPS.major && minor >= PROVIDER_KEEPS_MAPS.minor);
