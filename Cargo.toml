@@ -26,13 +26,13 @@ rust-version = "1.97.0"
 [workspace.dependencies]
 # Suite crates. Path for workspace builds, version so that a `cargo publish`d
 # crate resolves its siblings from crates.io.
-oxc_coverage_instrument = { version = "0.20.0", path = "crates/oxc_coverage_instrument" }
+oxc_coverage_instrument = { version = "0.21.0", path = "crates/oxc_coverage_instrument" }
 oxc_coverage_report = { version = "0.2.7", path = "crates/oxc_coverage_report" }
 # Without default features so a member that cannot carry the html reporter
 # (the WebAssembly binding) does not get it through feature unification.
 # Members that want html enable the `html` feature themselves.
-oxc_coverage_reports = { version = "0.4.5", path = "crates/oxc_coverage_reports", default-features = false }
-oxc_coverage_source_maps = { version = "0.8.2", path = "crates/oxc_coverage_source_maps" }
+oxc_coverage_reports = { version = "0.4.6", path = "crates/oxc_coverage_reports", default-features = false }
+oxc_coverage_source_maps = { version = "0.9.0", path = "crates/oxc_coverage_source_maps" }
 oxc_coverage_types = { version = "0.4.2", path = "crates/oxc_coverage_types" }
 oxc_coverage_v8 = { version = "0.5.0", path = "crates/oxc_coverage_v8" }
 

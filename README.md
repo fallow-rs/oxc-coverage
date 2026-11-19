@@ -390,7 +390,7 @@ needs:
 
 ```toml
 [dependencies]
-oxc_coverage_instrument = "0.20"
+oxc_coverage_instrument = "0.21"
 ```
 
 ```rust
