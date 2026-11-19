@@ -128,6 +128,28 @@ def check_public_npm_versions():
     for name in sorted(set(lock_optional) - set(manifest_optional)):
         failures.append(f"lockfile optional dependency {name} is absent from package.json")
 
+    check_platform_emnapi_versions(manifest)
+
+
+def check_platform_emnapi_versions(manifest):
+    # `napi pre-publish` rejects a WASI platform package whose emnapi runtime
+    # dependencies differ from the root package, after the crates.io publish.
+    root_versions = {
+        **manifest.get("devDependencies", {}),
+        **manifest.get("dependencies", {}),
+    }
+    for path in sorted((napi_dir / "npm").glob("*/package.json")):
+        package = load_json(path)
+        for name, version in sorted(package.get("dependencies", {}).items()):
+            if not (name == "emnapi" or name.startswith("@emnapi/")):
+                continue
+            expected = root_versions.get(name)
+            if version != expected:
+                failures.append(
+                    f'{path.parent.name} platform package dependency {name} "{version}" '
+                    f'!= root package version "{expected}"'
+                )
+
 
 def check_pins():
     # 1. internal version pins == dependency crate's local version

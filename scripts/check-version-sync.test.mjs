@@ -174,6 +174,25 @@ try {
     (lockfile) => { lockfile.packages[optionalPackagePath].version = '0.10.0'; },
     /lockfile package.*darwin-arm64.*version/,
   );
+  const emnapiRoot = makeFixture();
+  mutateJson(emnapiRoot, 'crates/oxc_coverage_instrument_napi/package.json', (manifest) => {
+    manifest.dependencies = { '@emnapi/core': '2.0.0-beta.3' };
+  });
+  writeJson(resolve(emnapiRoot, 'crates/oxc_coverage_instrument_napi/npm/wasm32-wasi/package.json'), {
+    name: '@oxc-coverage-instrument/binding-wasm32-wasi',
+    version: publicVersion,
+    dependencies: { '@emnapi/core': '2.0.0-beta.3' },
+  });
+  assert.equal(runCheck(emnapiRoot).status, 0, 'matching WASI emnapi pins must pass');
+  mutateJson(emnapiRoot, 'crates/oxc_coverage_instrument_napi/npm/wasm32-wasi/package.json', (manifest) => {
+    manifest.dependencies['@emnapi/core'] = '2.0.0-beta.2';
+  });
+  const emnapiResult = runCheck(emnapiRoot);
+  assert.notEqual(emnapiResult.status, 0, 'WASI emnapi pin drift was accepted');
+  assert.match(
+    `${emnapiResult.stdout}\n${emnapiResult.stderr}`,
+    /wasm32-wasi platform package dependency @emnapi\/core "2\.0\.0-beta\.2"/,
+  );
   const syncRoot = makeFixture();
   const syncResult = spawnSync(
     resolve(syncRoot, 'scripts/sync-npm-versions.sh'),
