@@ -23,6 +23,13 @@ on:
       vitest-version:
         description: Vitest version for every project (empty keeps the pinned version)
         default: ''
+      only:
+        description: Comma-separated project names (empty runs all projects)
+        default: ''
+      local-adapter:
+        description: Measure the branch's crates/oxc_coverage_instrument_napi/vitest.js in place of the published adapter
+        type: boolean
+        default: false
 
 concurrency:
   group: vitest-real-projects-${{ github.ref }}
@@ -56,10 +63,14 @@ jobs:
           RUNS: ${{ inputs.runs || '3' }}
           PACKAGE_VERSION: ${{ inputs.package-version || '0.18.0' }}
           VITEST_VERSION: ${{ inputs.vitest-version || '' }}
+          LOCAL_ADAPTER: ${{ inputs.local-adapter && 'true' || '' }}
+          ONLY: ${{ inputs.only || '' }}
           OXC_BENCH_PLAYWRIGHT_WITH_DEPS: '1'
         run: |
           set -- --runs="$RUNS" --package-version="$PACKAGE_VERSION" --markdown=results.md
           if [ -n "$VITEST_VERSION" ]; then set -- "$@" --vitest-version="$VITEST_VERSION"; fi
+          if [ -n "$ONLY" ]; then set -- "$@" --only="$ONLY"; fi
+          if [ -n "$LOCAL_ADAPTER" ]; then set -- "$@" --adapter="$PWD/crates/oxc_coverage_instrument_napi/vitest.js"; fi
           node examples/vitest-real-projects/run.mjs "$@"
 
       - name: Write the step summary

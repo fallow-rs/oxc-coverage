@@ -20,13 +20,16 @@
 //
 // Usage:
 //   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0]
-//     [--vitest-version=5.1.1] [--markdown=<file>]
+//     [--vitest-version=5.1.1] [--adapter=<vitest.js>] [--markdown=<file>]
 //
 // --vitest-version installs that version of `vitest` and of each `@vitest/*`
 // package of the project, in place of the version that the commit pins.
+// --adapter puts that file in place of the installed `oxc-coverage-instrument/vitest`
+// adapter, to measure an adapter change before its release. Yarn Plug'n'Play
+// keeps packages in zip files, so those projects keep the installed adapter.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -43,13 +46,14 @@ const STEP_MODES = ['istanbul', OXC_MODE, 'v8'];
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
 const parseArgs = () => {
-  const args = { runs: 3, only: null, packageVersion: '0.18.0', vitestVersion: null, markdown: null };
+  const args = { runs: 3, only: null, packageVersion: '0.18.0', vitestVersion: null, adapter: null, markdown: null };
   for (const arg of process.argv.slice(2)) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'runs') args.runs = Number(value);
     else if (key === 'only') args.only = value.split(',');
     else if (key === 'package-version') args.packageVersion = value;
     else if (key === 'vitest-version') args.vitestVersion = value;
+    else if (key === 'adapter') args.adapter = value;
     else if (key === 'markdown') args.markdown = value;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -99,7 +103,18 @@ const vitestPackages = (cwd, version) => {
   return packages;
 };
 
-const prepare = (project, oxcVersion, vitestOverride) => {
+// Put `adapter` in place of the installed adapter. The installed file can be a
+// hard link into the package store, so remove it first and do not write
+// through it. Returns false when the project cannot take a local adapter.
+const replaceAdapter = (project, cwd, adapter) => {
+  if (project.packageManager === 'yarn') return false;
+  const installed = join(realpathSync(join(cwd, 'node_modules', 'oxc-coverage-instrument')), 'vitest.js');
+  rmSync(installed);
+  copyFileSync(adapter, installed);
+  return true;
+};
+
+const prepare = (project, oxcVersion, vitestOverride, adapter) => {
   const cwd = join(WORK_DIR, project.name);
   if (!existsSync(cwd)) {
     run(WORK_DIR, 'git', ['clone', '--quiet', '--filter=blob:none', project.repository, cwd]);
@@ -109,7 +124,8 @@ const prepare = (project, oxcVersion, vitestOverride) => {
   const head = run(cwd, 'git', ['rev-parse', 'HEAD'], { quiet: true }).trim();
   if (head !== project.commit) run(cwd, 'git', ['checkout', '--quiet', '--force', project.commit]);
   const stamp = join(cwd, '.coverage-bench-installed');
-  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'}`;
+  // A new stamp makes a run without --adapter install the published adapter again.
+  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'} ${adapter ? 'local-adapter' : 'published-adapter'}`;
   const installed = readFileSync(join(cwd, 'package.json'), 'utf8').includes(`"oxc-coverage-instrument"`);
   if (installed && existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted) return cwd;
 
@@ -363,7 +379,8 @@ const main = () => {
 
   for (const project of projects.filter((p) => !args.only || args.only.includes(p.name))) {
     process.stderr.write(`\n== ${project.name}\n`);
-    const cwd = prepare(project, args.packageVersion, args.vitestVersion);
+    const cwd = prepare(project, args.packageVersion, args.vitestVersion, args.adapter);
+    const localAdapter = args.adapter ? replaceAdapter(project, cwd, args.adapter) : false;
     writeBenchConfig(project, cwd);
     rmSync(join(cwd, '.coverage-bench'), { recursive: true, force: true });
     const version = vitestVersion(project, cwd);
@@ -384,6 +401,7 @@ const main = () => {
     results.push({
       project,
       version,
+      localAdapter,
       wall: Object.fromEntries(
         MODES.map((mode) => [mode, { median: median(pick(mode, 'wall')), min: Math.min(...pick(mode, 'wall')), max: Math.max(...pick(mode, 'wall')) }]),
       ),
@@ -482,6 +500,14 @@ const main = () => {
     if (r.project.note) {
       lines.push('');
       lines.push(`${r.project.name}: ${r.project.note}`);
+    }
+    if (args.adapter) {
+      lines.push('');
+      lines.push(
+        r.localAdapter
+          ? `${r.project.name}: the adapter is \`${args.adapter}\`, in place of the published one.`
+          : `${r.project.name}: Yarn Plug'n'Play keeps the published adapter; this row does not measure \`${args.adapter}\`.`,
+      );
     }
   }
   const output = `${lines.join('\n')}\n`;
