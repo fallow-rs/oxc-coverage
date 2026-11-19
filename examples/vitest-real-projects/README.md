@@ -73,7 +73,7 @@ runner and writes the tables below to its step summary.
 
 ### Vitest 5.1
 
-Measured in [CI run 44514986449](https://github.com/fallow-rs/oxc-coverage/actions/runs/44514986449) on 2026-11-19 on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 26.13.1, Vitest 5.1.1 in all four projects (`--vitest-version=5.1.1`), 3 cold runs per mode. The native binding is `oxc-coverage-instrument@0.20.0`, with the adapter that does not embed the input source maps for Vitest 5.1 (`--adapter`).
+Measured in [CI run 44514986449](https://github.com/fallow-rs/oxc-coverage/actions/runs/44514986449) on 2026-11-19 on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 26.13.1, Vitest 5.1.1 in all four projects (`--vitest-version=5.1.1`), 3 cold runs per mode. The native binding is `oxc-coverage-instrument@0.20.0`, with the adapter that does not embed the input source maps for Vitest 5.1 (`--adapter`). That adapter is from [#363](https://github.com/fallow-rs/oxc-coverage/pull/363) and is not in a release yet.
 
 #### Instrumentation
 
@@ -135,7 +135,9 @@ run without coverage:
   each map in the coverage of each module. In a
   [run with that adapter](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604), date-fns
   was 3.8 s slower than Vitest's own instrumenter, and "Read and merge" was
-  0.14 s to 0.59 s slower in all four projects.
+  0.14 s to 0.59 s slower in all four projects. That run used a runner with
+  another CPU (Intel Xeon 6975P-C), so compare its columns only with each
+  other.
 
 ### Vitest 5.0 and 4.1
 
