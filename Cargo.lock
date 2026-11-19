@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "oxc_coverage_instrument"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "cow-utils",
  "criterion2",
