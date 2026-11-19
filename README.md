@@ -72,29 +72,33 @@ exact statement, branch, and function counts. This package replaces the step
 that inserts the counters.
 
 The table shows that step on the test suites of four open-source projects,
-with the setup above (`compat: 'istanbul'`). It was measured on a GitHub-hosted
-runner with a cold Vitest cache, as in CI
+with the setup above (`compat: 'istanbul'`) and Vitest 5.1.1. It was measured on
+2026-11-19 on a GitHub-hosted runner with a cold Vitest cache, as in CI
 ([method and full results](examples/vitest-real-projects/)). The instrumenter
 columns give the time of all Vitest workers together, for all source files of
 the run. The last column gives the time of the whole `vitest run`:
 
-| Project | Files instrumented | Vitest's instrumenter | `oxc-coverage-instrument` | Speedup | Whole run |
+| Project | Files instrumented | Vitest 5.1.1 instrumenter | `oxc-coverage-instrument` | Speedup | Whole run |
 |:--|--:|--:|--:|--:|--:|
-| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 1.5 s | 0.1 s | **13.4x** | 19.4 s → 17.3 s |
-| [hono](https://github.com/honojs/hono) (web framework) | 636 | 11.8 s | 0.9 s | **13.3x** | 29.4 s → 26.3 s |
-| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 4.0 s | 0.5 s | **7.5x** | 37.4 s → 35.1 s |
-| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 5.7 s | 1.0 s | **5.7x** | 197.6 s → 194.3 s |
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 81 | 0.2 s | < 0.1 s | **3.9x** | 16.6 s → 16.4 s |
+| [hono](https://github.com/honojs/hono) (web framework) | 636 | 1.2 s | 0.4 s | **3.4x** | 26.8 s → 26.5 s |
+| [date-fns](https://github.com/date-fns/date-fns) (date library) | 1061 | 0.6 s | 0.3 s | **2.3x** | 36.0 s → 33.6 s |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 802 | 1.0 s | 0.2 s | **3.9x** | 187.2 s → 187.4 s |
 
 The times are rounded; the speedup comes from the unrounded times.
 
 - **The coverage numbers stay the same.** The covered and total counts of
   lines, statements, functions, and branches are equal to those of Vitest's own
   instrumenter in all four projects.
-- **The whole test run gains 2.1 s to 3.3 s.** That is 11% of the run for h3
-  and hono, 6% for date-fns, and 2% for es-toolkit. The workers instrument
-  files at the same time, so the time that you save is less than the sum in
-  the table. The rest of the run (the tests themselves, the coverage
-  collection, and the reports) does not change.
+- **Vitest 5.1 made its own instrumenter much faster.** The instrumentation
+  step now takes about 1 s or less with both instrumenters. In Node.js tests
+  (h3, hono, es-toolkit) the whole run changes by 0.3 s or less, which is less
+  than the difference between two runs.
+- **Browser mode gains the most.** date-fns runs most tests in Chromium. Its
+  whole run is 2.4 s (7%) shorter.
+- **Older Vitest versions gain more.** With Vitest 5.0 and 4.1, the step is
+  5.7x to 13.4x faster and the whole run gains 2.1 s to 3.3 s (see the
+  [earlier results](examples/vitest-real-projects/#vitest-50-and-41)).
 - **Local reruns gain less.** Vitest 5 caches the instrumented files on disk,
   so a rerun with a warm cache skips this step.
 
@@ -185,8 +189,8 @@ Put it in a map before you pass it on:
 each statement, function, and branch. When the tests run the copy, each counter
 adds one each time its code runs.
 
-**Why use it.** This is the slowest step of Istanbul coverage. In Vitest it is
-5.7x to 13.4x faster than Vitest's own instrumenter (see
+**Why use it.** It is 2.3x to 3.9x faster than the instrumenter of Vitest
+5.1, and 5.7x to 13.4x faster than the instrumenter of Vitest 5.0 and 4.1 (see
 [Is it worth it?](#is-it-worth-it)).
 
 **How.** In Vitest, use the setup at the top of this README. In
@@ -318,7 +322,7 @@ read:
 It does not write `clover`, `json`, `teamcity`, `text-lcov`, or `html-spa`.
 
 **Why use it.** One script writes all the formats from one
-`coverage-final.json`. The `lcov` and `cobertura` reports are 2.6x to 2.9x
+`coverage-final.json`. The `lcov` and `cobertura` reports are 2.5x to 2.6x
 faster than `istanbul-reports`. The `text` reports take about the same time.
 The `html` report is about 32 times slower, because it highlights the source
 code when it writes the pages (see the [benchmarks](#benchmarks-per-component)).
@@ -431,27 +435,28 @@ instrumenter crate, and the CLI binary.
 
 Each part measured on its own, against the package it replaces. Times on the
 five pinned library builds of `scripts/real-world-corpus.json`, in one Node.js
-process, as the median of 7 runs after 2 warm-up runs, from
-`scripts/replacement-benchmarks.mjs`. Measured on 2026-10-24 on an Apple M5
-(macOS, Darwin 25.5), Node.js 24.20.0, with the release build of the native
-binding. The time is the sum over the five files, in milliseconds. A ratio
-above 1 means that `oxc-coverage-instrument` is faster.
+process, as the median of 15 runs after 2 warm-up runs, from
+`scripts/replacement-benchmarks.mjs`. Measured on 2026-11-19 on a GitHub
+Actions `ubuntu-24.04` runner (AMD EPYC 9V74, Linux), Node.js 26.13.1, with the
+release build of the native binding. The time is the sum over the five files,
+in milliseconds. A ratio above 1 means that `oxc-coverage-instrument` is
+faster.
 
 | Stage | Package | Package (ms) | `oxc-coverage-instrument` (ms) | Ratio |
 |:--|:--|--:|--:|--:|
-| Instrument | `istanbul-lib-instrument` 6.0.3 | 1898 | 64 | 29.7x |
-| Instrument | `@vitest/istanbul-lib-instrument` 2.0.0 | 411 | 64 | 6.4x |
-| V8 to Istanbul | `ast-v8-to-istanbul` 1.0.7, with `oxc-parser` | 341 | 88 | 3.9x |
-| V8 to Istanbul | `v8-to-istanbul` 9.3.0 | 33 | 88 | 0.4x |
-| Source-map remap | `istanbul-lib-source-maps` 5.0.6 | 180 | 139 | 1.3x |
-| Source-map remap | `@vitest/istanbul-lib-source-maps` 2.0.0 | 168 | 139 | 1.2x |
-| Summary | `istanbul-lib-coverage` 3.2.2 | 39 | 44 | 0.9x |
-| `text` report | `istanbul-lib-report` 3.0.1 + `istanbul-reports` 3.2.0 | 44 | 41 | 1.1x |
-| `text-summary` report | same | 33 | 35 | 0.9x |
-| `json-summary` report | same | 32 | 36 | 0.9x |
-| `lcov` report | same, as `lcovonly` | 131 | 45 | 2.9x |
-| `cobertura` report | same | 157 | 61 | 2.6x |
-| `html` report | same | 128 | 4112 | 0.03x |
+| Instrument | `istanbul-lib-instrument` 6.0.3 | 4798 | 156 | 30.8x |
+| Instrument | `@vitest/istanbul-lib-instrument` 2.1.0 | 799 | 156 | 5.1x |
+| V8 to Istanbul | `ast-v8-to-istanbul` 1.0.8, with `oxc-parser` | 750 | 162 | 4.6x |
+| V8 to Istanbul | `v8-to-istanbul` 9.3.0 | 64 | 162 | 0.4x |
+| Source-map remap | `istanbul-lib-source-maps` 5.0.6 | 365 | 250 | 1.5x |
+| Source-map remap | `@vitest/istanbul-lib-source-maps` 2.1.0 | 364 | 250 | 1.5x |
+| Summary | `istanbul-lib-coverage` 3.2.2 | 68 | 75 | 0.9x |
+| `text` report | `istanbul-lib-report` 3.0.1 + `istanbul-reports` 3.2.0 | 82 | 71 | 1.2x |
+| `text-summary` report | same | 58 | 64 | 0.9x |
+| `json-summary` report | same | 57 | 64 | 0.9x |
+| `lcov` report | same, as `lcovonly` | 200 | 76 | 2.6x |
+| `cobertura` report | same | 257 | 102 | 2.5x |
+| `html` report | same | 249 | 7939 | 0.03x |
 
 How to read the slower rows:
 
@@ -465,17 +470,18 @@ How to read the slower rows:
   report. The Istanbul `html` report highlights in the browser.
 
 The Vitest fork took the same time as the Istanbul packages for the summary and
-the reports, within about 3%, so the table leaves it out for these rows.
+the reports, within about 4%, so the table leaves it out for these rows.
 
 `scripts/benchmark-comparison.sh` compares the instrumenter with
 `babel-plugin-istanbul` and `swc-plugin-coverage-instrument`. It runs each tool
 and file in its own Node.js process, as the median of 5 runs, and installs the
-current release of each tool. Measured on the same machine and day:
+current release of each tool. Measured on the same runner and day, with
+`@babel/core` 7.29.13 and `@swc/core` 1.16.22:
 
 | Package | Package (ms) | `oxc-coverage-instrument` (ms) | Ratio |
 |:--|--:|--:|--:|
-| `babel-plugin-istanbul` 8.0.0 | 571 | 67 | 8.6x |
-| `swc-plugin-coverage-instrument` 0.0.33 | 880 | 67 | 13.2x |
+| `babel-plugin-istanbul` 8.0.0 | 1526 | 148 | 10.3x |
+| `swc-plugin-coverage-instrument` 0.0.33 | 2654 | 148 | 17.9x |
 
 `swc-plugin-coverage-instrument` runs as WebAssembly inside SWC's plugin
 sandbox, so its time includes that overhead.
@@ -497,32 +503,32 @@ for every file.
 
 | File | KB | `istanbul-lib-instrument` | `@vitest/istanbul-lib-instrument` | `oxc-coverage-instrument` | s/f/b |
 |:--|--:|--:|--:|--:|:--|
-| React 18.2.0 | 107 | 45 | 7.8 | 1.6 | 1194/176/332 |
-| lodash 4.17.21 | 531 | 160 | 35 | 6.5 | 3714/691/1303 |
-| Vue 3.3.4 | 463 | 331 | 67 | 11 | 7799/1157/3117 |
-| D3 7.8.5 | 573 | 523 | 116 | 19 | 11935/2518/2971 |
-| three.js 0.155.0 | 1237 | 839 | 185 | 26 | 20247/2210/4018 |
+| React 18.2.0 | 107 | 106 | 17 | 3.1 | 1194/176/332 |
+| lodash 4.17.21 | 531 | 402 | 74 | 13 | 3714/691/1303 |
+| Vue 3.3.4 | 463 | 876 | 141 | 25 | 7799/1157/3117 |
+| D3 7.8.5 | 573 | 1344 | 225 | 38 | 11935/2518/2971 |
+| three.js 0.155.0 | 1237 | 2070 | 342 | 77 | 20247/2210/4018 |
 
 V8 to Istanbul (ms), on the precise coverage of one run of each build.
 
 | File | V8 functions | `v8-to-istanbul` | `ast-v8-to-istanbul` | `oxc-coverage-instrument` |
 |:--|--:|--:|--:|--:|
-| React 18.2.0 | 133 | 0.8 | 9.3 | 1.3 |
-| lodash 4.17.21 | 611 | 5.1 | 39 | 6.7 |
-| Vue 3.3.4 | 755 | 4.8 | 58 | 13 |
-| D3 7.8.5 | 1620 | 6.0 | 92 | 26 |
-| three.js 0.155.0 | 1775 | 16 | 143 | 41 |
+| React 18.2.0 | 133 | 2.3 | 19 | 2.7 |
+| lodash 4.17.21 | 611 | 10 | 84 | 13 |
+| Vue 3.3.4 | 755 | 8.9 | 121 | 27 |
+| D3 7.8.5 | 1620 | 13 | 197 | 49 |
+| three.js 0.155.0 | 1775 | 30 | 329 | 70 |
 
 Source-map remap (ms), on the coverage of a `@babel/core` build of each file,
 mapped back to the file. All three give the same entry counts.
 
 | File | `istanbul-lib-source-maps` | `@vitest/istanbul-lib-source-maps` | `oxc-coverage-instrument` |
 |:--|--:|--:|--:|
-| React 18.2.0 | 4.0 | 4.2 | 3.1 |
-| lodash 4.17.21 | 17 | 16 | 13 |
-| Vue 3.3.4 | 33 | 34 | 23 |
-| D3 7.8.5 | 51 | 46 | 42 |
-| three.js 0.155.0 | 75 | 68 | 58 |
+| React 18.2.0 | 9.5 | 8.9 | 5.2 |
+| lodash 4.17.21 | 35 | 39 | 24 |
+| Vue 3.3.4 | 68 | 68 | 42 |
+| D3 7.8.5 | 101 | 98 | 76 |
+| three.js 0.155.0 | 151 | 150 | 103 |
 
 </details>
 
@@ -531,7 +537,7 @@ Regenerate these numbers with:
 ```bash
 node scripts/prepare-real-world-corpus.mjs
 npm --prefix crates/oxc_coverage_instrument_napi run build
-node scripts/replacement-benchmarks.mjs
+node scripts/replacement-benchmarks.mjs --runs=15
 ./scripts/benchmark-comparison.sh
 ```
 

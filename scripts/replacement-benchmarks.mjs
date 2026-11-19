@@ -49,13 +49,13 @@ const PACKAGES = {
   'istanbul-lib-report': '3.0.1',
   'istanbul-reports': '3.2.0',
   'v8-to-istanbul': '9.3.0',
-  'ast-v8-to-istanbul': '1.0.7',
-  '@vitest/istanbul-lib-instrument': '2.0.0',
-  '@vitest/istanbul-lib-coverage': '2.0.0',
-  '@vitest/istanbul-lib-source-maps': '2.0.0',
-  '@vitest/istanbul-lib-report': '2.0.0',
-  'oxc-parser': '0.155.0',
-  '@babel/core': '7.29.7',
+  'ast-v8-to-istanbul': '1.0.8',
+  '@vitest/istanbul-lib-instrument': '2.1.0',
+  '@vitest/istanbul-lib-coverage': '2.1.0',
+  '@vitest/istanbul-lib-source-maps': '2.1.0',
+  '@vitest/istanbul-lib-report': '2.1.0',
+  'oxc-parser': '0.159.0',
+  '@babel/core': '8.1.2',
 };
 
 const parseArgs = () => {

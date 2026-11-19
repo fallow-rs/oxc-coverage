@@ -75,6 +75,14 @@ TypeScript without emitting an `inputSourceMap`
 Node 23 and newer with `--experimental-strip-types`). Set `stripTypescript: true`
 to force the strip pass regardless of filename or `inputSourceMap`.
 
+The adapter embeds the input source map in each file coverage, as
+`inputSourceMap`, so that the remap can find it. `@vitest/coverage-istanbul`
+5.1 and newer keep the maps themselves, so the adapter does not embed them
+there. The copy would go into the code of each module and into each coverage
+dump. The adapter finds the version from the current working directory. When
+Vitest runs from another directory than its `root`, set
+`embedInputSourceMap: true` (Vitest 5.0) or `false` (Vitest 5.1 and newer).
+
 See `examples/vitest-typescript/` in the repository for a working project.
 
 ### Legacy decorators

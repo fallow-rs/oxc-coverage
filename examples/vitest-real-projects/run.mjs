@@ -19,7 +19,14 @@
 // oxc-coverage-instrument runs must give the same coverage totals.
 //
 // Usage:
-//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0] [--markdown=<file>]
+//   node examples/vitest-real-projects/run.mjs [--runs=3] [--only=hono] [--package-version=0.18.0]
+//     [--vitest-version=5.1.1] [--adapter=<vitest.js>] [--markdown=<file>]
+//
+// --vitest-version installs that version of `vitest` and of each `@vitest/*`
+// package of the project, in place of the version that the commit pins.
+// --adapter loads that file in place of the installed `oxc-coverage-instrument/vitest`
+// adapter, to measure an adapter change before its release. The installed
+// package does not change; the native binding stays the published one.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -39,12 +46,14 @@ const STEP_MODES = ['istanbul', OXC_MODE, 'v8'];
 const METRICS = ['lines', 'statements', 'functions', 'branches'];
 
 const parseArgs = () => {
-  const args = { runs: 3, only: null, packageVersion: '0.18.0', markdown: null };
+  const args = { runs: 3, only: null, packageVersion: '0.18.0', vitestVersion: null, adapter: null, markdown: null };
   for (const arg of process.argv.slice(2)) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'runs') args.runs = Number(value);
     else if (key === 'only') args.only = value.split(',');
     else if (key === 'package-version') args.packageVersion = value;
+    else if (key === 'vitest-version') args.vitestVersion = value;
+    else if (key === 'adapter') args.adapter = value;
     else if (key === 'markdown') args.markdown = value;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -76,7 +85,46 @@ const vitestVersion = (project, cwd) => {
   return out.match(/vitest\/(\d+\.\d+\.\d+)/)[1];
 };
 
-const prepare = (project, oxcVersion) => {
+// These `@vitest/*` packages have their own version numbers, apart from Vitest.
+const SEPARATE_RELEASES = new Set(['@vitest/eslint-plugin']);
+// The `vite` range for a project that moves from Vitest 4 to Vitest 5.
+const VITE_FOR_OVERRIDE = '^8.0.0';
+
+// The `vitest` and `@vitest/*` packages of the project, set to one version, so
+// that the runner, the browser provider, and the coverage providers match.
+const vitestPackages = (cwd, version) => {
+  const manifest = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
+  const names = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
+  const packages = names
+    .filter((name) => name === 'vitest' || (name.startsWith('@vitest/') && !SEPARATE_RELEASES.has(name)))
+    .map((name) => `${name}@${version}`);
+  // Vitest 5 has `vite` as a peer dependency; Vitest 4 installed it itself.
+  if (!names.includes('vite')) packages.push(`vite@${VITE_FOR_OVERRIDE}`);
+  return packages;
+};
+
+const LOCAL_ADAPTER = '.coverage-bench-adapter.cjs';
+const ADAPTER_BINDING_IMPORT = "require('./index.js')";
+
+// Write a copy of `adapter` into the project that loads the installed native
+// binding. The bench config loads this copy, so the installed package and the
+// package store stay unchanged. Returns the import line for the config. Vite
+// bundles local files that a config imports, so the copy loads at runtime.
+const writeAdapter = (cwd, adapter) => {
+  const target = join(cwd, LOCAL_ADAPTER);
+  if (!adapter) {
+    rmSync(target, { force: true });
+    return "import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';";
+  }
+  const source = readFileSync(adapter, 'utf8');
+  if (source.split(ADAPTER_BINDING_IMPORT).length !== 2) {
+    throw new Error(`${adapter}: expected one ${ADAPTER_BINDING_IMPORT}`);
+  }
+  writeFileSync(target, source.replace(ADAPTER_BINDING_IMPORT, "require('oxc-coverage-instrument')"));
+  return `import { createRequire } from 'node:module';\nconst { createOxcInstrumenter } = createRequire(import.meta.url)('./${LOCAL_ADAPTER}');`;
+};
+
+const prepare = (project, oxcVersion, vitestOverride) => {
   const cwd = join(WORK_DIR, project.name);
   if (!existsSync(cwd)) {
     run(WORK_DIR, 'git', ['clone', '--quiet', '--filter=blob:none', project.repository, cwd]);
@@ -86,7 +134,7 @@ const prepare = (project, oxcVersion) => {
   const head = run(cwd, 'git', ['rev-parse', 'HEAD'], { quiet: true }).trim();
   if (head !== project.commit) run(cwd, 'git', ['checkout', '--quiet', '--force', project.commit]);
   const stamp = join(cwd, '.coverage-bench-installed');
-  const wanted = `${project.commit} ${oxcVersion}`;
+  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'}`;
   const installed = readFileSync(join(cwd, 'package.json'), 'utf8').includes(`"oxc-coverage-instrument"`);
   if (installed && existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted) return cwd;
 
@@ -95,11 +143,14 @@ const prepare = (project, oxcVersion) => {
   } else {
     pmRun(project, cwd, ['install', '--no-frozen-lockfile']);
   }
-  const version = vitestVersion(project, cwd);
+  const version = vitestOverride ?? vitestVersion(project, cwd);
   const extra = [
-    `@vitest/coverage-istanbul@${version}`,
-    `@vitest/coverage-v8@${version}`,
-    `oxc-coverage-instrument@${oxcVersion}`,
+    ...new Set([
+      ...(vitestOverride ? vitestPackages(cwd, vitestOverride) : []),
+      `@vitest/coverage-istanbul@${version}`,
+      `@vitest/coverage-v8@${version}`,
+      `oxc-coverage-instrument@${oxcVersion}`,
+    ]),
   ];
   if (project.packageManager === 'yarn') {
     pmRun(project, cwd, ['add', '--dev', ...extra]);
@@ -124,7 +175,7 @@ const prepare = (project, oxcVersion) => {
 
 // Merge the bench coverage settings into the project's own Vitest config, so
 // its include, exclude, and project setup stay as they are.
-const writeBenchConfig = (project, cwd) => {
+const writeBenchConfig = (project, cwd, adapterImportLine) => {
   writeFileSync(
     join(cwd, BENCH_CONFIG),
     `import { appendFileSync, mkdirSync } from 'node:fs';
@@ -132,7 +183,7 @@ import { performance } from 'node:perf_hooks';
 import { IstanbulCoverageProvider } from '@vitest/coverage-istanbul/dist/provider.js';
 import { V8CoverageProvider } from '@vitest/coverage-v8/dist/provider.js';
 import { coverageConfigDefaults, defineConfig, mergeConfig } from 'vitest/config';
-import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';
+${adapterImportLine}
 import base from './${project.vitestConfig}';
 
 const mode = process.env.OXC_BENCH_MODE ?? 'none';
@@ -337,8 +388,8 @@ const main = () => {
 
   for (const project of projects.filter((p) => !args.only || args.only.includes(p.name))) {
     process.stderr.write(`\n== ${project.name}\n`);
-    const cwd = prepare(project, args.packageVersion);
-    writeBenchConfig(project, cwd);
+    const cwd = prepare(project, args.packageVersion, args.vitestVersion);
+    writeBenchConfig(project, cwd, writeAdapter(cwd, args.adapter));
     rmSync(join(cwd, '.coverage-bench'), { recursive: true, force: true });
     const version = vitestVersion(project, cwd);
     const samples = Object.fromEntries(MODES.map((mode) => [mode, []]));
@@ -381,7 +432,7 @@ const main = () => {
   const range = (w) => `${sec(w.median)} (${w.min.toFixed(1)} to ${w.max.toFixed(1)})`;
   const lines = [];
   lines.push(
-    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.packageVersion}\`, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
+    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.packageVersion}\`${args.adapter ? ` with the adapter \`${args.adapter}\`` : ''}, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
   );
   lines.push('');
   lines.push('Time spent in coverage instrumentation (the Istanbul provider\'s transform hook, summed over all files, median):');
@@ -457,6 +508,7 @@ const main = () => {
       lines.push('');
       lines.push(`${r.project.name}: ${r.project.note}`);
     }
+
   }
   const output = `${lines.join('\n')}\n`;
   process.stdout.write(output);

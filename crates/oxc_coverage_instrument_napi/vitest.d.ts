@@ -52,6 +52,16 @@ export interface OxcInstrumenterOptions {
    */
   stripTypescript?: boolean;
   /**
+   * Embed the input source map in the file coverage, as `inputSourceMap`.
+   * When omitted (default), the adapter embeds it, except when Vitest calls
+   * the factory and the project resolves `@vitest/coverage-istanbul` 5.1 or
+   * newer. Those versions keep the maps themselves and do not need the copy in
+   * each module. The version comes from the current working directory, so set
+   * this option when Vitest runs from another directory than its `root`.
+   * Non-boolean values throw `TypeError`.
+   */
+  embedInputSourceMap?: boolean;
+  /**
    * Lower legacy `experimentalDecorators` syntax into `_decorate(...)` calls.
    * Defaults to false and only applies when the TypeScript strip pass runs.
    * Requires `@oxc-project/runtime` at execution; see the README's "Legacy
