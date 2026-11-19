@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795095193080,
+  "lastUpdate": 1795097389264,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "distinct": true,
-          "id": "f043c9af7efb52b42cb80d290361db68a607d891",
-          "message": "perf: optimize coverage remap and v8 hot paths",
-          "timestamp": "2026-06-03T15:39:05+02:00",
-          "tree_id": "56d1bab29387ab94f801f28d55e3aa30ab738717",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/f043c9af7efb52b42cb80d290361db68a607d891"
-        },
-        "date": 1780495871263,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86445200,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103812680,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bartwaardenburg@gmail.com",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2e80538612dba0d49ab8a9ab05fce691523c81a8",
+          "message": "Merge pull request #364 from fallow-rs/chore/release-v0.21.2\n\nchore: release v0.21.2",
+          "timestamp": "2026-11-19T15:07:24+01:00",
+          "tree_id": "19f3c1f1e8e138433c7d37498e8c6b3b6702be9c",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/2e80538612dba0d49ab8a9ab05fce691523c81a8"
+        },
+        "date": 1795097388328,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103811064,
             "unit": "bytes"
           }
         ]
