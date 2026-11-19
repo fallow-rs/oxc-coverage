@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795076910969,
+  "lastUpdate": 1795079369506,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "d122c107d4465ffbffc1778bea170431976452cf",
-          "message": "feat: add trackOptionalChainBranches option to disable optional-chain branch tracking (#108)\n\n* feat: add trackOptionalChainBranches option to disable ?. branch tracking (issue #108)\n\nin a runtime _oc helper call. That is more complete than istanbul-lib-instrument\n(which leaves ?. native), but it is unconditional and adds per-operand call\noverhead in optional-chain-dense hot paths, and it diverges from istanbul for\nprojects that want byte-comparable reports or gate only on line coverage.\n\nAdd a boolean to opt out, defaulting to true so existing behavior is unchanged:\n\n- Rust: InstrumentOptions::track_optional_chain (default true).\n- napi: InstrumentOptions.trackOptionalChainBranches (default true).\n- vitest adapter: createOxcInstrumenter({ trackOptionalChainBranches }), validated\n  as a strict boolean (an explicit false is honored, not coerced).\n\nWhen false, the three optional-link dispatch points (static member, computed\nmember, call) skip wrap_optional_chain_link, so no optional-chain branch is\nregistered and the _oc helper append self-disables. The chain is left native,\nmatching istanbul: item?.a?.b?.c ?? 0 instruments only the surrounding ??.\nStatement, function, and other branch coverage are unaffected. The flag mirrors\nthe existing report_logic plumbing through TransformInit / CoverageTransform;\nthe v8-collect path keeps tracking on (it only builds location maps).\n\nCloses #108\n\n* refactor: only intern cov_fn_oc_name when optional-chain tracking is on (review)\n\nReview CONCERN: cov_fn_oc_name was interned unconditionally, unlike its sibling\ncov_fn_bt_name which allocates only when report_logic is on. With\ntrack_optional_chain off the string was never referenced. Make it\nOption<&str> gated on track_optional_chain, matching cov_fn_bt_name; the single\nuse site in wrap_optional_chain_link is only reached when tracking is on (gated\nat the three dispatch points), so it expects Some.",
-          "timestamp": "2026-06-03T10:29:38+02:00",
-          "tree_id": "d2cae01ea53b9986a27c8f90ac21c0cc5d76b226",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/d122c107d4465ffbffc1778bea170431976452cf"
-        },
-        "date": 1780475579014,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86072608,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2899,6 +2870,35 @@ window.BENCHMARK_DATA = {
           {
             "name": "Binary Size (oxc-coverage-instrument CLI)",
             "value": 103808032,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bartwaardenburg@gmail.com",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "43082f6a41b79846d50b2f41ad13ae008817e7b9",
+          "message": "chore: release v0.21.0 (#360)\n\nchore: release v0.21.0",
+          "timestamp": "2026-11-19T10:06:50+01:00",
+          "tree_id": "54a960aa8ded93e074db7f65ffead99319905cd9",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/43082f6a41b79846d50b2f41ad13ae008817e7b9"
+        },
+        "date": 1795079369089,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103805472,
             "unit": "bytes"
           }
         ]
