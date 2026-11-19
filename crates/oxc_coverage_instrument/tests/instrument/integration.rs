@@ -983,7 +983,7 @@ fn composed_source_map_resolves_positions_to_original_source() {
     let raw = result.source_map.expect("output source map present");
     let composed = OxcSourceMap::from_json_string(&raw).expect("composed map parses");
 
-    let sources: Vec<String> = composed.get_sources().map(ToString::to_string).collect();
+    let sources: Vec<String> = composed.get_sources().flatten().map(ToString::to_string).collect();
     assert!(
         sources.iter().any(|s| s == "original.ts"),
         "composed map must reference original.ts after composition, got: {sources:?}"
