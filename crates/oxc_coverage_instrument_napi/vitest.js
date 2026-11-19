@@ -17,6 +17,9 @@
 //     }
 //   })
 
+const { readFileSync } = require('node:fs');
+const { createRequire } = require('node:module');
+const { join } = require('node:path');
 const { instrument } = require('./index.js');
 
 // Filename pattern matching exactly the TypeScript extensions Node recognises:
@@ -25,6 +28,38 @@ const { instrument } = require('./index.js');
 // `.ctsx`, which are not real TypeScript extensions. Used for auto-detect;
 // explicit user opt-in/out via the `stripTypescript` option always wins.
 const TS_EXTENSION_REGEX = /\.([mc]ts|tsx?)$/i;
+
+// From this version on, `@vitest/coverage-istanbul` keeps the input source maps
+// itself and gives them to the remap. Its own instrumenter does not embed them
+// (`inputSourceMap: false`). Older versions remap with the embedded map.
+const PROVIDER_KEEPS_MAPS = { major: 5, minor: 1 };
+
+// The version of `@vitest/coverage-istanbul` that the project resolves, or
+// null when it cannot be found.
+function coverageIstanbulVersion() {
+  try {
+    const projectRequire = createRequire(join(process.cwd(), 'package.json'));
+    const manifest = projectRequire.resolve('@vitest/coverage-istanbul/package.json');
+    return JSON.parse(readFileSync(manifest, 'utf8')).version;
+  } catch {
+    return null;
+  }
+}
+
+// Vitest gives `coverageGlobalScope` to the factory; vite-plugin-istanbul and
+// direct callers do not. The embedded map is correct everywhere, only slower,
+// so every case that is not certain keeps it.
+function defaultEmbedInputSourceMap(options) {
+  if (options.coverageGlobalScope === undefined) return true;
+  const match = /^(\d+)\.(\d+)/.exec(coverageIstanbulVersion() || '');
+  if (!match) return true;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const keepsMaps =
+    major > PROVIDER_KEEPS_MAPS.major ||
+    (major === PROVIDER_KEEPS_MAPS.major && minor >= PROVIDER_KEEPS_MAPS.minor);
+  return !keepsMaps;
+}
 
 /**
  * Creates an instrumenter that implements the istanbul-lib-instrument
@@ -113,6 +148,13 @@ function createOxcInstrumenter(options) {
   // the underlying Rust DecoratorMode enum stays unrepresentable-invalid; this
   // adapter is the place to mirror tsconfig ergonomics for vitest users.
   const experimentalDecorators = experimentalDecoratorsRaw || emitDecoratorMetadata;
+  const embedInputSourceMapOverride = options.embedInputSourceMap;
+  if (embedInputSourceMapOverride !== undefined && typeof embedInputSourceMapOverride !== 'boolean') {
+    throw new TypeError(
+      `oxc-coverage-instrument: createOxcInstrumenter({ embedInputSourceMap }) must be a boolean or undefined, got ${typeof embedInputSourceMapOverride}`,
+    );
+  }
+  const embedInputSourceMap = embedInputSourceMapOverride ?? defaultEmbedInputSourceMap(options);
 
   // Raw JSON strings from the last instrument call, parsed lazily on first access.
   let _lastCoverageMapJson = null;
@@ -149,7 +191,8 @@ function createOxcInstrumenter(options) {
         compat,
         coverageVariable,
         sourceMap: true,
-        inputSourceMap: inputSourceMap ? JSON.stringify(inputSourceMap) : undefined,
+        inputSourceMap:
+          inputSourceMap && embedInputSourceMap ? JSON.stringify(inputSourceMap) : undefined,
         reportLogic,
         trackOptionalChainBranches,
         ignoreClassMethods,

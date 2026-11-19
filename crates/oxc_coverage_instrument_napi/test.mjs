@@ -2875,6 +2875,67 @@ globalThis.__result = {
   console.log('  [PASS] karma instrumenter examples match absolute paths');
 }
 
+// Vitest 5.1 keeps the input source maps in the provider and remaps with them,
+// so its own instrumenter does not embed them (`inputSourceMap: false`). The
+// adapter must do the same there: an embedded map goes into the code of each
+// module and into each coverage dump. Vitest 5.0 remaps with the embedded map.
+{
+  const vitestOptions = {
+    coverageVariable: '__VITEST_COVERAGE__',
+    coverageGlobalScope: 'globalThis',
+    coverageGlobalScopeFunc: false,
+    ignoreClassMethods: [],
+  };
+  const sourcesContent = 'export const marker = "sources-content-marker";';
+  const map = { version: 3, sources: ['/p/a.ts'], names: [], mappings: 'AAAA', sourcesContent: [sourcesContent] };
+  const withProject = (coverageIstanbulVersion, fn) => {
+    const dir = mkdtempSync(join(tmpdir(), 'oxc-vitest-version-'));
+    if (coverageIstanbulVersion) {
+      const pkg = join(dir, 'node_modules', '@vitest', 'coverage-istanbul');
+      mkdirSync(pkg, { recursive: true });
+      writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@vitest/coverage-istanbul', version: coverageIstanbulVersion }));
+    }
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      return fn();
+    } finally {
+      process.chdir(cwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const run = (options) => {
+    const instrumenter = createOxcInstrumenter(options);
+    const code = instrumenter.instrumentSync('export const a: number = 1;', '/p/a.ts', map);
+    return { code, coverage: instrumenter.lastFileCoverage() };
+  };
+
+  withProject('5.1.0', () => {
+    const { code, coverage } = run(vitestOptions);
+    assert.equal(coverage.inputSourceMap, undefined, 'Vitest 5.1: no embedded inputSourceMap');
+    assert(!code.includes('sources-content-marker'), 'Vitest 5.1: the code must not carry the input map');
+    assert(code.includes('a: number'), 'a .ts file with a map is not stripped');
+  });
+  withProject('5.2.0-beta.1', () => {
+    assert.equal(run(vitestOptions).coverage.inputSourceMap, undefined, 'Vitest 5.2 prerelease: no embedded map');
+  });
+  withProject('5.0.5', () => {
+    assert.deepEqual(run(vitestOptions).coverage.inputSourceMap.sources, map.sources, 'Vitest 5.0: map stays embedded');
+  });
+  withProject(null, () => {
+    assert(run(vitestOptions).coverage.inputSourceMap, 'unknown Vitest version: map stays embedded');
+  });
+  withProject('5.1.0', () => {
+    assert(run({ compat: 'istanbul' }).coverage.inputSourceMap, 'not called by Vitest (vite-plugin-istanbul): map stays embedded');
+    assert(run({ ...vitestOptions, embedInputSourceMap: true }).coverage.inputSourceMap, 'explicit true wins');
+  });
+  withProject('5.0.5', () => {
+    assert.equal(run({ ...vitestOptions, embedInputSourceMap: false }).coverage.inputSourceMap, undefined, 'explicit false wins');
+  });
+  assert.throws(() => createOxcInstrumenter({ embedInputSourceMap: 'no' }), TypeError);
+  console.log('  [PASS] vitest adapter embeds the input map only where Vitest needs it');
+}
+
 // The Babel plugin has its own file; it runs here so that every runner of
 // test.mjs also runs it.
 console.log('');
