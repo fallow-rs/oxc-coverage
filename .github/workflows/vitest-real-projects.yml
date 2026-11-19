@@ -4,7 +4,7 @@ name: Vitest real projects
 # Istanbul instrumenter and with the oxc-coverage-instrument instrumenter, and
 # writes the timing and coverage tables to the step summary.
 # examples/vitest-real-projects describes the method. It uses the published npm
-# package, so it measures what users install.
+# package, so it measures what users install, unless `local-adapter` is set.
 
 on:
   pull_request:

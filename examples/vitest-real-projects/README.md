@@ -177,12 +177,17 @@ node examples/vitest-real-projects/run.mjs --runs=5
 The script clones the projects into `.bench-tmp/vitest-projects`, installs them
 with their own package manager through `corepack`, and adds
 `@vitest/coverage-istanbul`, `@vitest/coverage-v8`, and
-`oxc-coverage-instrument` at the versions that match. For date-fns it installs
+`oxc-coverage-instrument` at the versions that match the project's Vitest. For date-fns it installs
 the headless Chromium of the project's Playwright version. Options:
 
 - `--runs=<n>`: cold runs per mode (default 3);
 - `--only=hono,h3`: a subset of the projects;
 - `--package-version=<version>`: the `oxc-coverage-instrument` version from npm;
+- `--vitest-version=<version>`: install this version of `vitest` and of each
+  `@vitest/*` package of the project, in place of the pinned version;
+- `--adapter=<file>`: load this `vitest.js` in place of the published adapter,
+  to measure an adapter change before its release. The native binding stays the
+  published one;
 - `--markdown=<file>`: also write the tables to a file.
 
 Close other heavy programs first. A busy machine slows the default instrumenter

@@ -24,12 +24,12 @@
 //
 // --vitest-version installs that version of `vitest` and of each `@vitest/*`
 // package of the project, in place of the version that the commit pins.
-// --adapter puts that file in place of the installed `oxc-coverage-instrument/vitest`
-// adapter, to measure an adapter change before its release. Yarn Plug'n'Play
-// keeps packages in zip files, so those projects keep the installed adapter.
+// --adapter loads that file in place of the installed `oxc-coverage-instrument/vitest`
+// adapter, to measure an adapter change before its release. The installed
+// package does not change; the native binding stays the published one.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -103,18 +103,28 @@ const vitestPackages = (cwd, version) => {
   return packages;
 };
 
-// Put `adapter` in place of the installed adapter. The installed file can be a
-// hard link into the package store, so remove it first and do not write
-// through it. Returns false when the project cannot take a local adapter.
-const replaceAdapter = (project, cwd, adapter) => {
-  if (project.packageManager === 'yarn') return false;
-  const installed = join(realpathSync(join(cwd, 'node_modules', 'oxc-coverage-instrument')), 'vitest.js');
-  rmSync(installed);
-  copyFileSync(adapter, installed);
-  return true;
+const LOCAL_ADAPTER = '.coverage-bench-adapter.cjs';
+const ADAPTER_BINDING_IMPORT = "require('./index.js')";
+
+// Write a copy of `adapter` into the project that loads the installed native
+// binding. The bench config loads this copy, so the installed package and the
+// package store stay unchanged. Returns the import line for the config. Vite
+// bundles local files that a config imports, so the copy loads at runtime.
+const writeAdapter = (cwd, adapter) => {
+  const target = join(cwd, LOCAL_ADAPTER);
+  if (!adapter) {
+    rmSync(target, { force: true });
+    return "import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';";
+  }
+  const source = readFileSync(adapter, 'utf8');
+  if (source.split(ADAPTER_BINDING_IMPORT).length !== 2) {
+    throw new Error(`${adapter}: expected one ${ADAPTER_BINDING_IMPORT}`);
+  }
+  writeFileSync(target, source.replace(ADAPTER_BINDING_IMPORT, "require('oxc-coverage-instrument')"));
+  return `import { createRequire } from 'node:module';\nconst { createOxcInstrumenter } = createRequire(import.meta.url)('./${LOCAL_ADAPTER}');`;
 };
 
-const prepare = (project, oxcVersion, vitestOverride, adapter) => {
+const prepare = (project, oxcVersion, vitestOverride) => {
   const cwd = join(WORK_DIR, project.name);
   if (!existsSync(cwd)) {
     run(WORK_DIR, 'git', ['clone', '--quiet', '--filter=blob:none', project.repository, cwd]);
@@ -124,8 +134,7 @@ const prepare = (project, oxcVersion, vitestOverride, adapter) => {
   const head = run(cwd, 'git', ['rev-parse', 'HEAD'], { quiet: true }).trim();
   if (head !== project.commit) run(cwd, 'git', ['checkout', '--quiet', '--force', project.commit]);
   const stamp = join(cwd, '.coverage-bench-installed');
-  // A new stamp makes a run without --adapter install the published adapter again.
-  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'} ${adapter ? 'local-adapter' : 'published-adapter'}`;
+  const wanted = `${project.commit} ${oxcVersion} ${vitestOverride ?? 'pinned'}`;
   const installed = readFileSync(join(cwd, 'package.json'), 'utf8').includes(`"oxc-coverage-instrument"`);
   if (installed && existsSync(stamp) && readFileSync(stamp, 'utf8') === wanted) return cwd;
 
@@ -166,7 +175,7 @@ const prepare = (project, oxcVersion, vitestOverride, adapter) => {
 
 // Merge the bench coverage settings into the project's own Vitest config, so
 // its include, exclude, and project setup stay as they are.
-const writeBenchConfig = (project, cwd) => {
+const writeBenchConfig = (project, cwd, adapterImportLine) => {
   writeFileSync(
     join(cwd, BENCH_CONFIG),
     `import { appendFileSync, mkdirSync } from 'node:fs';
@@ -174,7 +183,7 @@ import { performance } from 'node:perf_hooks';
 import { IstanbulCoverageProvider } from '@vitest/coverage-istanbul/dist/provider.js';
 import { V8CoverageProvider } from '@vitest/coverage-v8/dist/provider.js';
 import { coverageConfigDefaults, defineConfig, mergeConfig } from 'vitest/config';
-import { createOxcInstrumenter } from 'oxc-coverage-instrument/vitest';
+${adapterImportLine}
 import base from './${project.vitestConfig}';
 
 const mode = process.env.OXC_BENCH_MODE ?? 'none';
@@ -379,9 +388,8 @@ const main = () => {
 
   for (const project of projects.filter((p) => !args.only || args.only.includes(p.name))) {
     process.stderr.write(`\n== ${project.name}\n`);
-    const cwd = prepare(project, args.packageVersion, args.vitestVersion, args.adapter);
-    const localAdapter = args.adapter ? replaceAdapter(project, cwd, args.adapter) : false;
-    writeBenchConfig(project, cwd);
+    const cwd = prepare(project, args.packageVersion, args.vitestVersion);
+    writeBenchConfig(project, cwd, writeAdapter(cwd, args.adapter));
     rmSync(join(cwd, '.coverage-bench'), { recursive: true, force: true });
     const version = vitestVersion(project, cwd);
     const samples = Object.fromEntries(MODES.map((mode) => [mode, []]));
@@ -401,7 +409,6 @@ const main = () => {
     results.push({
       project,
       version,
-      localAdapter,
       wall: Object.fromEntries(
         MODES.map((mode) => [mode, { median: median(pick(mode, 'wall')), min: Math.min(...pick(mode, 'wall')), max: Math.max(...pick(mode, 'wall')) }]),
       ),
@@ -425,7 +432,7 @@ const main = () => {
   const range = (w) => `${sec(w.median)} (${w.min.toFixed(1)} to ${w.max.toFixed(1)})`;
   const lines = [];
   lines.push(
-    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.packageVersion}\`, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
+    `Measured on ${os.cpus()[0].model} (${os.cpus().length} cores), ${os.platform()} ${os.release()}, Node.js ${process.version}, \`oxc-coverage-instrument@${args.packageVersion}\`${args.adapter ? ` with the adapter \`${args.adapter}\`` : ''}, ${args.runs} cold runs per mode (Vitest caches cleared before each run).`,
   );
   lines.push('');
   lines.push('Time spent in coverage instrumentation (the Istanbul provider\'s transform hook, summed over all files, median):');
@@ -501,14 +508,7 @@ const main = () => {
       lines.push('');
       lines.push(`${r.project.name}: ${r.project.note}`);
     }
-    if (args.adapter) {
-      lines.push('');
-      lines.push(
-        r.localAdapter
-          ? `${r.project.name}: the adapter is \`${args.adapter}\`, in place of the published one.`
-          : `${r.project.name}: Yarn Plug'n'Play keeps the published adapter; this row does not measure \`${args.adapter}\`.`,
-      );
-    }
+
   }
   const output = `${lines.join('\n')}\n`;
   process.stdout.write(output);
