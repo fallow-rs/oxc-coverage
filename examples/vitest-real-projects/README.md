@@ -73,7 +73,7 @@ runner and writes the tables below to its step summary.
 
 ### Vitest 5.1
 
-Measured in [CI run 44514986449](https://github.com/fallow-rs/oxc-coverage/actions/runs/44514986449) on 2026-11-19 on a GitHub-hosted runner (Ubuntu 24.04, AMD EPYC 7763, 4 cores), Node.js 26.13.1, Vitest 5.1.1 in all four projects (`--vitest-version=5.1.1`), 3 cold runs per mode. The native binding is `oxc-coverage-instrument@0.20.0`, with the adapter that does not embed the input source maps for Vitest 5.1 (`--adapter`). That adapter is from [#363](https://github.com/fallow-rs/oxc-coverage/pull/363) and is not in a release yet.
+Measured in [CI run 44543640971](https://github.com/fallow-rs/oxc-coverage/actions/runs/44543640971) on 2026-11-19 on a GitHub-hosted runner (Ubuntu 24.04, Intel Xeon Platinum 8573C, 4 cores), Node.js 26.13.1, `oxc-coverage-instrument@0.21.2` from npm, Vitest 5.1.1 in all four projects (`--vitest-version=5.1.1`), 3 cold runs per mode.
 
 #### Instrumentation
 
@@ -81,10 +81,10 @@ Time in the Istanbul provider's transform hook, summed over all files (median):
 
 | Project | Files instrumented | Vitest 5.1.1 instrumenter | `oxc-coverage-instrument` | Speedup |
 |:--|--:|--:|--:|--:|
-| es-toolkit | 802 | 1.0 s | 0.2 s | 3.9x |
-| date-fns | 1061 | 0.6 s | 0.3 s | 2.3x |
-| hono | 636 | 1.2 s | 0.4 s | 3.4x |
-| h3 | 81 | 0.2 s | < 0.1 s | 3.9x |
+| es-toolkit | 802 | 0.8 s | 0.2 s | 3.6x |
+| date-fns | 1061 | 0.6 s | 0.3 s | 2.4x |
+| hono | 636 | 1.1 s | 0.4 s | 3.1x |
+| h3 | 81 | 0.2 s | < 0.1 s | 3.4x |
 
 The times are rounded; the speedup comes from the unrounded times.
 
@@ -95,49 +95,66 @@ ones under [What the script measures](#what-the-script-measures):
 
 | Project | Provider | Read and merge | Remap | Untested files | Reports | Total |
 |:--|:--|--:|--:|--:|--:|--:|
-| es-toolkit | Istanbul, Vitest's instrumenter | 0.72 s | 0.11 s | 0.27 s | 0.60 s | 1.69 s |
-| es-toolkit | Istanbul, `oxc-coverage-instrument` | 0.73 s | 0.14 s | 0.25 s | 0.60 s | 1.72 s |
-| es-toolkit | V8 | 0.41 s | 0.76 s | 0.12 s | 0.62 s | 1.90 s |
-| date-fns | Istanbul, Vitest's instrumenter | 1.86 s | 0.08 s | 0.00 s | 0.36 s | 2.30 s |
-| date-fns | Istanbul, `oxc-coverage-instrument` | 1.82 s | 0.10 s | 0.00 s | 0.37 s | 2.30 s |
-| date-fns | V8 | 0.08 s | 1.62 s | 0.00 s | 0.37 s | 2.05 s |
-| hono | Istanbul, Vitest's instrumenter | 1.93 s | 0.22 s | 0.00 s | 0.57 s | 2.75 s |
-| hono | Istanbul, `oxc-coverage-instrument` | 1.83 s | 0.31 s | 0.00 s | 0.56 s | 2.69 s |
-| hono | V8 | 0.44 s | 0.95 s | 0.00 s | 0.60 s | 2.01 s |
-| h3 | Istanbul, Vitest's instrumenter | 0.52 s | 0.03 s | 0.02 s | 0.08 s | 0.65 s |
-| h3 | Istanbul, `oxc-coverage-instrument` | 0.51 s | 0.05 s | 0.02 s | 0.08 s | 0.66 s |
-| h3 | V8 | 0.13 s | 0.15 s | 0.01 s | 0.08 s | 0.38 s |
+| es-toolkit | Istanbul, Vitest's instrumenter | 0.70 s | 0.10 s | 0.24 s | 0.47 s | 1.52 s |
+| es-toolkit | Istanbul, `oxc-coverage-instrument` | 0.66 s | 0.12 s | 0.21 s | 0.46 s | 1.46 s |
+| es-toolkit | V8 | 0.38 s | 0.67 s | 0.11 s | 0.49 s | 1.65 s |
+| date-fns | Istanbul, Vitest's instrumenter | 1.71 s | 0.07 s | 0.00 s | 0.25 s | 2.03 s |
+| date-fns | Istanbul, `oxc-coverage-instrument` | 1.83 s | 0.09 s | 0.00 s | 0.26 s | 2.17 s |
+| date-fns | V8 | 0.07 s | 1.78 s | 0.00 s | 0.26 s | 2.11 s |
+| hono | Istanbul, Vitest's instrumenter | 1.76 s | 0.20 s | 0.00 s | 0.47 s | 2.43 s |
+| hono | Istanbul, `oxc-coverage-instrument` | 1.76 s | 0.29 s | 0.00 s | 0.48 s | 2.53 s |
+| hono | V8 | 0.60 s | 0.90 s | 0.00 s | 0.49 s | 1.99 s |
+| h3 | Istanbul, Vitest's instrumenter | 0.49 s | 0.03 s | 0.02 s | 0.06 s | 0.60 s |
+| h3 | Istanbul, `oxc-coverage-instrument` | 0.48 s | 0.04 s | 0.02 s | 0.06 s | 0.60 s |
+| h3 | V8 | 0.14 s | 0.14 s | 0.01 s | 0.07 s | 0.36 s |
 
 #### Whole test run
 
-Wall time of `vitest run` (median). The coverage overhead is the time above the
-run without coverage:
+Wall time of `vitest run` (median, with the lowest and highest of the 3 runs).
+The coverage overhead is the time above the run without coverage:
 
 | Project | Test files | No coverage | Istanbul, Vitest's instrumenter | Istanbul, `oxc-coverage-instrument` | V8 | Overhead, Vitest's instrumenter | Overhead, `oxc-coverage-instrument` |
 |:--|--:|--:|--:|--:|--:|--:|--:|
-| es-toolkit | 720 | 177.6 s | 187.2 s | 187.4 s | 192.5 s | 9.6 s | 9.8 s |
-| date-fns | 267 | 22.1 s | 36.0 s | 33.6 s | 25.5 s | 13.9 s | 11.5 s |
-| hono | 122 | 23.2 s | 26.8 s | 26.5 s | 26.7 s | 3.6 s | 3.3 s |
-| h3 | 70 | 13.7 s | 16.6 s | 16.4 s | 16.1 s | 2.9 s | 2.7 s |
+| es-toolkit | 720 | 157.9 s | 165.6 s (165.5 to 165.9) | 165.5 s (165.4 to 165.6) | 170.0 s | 7.7 s | 7.6 s |
+| date-fns | 267 | 21.5 s | 33.4 s (33.3 to 34.0) | 31.1 s (30.3 to 33.7) | 24.7 s | 11.9 s | 9.6 s |
+| hono | 122 | 20.5 s | 23.7 s (23.6 to 23.7) | 23.4 s (23.3 to 23.5) | 23.7 s | 3.2 s | 2.9 s |
+| h3 | 70 | 12.4 s | 15.0 s (15.0 to 15.1) | 14.8 s (14.8 to 14.9) | 14.6 s | 2.6 s | 2.4 s |
 
 #### What this means
 
-- **Vitest 5.1 closed most of the gap.** It made its instrumenter 5x to 10x
-  faster ([vitest-dev/vitest#11648](https://github.com/vitest-dev/vitest/pull/11648)).
-  `oxc-coverage-instrument` is still 2.3x to 3.9x faster, but the step takes
+- **Vitest 5.1 closed most of the gap.** The Vitest PR reports a 5x to 10x
+  faster instrumenter ([vitest-dev/vitest#11648](https://github.com/vitest-dev/vitest/pull/11648)).
+  This page did not measure Vitest 5.0 and 5.1 in the same run.
+  `oxc-coverage-instrument` is still 2.4x to 3.6x faster, but the step takes
   about 1 s or less with both.
-- **In Node.js tests the whole run is the same.** The differences (0.3 s or
-  less, in both directions) are smaller than the difference between two runs.
-- **In browser mode the run is 2.4 s shorter.** date-fns has 17% less coverage
-  overhead (11.5 s against 13.9 s).
-- **The adapter must not embed the input source maps for Vitest 5.1.** Vitest
-  5.1 keeps the maps itself. `oxc-coverage-instrument` 0.20.0 still embedded
-  each map in the coverage of each module. In a
-  [run with that adapter](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604), date-fns
-  was 3.8 s slower than Vitest's own instrumenter, and "Read and merge" was
-  0.14 s to 0.59 s slower in all four projects. That run used a runner with
-  another CPU (Intel Xeon 6975P-C), so compare its columns only with each
-  other.
+- **In Node.js tests the whole run gains little or nothing.** h3 is 0.2 s
+  shorter, and its ranges did not overlap in this run or in the two earlier
+  runs below. hono is 0.3 s shorter here, but its ranges overlapped in the two
+  earlier runs. es-toolkit shows no measurable difference (0.1 s shorter here,
+  0.2 s longer in run 44514986449).
+- **In browser mode the run is about 2.3 s shorter.** date-fns has 19% less
+  coverage overhead (9.6 s against 11.9 s). The runs with
+  `oxc-coverage-instrument` vary more (30.3 s to 33.7 s, against 33.3 s to
+  34.0 s), so the ranges overlap. Two runs with the same adapter before its
+  release, on an AMD EPYC 7763, gave 2.3 s
+  ([44509550534](https://github.com/fallow-rs/oxc-coverage/actions/runs/44509550534),
+  5 runs per mode, ranges overlap) and 2.4 s
+  ([44514986449](https://github.com/fallow-rs/oxc-coverage/actions/runs/44514986449),
+  3 runs per mode, ranges do not overlap).
+- **The steps after the run take about the same time.** The total is within
+  0.14 s of Vitest's instrumenter, in both directions. The largest difference
+  is date-fns, where "Read and merge" is 0.12 s slower (1.83 s against
+  1.71 s); in run 44514986449 it was 0.04 s faster. The remap is a little
+  slower with `oxc-coverage-instrument` in all four projects (for hono, 0.29 s against
+  0.20 s). The cause is not measured yet.
+- **Releases up to 0.21.1 are slower with Vitest 5.1.** They embed the input
+  source map in the coverage of each module, and Vitest 5.1 keeps the maps
+  itself. In a
+  [run with that adapter](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604),
+  date-fns was 3.8 s slower than Vitest's own instrumenter, and "Read and
+  merge" was 0.14 s to 0.59 s slower in all four projects. That run used a
+  runner with another CPU (Intel Xeon 6975P-C), so compare its columns only
+  with each other. 0.21.2 fixes this.
 
 ### Vitest 5.0 and 4.1
 

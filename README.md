@@ -72,40 +72,48 @@ exact statement, branch, and function counts. This package replaces the step
 that inserts the counters.
 
 The table shows the test suites of four open-source projects with Vitest
-5.1.1 and the setup above (`compat: 'istanbul'`). It comes from one CI run on
-2026-11-19: a GitHub-hosted runner (4 cores), a cold Vitest cache before each
-run, and the median of 3 runs per mode
+5.1.1, `oxc-coverage-instrument` 0.21.2 from npm, and the setup above
+(`compat: 'istanbul'`). It comes from one
+[CI run](https://github.com/fallow-rs/oxc-coverage/actions/runs/44543640971)
+on 2026-11-19: a GitHub-hosted runner (4 cores), a cold Vitest cache before
+each run, and the median of 3 runs per mode
 ([method and full results](examples/vitest-real-projects/#vitest-51)).
-
-> **Not in a release yet.** These numbers use the adapter from
-> [#363](https://github.com/fallow-rs/oxc-coverage/pull/363). With the adapter
-> of 0.20.0, the current release, a Vitest 5.1 run was as slow as or slower
-> than with Vitest's own instrumenter in all four projects: date-fns took
-> 3.8 s (13%) longer and h3 0.3 s longer. For hono and es-toolkit the ranges
-> of the runs overlapped
-> ([CI run](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604)).
-> With Vitest 5.1, wait for the next release.
 
 "Instrumentation" is the time of all Vitest workers together in the
 instrumenter step. The other columns are the time of the whole `vitest run`:
 
 | Project | Instrumentation, Vitest 5.1.1 | Instrumentation, `oxc-coverage-instrument` | Run without coverage | Run, Istanbul with Vitest's instrumenter | Run, Istanbul with `oxc-coverage-instrument` | Run, V8 |
 |:--|--:|--:|--:|--:|--:|--:|
-| [h3](https://github.com/unjs/h3) (HTTP framework) | 0.2 s | < 0.1 s | 13.7 s | 16.6 s | 16.4 s | 16.1 s |
-| [hono](https://github.com/honojs/hono) (web framework) | 1.2 s | 0.4 s | 23.2 s | 26.8 s | 26.5 s | 26.7 s |
-| [date-fns](https://github.com/date-fns/date-fns) (date library, browser mode) | 0.6 s | 0.3 s | 22.1 s | 36.0 s | 33.6 s | 25.5 s |
-| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 1.0 s | 0.2 s | 177.6 s | 187.2 s | 187.4 s | 192.5 s |
+| [h3](https://github.com/unjs/h3) (HTTP framework) | 0.2 s | < 0.1 s | 12.4 s | 15.0 s | 14.8 s | 14.6 s |
+| [hono](https://github.com/honojs/hono) (web framework) | 1.1 s | 0.4 s | 20.5 s | 23.7 s | 23.4 s | 23.7 s |
+| [date-fns](https://github.com/date-fns/date-fns) (date library, browser mode) | 0.6 s | 0.3 s | 21.5 s | 33.4 s | 31.1 s | 24.7 s |
+| [es-toolkit](https://github.com/toss/es-toolkit) (utility library) | 0.8 s | 0.2 s | 157.9 s | 165.6 s | 165.5 s | 170.0 s |
 
 - **The coverage numbers stay the same.** The covered and total counts of
   lines, statements, functions, and branches are equal to those of Vitest's own
   instrumenter in all four projects.
-- **In Node.js tests, a Vitest 5.1 run does not get measurably faster.** The
-  instrumentation step is 2.3x to 3.9x faster, but it takes about 1 s or less
-  with both instrumenters. The whole run changes by 0.3 s or less: h3 is 0.2 s
-  shorter, and for hono and es-toolkit the ranges of the 3 runs overlap.
-- **In browser mode, the run is 2.4 s shorter.** For date-fns, the coverage
-  overhead goes from 13.9 s to 11.5 s. The ranges of the 3 runs do not
-  overlap. V8 coverage is faster still (25.5 s), but it works only in Chromium.
+- **In Node.js tests, a Vitest 5.1 run gains little or nothing.** The
+  instrumentation step is 3.1x to 3.6x faster, but it takes about 1 s or less
+  with both instrumenters. h3 is 0.2 s (about 1%) shorter, and its ranges did
+  not overlap in this run or in two earlier runs with the same adapter. hono is
+  0.3 s shorter here, but its ranges overlapped in the two earlier runs.
+  es-toolkit shows no measurable difference (0.1 s shorter here, 0.2 s longer
+  in an earlier run).
+- **In browser mode, the run is about 2.3 s shorter.** For date-fns (2.4x
+  faster instrumentation), the coverage overhead goes from 11.9 s to 9.6 s.
+  The median is clear, but the runs with `oxc-coverage-instrument` vary more
+  (30.3 s to 33.7 s, against 33.3 s to 34.0 s), so the ranges overlap. Two
+  earlier runs with the same adapter, on another CPU, gave 2.3 s and 2.4 s;
+  the ranges overlapped in one of them.
+- **V8 is not always the fastest.** In browser mode it is much faster (24.7 s
+  for date-fns), but it works only in Chromium. Its counts also differ a little
+  from Istanbul's. In the Node.js tests it is
+  0.2 s faster than `oxc-coverage-instrument` for h3, 0.3 s slower for hono,
+  and 4.5 s slower for es-toolkit.
+- **Use 0.21.2 or newer with Vitest 5.1.** Releases up to 0.21.1 embed the
+  input source maps in the coverage of each module. With Vitest 5.1, that made
+  date-fns 3.8 s (13%) slower than Vitest's own instrumenter
+  ([CI run](https://github.com/fallow-rs/oxc-coverage/actions/runs/44496407604)).
 - **Older Vitest versions gain more.** With Vitest 5.0 and 4.1 the step was
   5.7x to 13.4x faster and the whole run 2.1 s to 3.3 s shorter. That
   measurement is from another day, with Node.js 24 and
@@ -113,6 +121,10 @@ instrumenter step. The other columns are the time of the whole `vitest run`:
   ([earlier results](examples/vitest-real-projects/#vitest-50-and-41)).
 - **Local reruns gain less.** Vitest 5 caches the instrumented files on disk,
   so a rerun with a warm cache skips this step.
+- **The projects run with small limits.** hono runs only its `main` project,
+  and 2 of its test files fail in every mode, also without coverage. h3
+  excludes one test file that times out in some runs. See the
+  [notes per project](examples/vitest-real-projects/#notes-per-project).
 
 With Vitest 5.1, the reasons to use this package are the default profile (next
 section), browser-mode runs, and the tools that still use
@@ -211,8 +223,10 @@ adds one each time its code runs.
 
 **Why use it.** On its own, it is about 30x faster than
 `istanbul-lib-instrument`, which Karma, `babel-plugin-istanbul`, and
-`vite-plugin-istanbul` use. In Vitest it is
-2.3x to 3.9x faster than the instrumenter of Vitest 5.1 and 5.7x to 13.4x
+`vite-plugin-istanbul` use, and about 10x faster than a Babel transform with
+`babel-plugin-istanbul`. A full Babel build gains much less, because Babel still
+parses and prints the code (see [Benchmarks per component](#benchmarks-per-component)). In Vitest it is
+2.4x to 3.6x faster than the instrumenter of Vitest 5.1 and 5.7x to 13.4x
 faster than that of Vitest 5.0 and 4.1. With Vitest 5.1 that step takes about
 1 s or less, so a run in Node.js gains little (see
 [Is it worth it?](#is-it-worth-it)).
