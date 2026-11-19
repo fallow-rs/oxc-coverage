@@ -1,37 +1,8 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795085066020,
+  "lastUpdate": 1795095193080,
   "repoUrl": "https://github.com/fallow-rs/oxc-coverage",
   "entries": {
     "oxc-coverage-instrument Binary Size": [
-      {
-        "commit": {
-          "author": {
-            "email": "bart@waardenburg.dev",
-            "name": "Bart Waardenburg",
-            "username": "BartWaardenburg"
-          },
-          "committer": {
-            "email": "noreply@github.com",
-            "name": "GitHub",
-            "username": "web-flow"
-          },
-          "distinct": true,
-          "id": "2f4740f757b3fcefe4ce5f63ee124d4cd8a2f70c",
-          "message": "test(napi): real @babel/core-emitted map in getMapping parity harness (#113)\n\nThe #111 byte-parity test previously remapped only hand-built (@jridgewell/gen-mapping)\nmaps through both istanbul-lib-source-maps and us. Hand-built maps do not reproduce the\nsegment density, column shifts, and sourcesContent shape a real transpiler emits, which\nis exactly where the truncation #111 fixed bites.\n\nAdds a case that runs a real @babel/core transform (an inline rename plugin shortens long\nidentifiers, collapsing member chains and shifting columns so exclusive ends land between\nsegments), emits a real source map with sourcesContent, instruments the output, and remaps\nthrough both istanbul transformCoverage and remapCoverageMap, asserting the surviving spans\nmatch column-by-column plus at least one widened multi-column statement span. parityCheck is\nrefactored to share a compareRemap core with the new case. @babel/core is promoted from a\ntransitive to a declared devDependency.",
-          "timestamp": "2026-06-03T12:48:38+02:00",
-          "tree_id": "45c7a363d61bbb2bdfadf0aa5f0d7418ab185de3",
-          "url": "https://github.com/fallow-rs/oxc-coverage-instrument/commit/2f4740f757b3fcefe4ce5f63ee124d4cd8a2f70c"
-        },
-        "date": 1780483899518,
-        "tool": "customSmallerIsBetter",
-        "benches": [
-          {
-            "name": "Binary Size (oxc-coverage-instrument CLI)",
-            "value": 86445200,
-            "unit": "bytes"
-          }
-        ]
-      },
       {
         "commit": {
           "author": {
@@ -2894,6 +2865,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/fallow-rs/oxc-coverage/commit/8d690bdff95bd6ed042c5de312a63740dd7c4bcd"
         },
         "date": 1795085065247,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Binary Size (oxc-coverage-instrument CLI)",
+            "value": 103812680,
+            "unit": "bytes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bart@waardenburg.dev",
+            "name": "Bart Waardenburg",
+            "username": "BartWaardenburg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8b68f2880e7ac1a8a4721282aa5dbf9f31311f92",
+          "message": "fix(vitest): do not embed the input source map for Vitest 5.1 (#363)\n\n* chore(bench): move the comparison packages to their latest versions\n\n* chore(bench): let the Vitest project benchmark set the Vitest version\n\n* chore(bench): keep the separately released Vitest packages at their version\n\n* chore(bench): add vite when a project moves to Vitest 5\n\n* fix(vitest): do not embed the input source map for Vitest 5.1 and newer\n\n@vitest/coverage-istanbul 5.1 keeps the input source maps in the provider\nand remaps with them. The adapter still embedded each map, with its\nsourcesContent, in the file coverage. That copy went into the code of each\nmodule and into each coverage dump, which made browser-mode runs slower.\n\nThe adapter now embeds the map only when Vitest 5.0 or an unknown caller\nneeds it. The new embedInputSourceMap option overrides the detection.\n\n* chore(bench): measure a local adapter and a subset of the Vitest projects\n\n* fix(vitest): keep the input map for a prerelease before Vitest 5.1.0\n\n* chore(bench): load a local adapter from a copy in the project\n\n* docs: measure the Vitest projects with Vitest 5.1.1",
+          "timestamp": "2026-11-19T14:31:09+01:00",
+          "tree_id": "33f67641bde6e920137036cd267b91e3919afc38",
+          "url": "https://github.com/fallow-rs/oxc-coverage/commit/8b68f2880e7ac1a8a4721282aa5dbf9f31311f92"
+        },
+        "date": 1795095192087,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
