@@ -83,15 +83,20 @@ const vitestVersion = (project, cwd) => {
 
 // These `@vitest/*` packages have their own version numbers, apart from Vitest.
 const SEPARATE_RELEASES = new Set(['@vitest/eslint-plugin']);
+// The `vite` range for a project that moves from Vitest 4 to Vitest 5.
+const VITE_FOR_OVERRIDE = '^8.0.0';
 
 // The `vitest` and `@vitest/*` packages of the project, set to one version, so
 // that the runner, the browser provider, and the coverage providers match.
 const vitestPackages = (cwd, version) => {
   const manifest = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
   const names = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-  return names
+  const packages = names
     .filter((name) => name === 'vitest' || (name.startsWith('@vitest/') && !SEPARATE_RELEASES.has(name)))
     .map((name) => `${name}@${version}`);
+  // Vitest 5 has `vite` as a peer dependency; Vitest 4 installed it itself.
+  if (!names.includes('vite')) packages.push(`vite@${VITE_FOR_OVERRIDE}`);
+  return packages;
 };
 
 const prepare = (project, oxcVersion, vitestOverride) => {
